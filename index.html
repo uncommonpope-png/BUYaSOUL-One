@@ -2073,6 +2073,7 @@
         window.__GENESIS_KERNEL = (typeof window.__GENESIS_KERNEL === 'boolean') ? window.__GENESIS_KERNEL : false;
         window.__GENESIS_ENTITY_REGISTRY = (typeof window.__GENESIS_ENTITY_REGISTRY === 'boolean') ? window.__GENESIS_ENTITY_REGISTRY : false;
         window.__GENESIS_SCHEDULER = (typeof window.__GENESIS_SCHEDULER === 'boolean') ? window.__GENESIS_SCHEDULER : false;
+        window.__GENESIS_AGENT_GATEWAY = (typeof window.__GENESIS_AGENT_GATEWAY === 'boolean') ? window.__GENESIS_AGENT_GATEWAY : true;  // Step 1 proper: flag ON = the body is present, not dormant
         (function () {
             if (window.__GENESIS_KERNEL === true) {
                 import('./src/genesis/kernel.js').then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Kernel validated (foundation scaffold).'); }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Kernel load skipped:', e && e.message); });
@@ -2084,6 +2085,9 @@
                 import('./src/genesis/scheduler.js').then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Engine Scheduler validated (foundation scaffold).'); }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Engine Scheduler load skipped:', e && e.message); });
             }
         })();
+            if (window.__GENESIS_AGENT_GATEWAY === true) {
+                import('./src/genesis/agent-gateway.js').then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Agent Gateway validated (Layer D host stub).'); }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Agent Gateway load skipped:', e && e.message); });
+            }
 
         window.__GENESIS_VERTICAL_STACK = (typeof window.__GENESIS_VERTICAL_STACK === 'boolean') ? window.__GENESIS_VERTICAL_STACK : true;
         (function () {
