@@ -28,6 +28,16 @@
     try { if (typeof window !== 'undefined' && window.GenesisCommandVocab) Vocab = window.GenesisCommandVocab; } catch (_) {}
     if (!Vocab && typeof require !== 'undefined') { try { Vocab = require('./command-vocab'); } catch (_) {} }
 
+    // SOUL-GUNS (wired, not required): ResourcePool (scarcity) + ReactionRules
+    // (consequence). Both offline-safe — if absent, commands stay cost-free and
+    // no reactions fire. Gated by their own flags so they're reversible.
+    let ResourcePool = null;
+    try { if (typeof window !== 'undefined' && window.GenesisResourcePool) ResourcePool = window.GenesisResourcePool; } catch (_) {}
+    if (!ResourcePool && typeof require !== 'undefined') { try { ResourcePool = require('./resource-pool'); } catch (_) {} }
+    let ReactionRules = null;
+    try { if (typeof window !== 'undefined' && window.GenesisReactionRules) ReactionRules = window.GenesisReactionRules; } catch (_) {}
+    if (!ReactionRules && typeof require !== 'undefined') { try { ReactionRules = require('./reaction-rules'); } catch (_) {} }
+
     let ws = null;
     let status = 'idle';          // idle | connecting | connected | offline | error
     let endpoint = '';
@@ -198,7 +208,8 @@
           if (filter.kind && typeof Registry.find === 'function') return { ok:true, count:-1, entities: Registry.find(filter.kind) };
           if (filter.tag && typeof Registry.queryByTag === 'function') return { ok:true, count:-1, entities: Registry.queryByTag(filter.tag) };
         }
-        return { ok:true, count: Registry.count(), entities: Registry.snapshot() };
+        return { ok:true, count: Registry.count(), entities: Registry.snapshot(),
+          pool: (ResourcePool && ResourcePool.get(AGENT_SCHEME)) ? ResourcePool.get(AGENT_SCHEME) : null };
       } catch (e) {
         return { ok:false, error:(e&&e.message)||'observe-failed' };
       }
@@ -216,6 +227,12 @@
         const rec = (Registry && typeof Registry.get === 'function') ? Registry.get(cmd.id) : null;
         if (!rec) return { ok:false, error:'no-entity:' + cmd.id };
         if (rec.owner && rec.owner !== AGENT_SCHEME) return { ok:false, error:'protected-entity:' + rec.owner };
+      }
+      // SOUL-GUN Central Constraint Gate: pay the action's cost from the agent's
+      // own pool (scarcity). Engine owns the pool; the soul decides the amount.
+      // CASCADE: an over-draw is rejected, never negative. GSK must pace.
+      if (ResourcePool && typeof cmd.cost === 'number' && cmd.cost > 0) {
+        if (!ResourcePool.spend(AGENT_SCHEME, cmd.cost)) return { ok:false, error:'insufficient-energy' };
       }
       return { ok:true };
     }
@@ -241,13 +258,32 @@
       if (status === 'offline' || status === 'error') {
         if (reconnectAt && Date.now() >= reconnectAt) { reconnectAt = 0; connect(); }
       }
+      // Passive stamina regen (one tick of recovery) — Elden Ring cadence.
+      if (ResourcePool) { try { ResourcePool.regen(AGENT_SCHEME); } catch (_) {} }
       let ran = 0, errs = 0;
       while (commandQueue.length) {
         const cmd = commandQueue.shift();
-        const c = criticReview(cmd);   // ULTRA REVIEW
+        const c = criticReview(cmd);   // ULTRA REVIEW (+ cost gate)
         if (!c.ok) { rejected++; if (lastResults.length >= 32) lastResults.shift(); lastResults.push({ ok:false, error:c.error, op:cmd.op }); continue; }
         const r = applyCommand(cmd);
-        if (r.ok) { ran++; applied++; if (r.op === 'spawn') recordBuilt(r.id, (cmd && cmd.kind) || 'agent-entity'); }
+        if (r.ok) {
+          ran++; applied++;
+          if (r.op === 'spawn') recordBuilt(r.id, (cmd && cmd.kind) || 'agent-entity');
+          // SOUL-GUN World Reaction Layer: the world notices GSK's act. The engine
+          // decides the reaction (rule-driven) — GSK cannot script it. Consequence,
+          // not fluff. CASCADE: reactions obey the same protected-entity boundary.
+          if (ReactionRules && r.op === 'spawn' && r.id) {
+            try {
+              const Registry = (Genesis && Genesis.EntityRegistry) ? Genesis.EntityRegistry : null;
+              const world = (Registry && typeof Registry.snapshot === 'function') ? Registry.snapshot() : [];
+              const entity = (Registry && typeof Registry.get === 'function') ? Registry.get(r.id) : null;
+              const fired = ReactionRules.evaluate(world, AGENT_SCHEME, entity);
+              if (fired && fired.length) {
+                for (const f of fired) emit('genesis:agent:reaction', { actor: AGENT_SCHEME, id: r.id, rule: f.rule, desc: f.desc });
+              }
+            } catch (_) {}
+          }
+        }
         else { errs++; }
         if (lastResults.length >= 32) lastResults.shift();
         lastResults.push(r);
@@ -338,6 +374,26 @@
     };
 
     Genesis.AgentGateway = Gateway;
+
+    // SOUL-GUNS: ensure the pool + reaction systems exist (self-install if not
+    // already loaded by index.html), then seed ONE default consequence rule so
+    // GSK's acts are never fluff. Offline-safe: rule is declarative + engine-owned.
+    try { if (ResourcePool && typeof ResourcePool.install === 'function') ResourcePool.install(Genesis); } catch (_) {}
+    try { if (ReactionRules && typeof ReactionRules.install === 'function') ReactionRules.install(Genesis); } catch (_) {}
+    try {
+      if (ReactionRules && typeof ReactionRules.addRule === 'function') {
+        // Default: when GSK spawns a "light" entity, any "building" in the world
+        // lights up (consequence -> the world visibly answers him). Engine decides.
+        ReactionRules.addRule('light-answers-building',
+          (ctx) => !!(ctx.entity && ctx.entity.kind === 'light') && Array.isArray(ctx.world) && ctx.world.some((e) => e.kind === 'building'),
+          (ctx) => {
+            const Registry = ctx.Registry;
+            const b = (Registry && typeof Registry.find === 'function') ? Registry.find('building') : null;
+            if (Array.isArray(b)) for (const e of b) { if (e && e.meta) e.meta.litBy = (ctx.entity && ctx.entity.id) || null; }
+            return { kind: 'building-lit', by: (ctx.entity && ctx.entity.id) || null };
+          });
+      }
+    } catch (_) {}
 
     // Register the agent + drive per-frame health + command-drain via EngineScheduler.
     try { Gateway.registerAgent(); } catch (_) {}

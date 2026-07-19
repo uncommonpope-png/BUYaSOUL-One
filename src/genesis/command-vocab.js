@@ -26,16 +26,20 @@
       const kind = typeof raw.kind === 'string' ? raw.kind.slice(0, 64) : 'agent-entity';
       const pos = raw.pos;
       if (pos && !(isNum(pos.x) && isNum(pos.y) && isNum(pos.z))) return { ok:false, error:'bad-pos' };
-      return { ok:true, cmd:{ op, kind, owner: raw.owner || 'agent://gsk', tags: Array.isArray(raw.tags) ? raw.tags.slice(0, 16) : ['gsk-controlled'], meta: raw.meta || {}, pos: pos ? { x:pos.x, y:pos.y, z:pos.z } : null, obj: raw.obj || null } };
+      // SOUL-GUN Central Constraint Gate: optional action cost (scarcity), bounded.
+      const cost = (typeof raw.cost === 'number' && raw.cost >= 0 && raw.cost <= 1e6) ? Math.floor(raw.cost) : 0;
+      return { ok:true, cmd:{ op, kind, owner: raw.owner || 'agent://gsk', tags: Array.isArray(raw.tags) ? raw.tags.slice(0, 16) : ['gsk-controlled'], meta: raw.meta || {}, pos: pos ? { x:pos.x, y:pos.y, z:pos.z } : null, obj: raw.obj || null, cost } };
     }
     if (op === OP.MOVE) {
       const id = safeId(raw.id); if (!id) return { ok:false, error:'bad-id' };
       const pos = raw.pos; if (!pos || !(isNum(pos.x) && isNum(pos.y) && isNum(pos.z))) return { ok:false, error:'bad-pos' };
-      return { ok:true, cmd:{ op, id, pos:{ x:pos.x, y:pos.y, z:pos.z } } };
+      const cost = (typeof raw.cost === 'number' && raw.cost >= 0 && raw.cost <= 1e6) ? Math.floor(raw.cost) : 0;
+      return { ok:true, cmd:{ op, id, pos:{ x:pos.x, y:pos.y, z:pos.z }, cost } };
     }
     if (op === OP.DELETE) {
       const id = safeId(raw.id); if (!id) return { ok:false, error:'bad-id' };
-      return { ok:true, cmd:{ op, id } };
+      const cost = (typeof raw.cost === 'number' && raw.cost >= 0 && raw.cost <= 1e6) ? Math.floor(raw.cost) : 0;
+      return { ok:true, cmd:{ op, id, cost } };
     }
     if (op === OP.OBSERVE) {
       const filter = {};

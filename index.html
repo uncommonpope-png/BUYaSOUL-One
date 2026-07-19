@@ -2076,6 +2076,7 @@
         window.__GENESIS_AGENT_GATEWAY = (typeof window.__GENESIS_AGENT_GATEWAY === 'boolean') ? window.__GENESIS_AGENT_GATEWAY : true;  // Step 1 proper: flag ON = the body is present, not dormant
         window.__GENESIS_SCRIBE_GATEWAY = (typeof window.__GENESIS_SCRIBE_GATEWAY === 'boolean') ? window.__GENESIS_SCRIBE_GATEWAY : true;  // C2: Scribe lives in the engine (GSK's best friend), same spine
         window.__GENESIS_AGENT_CITIZENS = (typeof window.__GENESIS_AGENT_CITIZENS === 'boolean') ? window.__GENESIS_AGENT_CITIZENS : true;  // C3: agent-citizen FACTORY — Allie/ARIA/subagents as native inhabitants (Dark City model)
+        window.__GENESIS_INTERACTION = (typeof window.__GENESIS_INTERACTION === 'boolean') ? window.__GENESIS_INTERACTION : true;  // C4-INTERACTION: living clickable world — click citizens to talk, ambient greetings, speech bubbles
         (function () {
             if (window.__GENESIS_KERNEL === true) {
                 import('./src/genesis/kernel.js').then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Kernel validated (foundation scaffold).'); }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Kernel load skipped:', e && e.message); });
@@ -2092,6 +2093,12 @@
                     .then(() => import('./src/genesis/command-vocab.js'))
                     .then((m) => { if (m && m.Vocab) window.__agentVocab = m.Vocab; if (typeof console !== 'undefined') console.log('[Genesis] Command vocab validated.'); })
                     .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Command vocab load skipped:', e && e.message); })
+                    .then(() => import('./src/genesis/resource-pool.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Resource pool (Central Constraint Gate) loaded.'); })
+                    .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Resource pool load skipped:', e && e.message); })
+                    .then(() => import('./src/genesis/reaction-rules.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Reaction rules (World Reaction Layer) loaded.'); })
+                    .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Reaction rules load skipped:', e && e.message); })
                     .then(() => import('./src/genesis/agent-gateway.js'))
                     .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Agent Gateway validated (Layer D host stub).'); })
                     .then(() => import('./src/genesis/immortality.js'))
@@ -2146,6 +2153,12 @@
                         } catch (e) { if (typeof console !== 'undefined') console.warn('[Genesis] C3 citizen spawn skipped:', e && e.message); }
                     })
                     .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Agent Citizen load skipped:', e && e.message); });
+            }
+            if (window.__GENESIS_INTERACTION === true) {
+                Promise.resolve()
+                    .then(() => import('./src/genesis/interaction-system.js'))
+                    .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis, window.THREE); if (typeof console !== 'undefined') console.log('[Genesis] Interaction System validated (C4: living clickable world).'); })
+                    .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Interaction System load skipped:', e && e.message); });
             }
 
         window.__GENESIS_VERTICAL_STACK = (typeof window.__GENESIS_VERTICAL_STACK === 'boolean') ? window.__GENESIS_VERTICAL_STACK : true;
