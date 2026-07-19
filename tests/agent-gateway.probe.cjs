@@ -167,4 +167,91 @@ check('Step1 channels: dispatch queues, ingest pipes to panel (no cross-talk)', 
   }
 });
 
+// 11. Step 2 command vocabulary: validate schema (CASCADE surface).
+check('Step2 vocab: unknown op / bad pos / bad id rejected; valid spawn+learn pass', () => {
+  const Vocab = require(path.join(__dirname, '..', 'src', 'genesis', 'command-vocab.js'));
+  assert.ok(Vocab && Vocab.validate, 'vocab missing');
+  assert.strictEqual(Vocab.validate({ op:'fly' }).ok, false, 'unknown op must fail');
+  assert.strictEqual(Vocab.validate({ op:'move', id:'x', pos:{x:1,y:NaN,z:0} }).ok, false, 'NaN pos must fail');
+  assert.strictEqual(Vocab.validate({ op:'delete', id:'bad id!!' }).ok, false, 'bad id must fail');
+  assert.strictEqual(Vocab.validate({ op:'spawn', kind:'angel', pos:{x:1,y:2,z:3} }).ok, true, 'valid spawn must pass');
+  assert.strictEqual(Vocab.validate({ op:'learn', text:'study persistence' }).ok, true, 'valid learn must pass');
+});
+
+// 12. Step 2 CASCADE ingress: gateway.dispatch rejects invalid op (never queued).
+check('Step2 ingress CASCADE: invalid op rejected, not queued', () => {
+  const G = load();
+  const r = G.AgentGateway.dispatch({ op:'fly' });
+  assert.strictEqual(r.ok, false, 'invalid op must be rejected at ingress');
+  assert.strictEqual(G.AgentGateway.summary().queued, 0, 'invalid op must NOT be queued');
+  assert.strictEqual(G.AgentGateway.rejected(), 1, 'rejection must be counted');
+});
+
+// 13. Step 2 e2e (local-loop WS): thought -> panel + {op:spawn} -> EntityRegistry.
+check('Step2 e2e (local-loop WS): thought->panel + {op:spawn}->entity', () => {
+  const FakeWS = class {
+    constructor(url){ this.url = url; this.readyState = 0; global.__lastWs = this; }
+    send(){} close(){ this.readyState = 3; }
+  };
+  const prevWS = global.WebSocket;
+  const got = [];
+  const reg = { m:new Map(), seq:0,
+    register(o,opts){ const id='ent_'+(++this.seq); this.m.set(id,{id,obj:o||null,owner:(opts&&opts.owner)||'world',tags:(opts&&opts.tags)||[],kind:(opts&&opts.kind)||'x'}); return id; },
+    resolve(id){ return this.m.get(id)||null; },
+    unregister(id){ return this.m.delete(id); },
+    get(id){ return this.m.get(id)||null; },
+    count(){ return this.m.size; }, snapshot(){ return Array.from(this.m.values()); } };
+  let tickFn = null;
+  const sched = { defineTick(n,fn){ tickFn = fn; }, has(){ return !!tickFn; } };
+  global.window = { __GENESIS_AGENT_GATEWAY:true, __thoughtStream:{ ingest:(t)=>got.push(t) }, CustomEvent:function(n,o){this.type=n;this.detail=o&&o.detail;}, dispatchEvent:()=>true };
+  global.WebSocket = FakeWS;
+  try {
+    const G = load({ EntityRegistry: reg, EngineScheduler: sched });
+    const ws = global.__lastWs;
+    assert.ok(ws, 'gateway did not open a WS on connect');
+    assert.strictEqual(ws.url.indexOf('localhost:3002')!==-1 || ws.url.indexOf('/gsk')!==-1, true, 'local-loop or hosted route used');
+    ws.onopen && ws.onopen();
+    ws.onmessage({ data: JSON.stringify({ text:'I am thinking' }) });      // thought -> panel
+    assert.strictEqual(got.length, 1, 'thought must reach panel');
+    ws.onmessage({ data: JSON.stringify({ op:'spawn', kind:'angel', pos:{x:1,y:2,z:3} }) }); // command -> queue
+    assert.strictEqual(G.AgentGateway.summary().queued, 1, 'command must be queued');
+    tickFn();                                                            // EngineScheduler applies
+    assert.strictEqual(reg.count(), 1, 'entity must be spawned in world');
+    assert.strictEqual(G.AgentGateway.built().length, 1, 'built entity must be witnessed');
+  } finally {
+    global.WebSocket = prevWS; delete global.window; delete global.__lastWs;
+  }
+});
+
+// 14. Step 3 CRITIC (ULTRA REVIEW): cannot delete/move world-owned entity.
+check('Step3 CRITIC: cannot delete world-owned entity; own entity allowed', () => {
+  const reg = { m:new Map(), seq:0,
+    register(o,opts){ const id='ent_'+(++this.seq); this.m.set(id,{id,obj:o||null,owner:(opts&&opts.owner)||'world',tags:(opts&&opts.tags)||[],kind:(opts&&opts.kind)||'x'}); return id; },
+    resolve(id){ return this.m.get(id)||null; },
+    unregister(id){ return this.m.delete(id); },
+    has(id){ return this.m.has(id); },
+    get(id){ return this.m.get(id)||null; },
+    count(){ return this.m.size; }, snapshot(){ return Array.from(this.m.values()); } };
+  let tickFn = null;
+  const sched = { defineTick(n,fn){ tickFn = fn; }, has(){ return !!tickFn; } };
+  const G = load({ EntityRegistry: reg, EngineScheduler: sched });
+  const worldId = reg.register(null, { owner:'world', kind:'building' });
+  const gskId = reg.register(null, { owner:'agent://gsk', kind:'angel' });
+  G.AgentGateway.dispatch({ op:'delete', id: worldId }); // protected
+  G.AgentGateway.dispatch({ op:'delete', id: gskId });   // own -> allowed
+  tickFn();
+  assert.strictEqual(reg.has(worldId), true, 'world entity must survive (CASCADE)');
+  assert.strictEqual(reg.has(gskId), false, 'own entity may be deleted');
+  assert.strictEqual(G.AgentGateway.rejected(), 1, 'protected delete counted as rejected');
+});
+
+// 15. Step 4 learn (local-loop): ingest knowledge, no egress.
+check('Step4 learn (local-loop): ingest knowledge recorded', () => {
+  const G = load();
+  const r = G.AgentGateway.learn({ op:'learn', text:'GSK studies persistence engines.' });
+  assert.strictEqual(r.ok, true, 'learn must succeed locally');
+  assert.strictEqual(G.AgentGateway.learnings().length, 1, 'learning recorded');
+  assert.strictEqual(G.AgentGateway.learnings()[0].text.indexOf('persistence')!==-1, true);
+});
+
 console.log('[agent-gateway] PASS: ' + passed + ' checks green');

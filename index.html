@@ -2086,7 +2086,39 @@
             }
         })();
             if (window.__GENESIS_AGENT_GATEWAY === true) {
-                import('./src/genesis/agent-gateway.js').then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Agent Gateway validated (Layer D host stub).'); }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Agent Gateway load skipped:', e && e.message); });
+                Promise.resolve()
+                    .then(() => import('./src/genesis/command-vocab.js'))
+                    .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Command vocab load skipped:', e && e.message); })
+                    .then(() => import('./src/genesis/agent-gateway.js'))
+                    .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Agent Gateway validated (Layer D host stub).'); })
+                    .then(() => import('./src/genesis/immortality.js'))
+                    .then(() => {
+                        const KEY = 'genesis:gsk-save';
+                        const Imm = (typeof window !== 'undefined') ? window.GenesisImmortality : null;
+                        const AG = (typeof window !== 'undefined' && window.Genesis && window.Genesis.AgentGateway) ? window.Genesis.AgentGateway : null;
+                        const Reg = (typeof window !== 'undefined' && window.Genesis && window.Genesis.EntityRegistry) ? window.Genesis.EntityRegistry : null;
+                        function saveNow() { if (!Imm || !AG) return; try { const save = Imm.snapshot({ self: null, world: AG.worldSnapshot() }); if (typeof localStorage !== 'undefined') localStorage.setItem(KEY, JSON.stringify(save)); } catch (_) {} }
+                        function restore() {
+                            if (!Imm || !Reg) return;
+                            try {
+                                if (typeof localStorage === 'undefined') return;
+                                const raw = localStorage.getItem(KEY); if (!raw) return;
+                                const r = Imm.load(JSON.parse(raw), null);
+                                if (r.ok && r.state && Array.isArray(r.state.world)) {
+                                    for (const e of r.state.world) { try { if (!Reg.has(e.id)) Reg.register(null, { id: e.id, kind: e.kind, owner: e.owner, tags: e.tags || [] }); } catch (_) {} }
+                                    if (typeof console !== 'undefined') console.log('[Genesis] Agent Gateway restored world from save (Surface B).');
+                                } else if (!r.ok) {
+                                    if (typeof console !== 'undefined') console.warn('[Genesis] Save corrupt - skipped (last-known-good fallback pending).');
+                                }
+                            } catch (_) {}
+                        }
+                        restore();
+                        if (typeof window !== 'undefined' && window.addEventListener) {
+                            window.addEventListener('pagehide', saveNow);
+                            window.addEventListener('visibilitychange', () => { try { if (document && document.visibilityState === 'hidden') saveNow(); } catch (_) {} });
+                        }
+                    })
+                    .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Agent Gateway load skipped:', e && e.message); });
             }
 
         window.__GENESIS_VERTICAL_STACK = (typeof window.__GENESIS_VERTICAL_STACK === 'boolean') ? window.__GENESIS_VERTICAL_STACK : true;

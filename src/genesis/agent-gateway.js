@@ -23,6 +23,11 @@
     const BUFFER_CAP = 256;
     const RECONNECT_DELAY = 2000;
 
+    // Step 2 (CASCADE): the command vocabulary. The engine validates every op.
+    let Vocab = null;
+    try { if (typeof window !== 'undefined' && window.GenesisCommandVocab) Vocab = window.GenesisCommandVocab; } catch (_) {}
+    if (!Vocab && typeof require !== 'undefined') { try { Vocab = require('./command-vocab'); } catch (_) {} }
+
     let ws = null;
     let status = 'idle';          // idle | connecting | connected | offline | error
     let endpoint = '';
@@ -38,13 +43,26 @@
     const commandQueue = [];
     const MAX_QUEUE = 64;
     const lastResults = [];
+    const learnings = [];      // Step 4: local-loop learning ingest
+    const builtLog = [];       // Step 3: witness log of GSK-built entities
     let applied = 0;
+    let rejected = 0;
 
+    // Step 2 (tunnel-client shape + local-loop fallback): when 530 rises, point
+    // window.GSK_WS_ENDPOINT at the 9Router /gsk route; otherwise fall back to a
+    // localhost loop so Step 2 is testable without waiting on infra.
+    const HOSTED_ROUTE = (typeof location !== 'undefined')
+      ? ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/gsk')
+      : null;
     function resolveEndpoint() {
       try {
-        if (typeof window !== 'undefined' && window.GSK_WS_ENDPOINT) return window.GSK_WS_ENDPOINT;
+        if (typeof window !== 'undefined') {
+          if (window.GSK_WS_ENDPOINT) return window.GSK_WS_ENDPOINT; // explicit (9Router /gsk when 530 up)
+          if (window.GSK_ENDPOINT) return window.GSK_ENDPOINT;
+        }
       } catch (_) {}
-      return DEFAULT_WS;
+      if (HOSTED_ROUTE) return HOSTED_ROUTE;  // hosted tunnel shape
+      return DEFAULT_WS;                       // local-loop fallback (tunnel absent)
     }
 
     // Pipe one thought into the existing panel. Robust chain so we never assume
@@ -95,7 +113,9 @@
             let msg = ev && ev.data;
             if (typeof msg === 'string') { try { msg = JSON.parse(msg); } catch (_) { msg = { text: msg }; } }
             if (msg && typeof msg === 'object' && typeof msg.op === 'string') {
-              Gateway.dispatch(msg); // command-shaped -> OUT channel -> engine applies
+              if (msg.op === 'learn') { Gateway.learn(msg); }                                                       // Step 4: ingest knowledge (local-loop)
+              else if (msg.op === 'observe') { emit('genesis:agent:observe', Gateway.observe(msg.filter || null)); } // Step 1 IN: perceive
+              else { Gateway.dispatch(msg); }                                                                       // Step 2/3: command -> CRITIC -> apply
             } else {
               ingest(ev && ev.data); // thought-shaped -> panel
             }
@@ -159,27 +179,64 @@
       }
     }
 
-    // GSK -> agent://gsk -> EngineScheduler applies world change (the OUT channel).
-    function dispatch(cmd) {
-      if (!cmd) return { ok:false, error:'empty' };
+    // Step 2 (CASCADE ingress): validate EVERY op before it ever enters the queue.
+    function dispatch(raw) {
+      const v = Vocab ? Vocab.validate(raw) : { ok:false, error:'no-vocab' };
+      if (!v.ok) { rejected++; return { ok:false, error:v.error }; }
       if (commandQueue.length >= MAX_QUEUE) commandQueue.shift();
-      commandQueue.push(cmd);
+      commandQueue.push(v.cmd);
       return { ok:true, queued: commandQueue.length };
     }
 
     // Step 1 IN channel: ground GSK's actions by exposing world perception.
-    function observe() {
+    // Optional filter { kind, tag } scopes perception (cheap, no allocation storm).
+    function observe(filter) {
       try {
         const Registry = (Genesis && Genesis.EntityRegistry) ? Genesis.EntityRegistry : null;
         if (!Registry || typeof Registry.snapshot !== 'function') return { ok:false, entities:[] };
+        if (filter && typeof filter === 'object') {
+          if (filter.kind && typeof Registry.find === 'function') return { ok:true, count:-1, entities: Registry.find(filter.kind) };
+          if (filter.tag && typeof Registry.queryByTag === 'function') return { ok:true, count:-1, entities: Registry.queryByTag(filter.tag) };
+        }
         return { ok:true, count: Registry.count(), entities: Registry.snapshot() };
       } catch (e) {
         return { ok:false, error:(e&&e.message)||'observe-failed' };
       }
     }
 
+    // Step 3 (CRITIC / ULTRA REVIEW): every command re-validated + ownership-bounded
+    // before the EngineScheduler applies it. CASCADE: the engine owns the store, so
+    // GSK's commands may only touch GSK-owned entities — he cannot delete/move the
+    // world's seed entities (a player / prompt-injection cannot kill the world or him).
+    function criticReview(cmd) {
+      const v = Vocab ? Vocab.validate(cmd) : { ok:false, error:'no-vocab' };
+      if (!v.ok) return { ok:false, error:v.error };
+      if (cmd.op === 'delete' || cmd.op === 'move') {
+        const Registry = (Genesis && Genesis.EntityRegistry) ? Genesis.EntityRegistry : null;
+        const rec = (Registry && typeof Registry.get === 'function') ? Registry.get(cmd.id) : null;
+        if (!rec) return { ok:false, error:'no-entity:' + cmd.id };
+        if (rec.owner && rec.owner !== AGENT_SCHEME) return { ok:false, error:'protected-entity:' + rec.owner };
+      }
+      return { ok:true };
+    }
+
+    function emit(name, detail) {
+      try {
+        if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof window.CustomEvent === 'function') {
+          window.dispatchEvent(new window.CustomEvent(name, { detail }));
+        }
+      } catch (_) {}
+    }
+
+    // Step 3 witness: record every GSK-built entity so the build is witnessed (Tec).
+    function recordBuilt(id, kind) {
+      if (builtLog.length >= 32) builtLog.shift();
+      builtLog.push({ id, kind, at: Date.now() });
+      emit('genesis:agent:entity-built', { id, kind });
+    }
+
     // EngineScheduler tick: health + reconnect + DRAIN GSK's command queue
-    // (the "body acts" — EngineScheduler applies his world changes).
+    // (the "body acts" — EngineScheduler applies his world changes, post-CRITIC).
     function drainTick() {
       if (status === 'offline' || status === 'error') {
         if (reconnectAt && Date.now() >= reconnectAt) { reconnectAt = 0; connect(); }
@@ -187,8 +244,11 @@
       let ran = 0, errs = 0;
       while (commandQueue.length) {
         const cmd = commandQueue.shift();
+        const c = criticReview(cmd);   // ULTRA REVIEW
+        if (!c.ok) { rejected++; if (lastResults.length >= 32) lastResults.shift(); lastResults.push({ ok:false, error:c.error, op:cmd.op }); continue; }
         const r = applyCommand(cmd);
-        if (r.ok) { ran++; applied++; } else { errs++; }
+        if (r.ok) { ran++; applied++; if (r.op === 'spawn') recordBuilt(r.id, (cmd && cmd.kind) || 'agent-entity'); }
+        else { errs++; }
         if (lastResults.length >= 32) lastResults.shift();
         lastResults.push(r);
       }
@@ -196,6 +256,26 @@
     }
     // Public alias kept for backward-compat with probe.
     function tick() { return drainTick(); }
+
+    // Step 4 (HE LEARNS, local-loop): ingest knowledge WITHOUT egress. Shaped for
+    // 9Router egress (window.__GENESIS_LEARN_EGRESS) but NEVER fetched without it.
+    function learn(raw) {
+      const v = Vocab ? Vocab.validate(raw) : { ok:false, error:'no-vocab' };
+      if (!v.ok) return { ok:false, error:v.error };
+      const entry = { text: v.cmd.text, source: v.cmd.source, topic: v.cmd.topic, at: Date.now() };
+      if (learnings.length >= 256) learnings.shift();
+      learnings.push(entry);
+      emit('genesis:agent:learn', entry); // witness hook (brain can subscribe)
+      return { ok:true, count: learnings.length };
+    }
+
+    // Step 5 (NEVER DIES) bridge: expose Surface B (world) for the immortality system.
+    function worldSnapshot() {
+      try {
+        const Registry = (Genesis && Genesis.EntityRegistry) ? Genesis.EntityRegistry : null;
+        return (Registry && typeof Registry.snapshot === 'function') ? Registry.snapshot() : [];
+      } catch (_) { return []; }
+    }
 
     const Gateway = {
       scheme: AGENT_SCHEME,
@@ -209,7 +289,12 @@
       ingest,
       dispatch,
       observe,
+      learn,
       worldState() { return observe(); },
+      worldSnapshot,
+      learnings() { return learnings.slice(); },
+      built() { return builtLog.slice(); },
+      rejected() { return rejected; },
       tick,
       // Register agent://gsk on the Kernel so external agents / the multiplayer
       // milestone can address GSK by a stable id.
@@ -242,6 +327,9 @@
           buffered: buffer.length,
           queued: commandQueue.length,
           applied,
+          rejected,
+          learned: learnings.length,
+          built: builtLog.length,
           worldCount: (Genesis && Genesis.EntityRegistry && typeof Genesis.EntityRegistry.count === 'function') ? Genesis.EntityRegistry.count() : 0,
           offline: (status === 'offline' || status === 'error'),
           lastError
