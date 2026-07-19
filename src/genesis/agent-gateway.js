@@ -31,12 +31,13 @@
     // SOUL-GUNS (wired, not required): ResourcePool (scarcity) + ReactionRules
     // (consequence). Both offline-safe — if absent, commands stay cost-free and
     // no reactions fire. Gated by their own flags so they're reversible.
-    let ResourcePool = null;
-    try { if (typeof window !== 'undefined' && window.GenesisResourcePool) ResourcePool = window.GenesisResourcePool; } catch (_) {}
-    if (!ResourcePool && typeof require !== 'undefined') { try { ResourcePool = require('./resource-pool'); } catch (_) {} }
-    let ReactionRules = null;
-    try { if (typeof window !== 'undefined' && window.GenesisReactionRules) ReactionRules = window.GenesisReactionRules; } catch (_) {}
-    if (!ReactionRules && typeof require !== 'undefined') { try { ReactionRules = require('./reaction-rules'); } catch (_) {} }
+    // install() is called fresh per-Genesis (the probe builds a NEW Genesis
+    // each time), so we (re)install onto the CURRENT Genesis every call and
+    // reference Genesis.ResourcePool / Genesis.ReactionRules at the POINT OF USE
+    // (never a closure-cached var, which goes stale across installs).
+    if (typeof require !== 'undefined') { try { require('./resource-pool').install(Genesis); } catch (_) {} }
+    try { if (typeof window !== 'undefined' && window.GenesisReactionRules) Genesis.ReactionRules = window.GenesisReactionRules; } catch (_) {}
+    if (typeof require !== 'undefined') { try { require('./reaction-rules').install(Genesis); } catch (_) {} }
 
     let ws = null;
     let status = 'idle';          // idle | connecting | connected | offline | error
@@ -209,7 +210,7 @@
           if (filter.tag && typeof Registry.queryByTag === 'function') return { ok:true, count:-1, entities: Registry.queryByTag(filter.tag) };
         }
         return { ok:true, count: Registry.count(), entities: Registry.snapshot(),
-          pool: (ResourcePool && ResourcePool.get(AGENT_SCHEME)) ? ResourcePool.get(AGENT_SCHEME) : null };
+          pool: (Genesis && Genesis.ResourcePool && Genesis.ResourcePool.get(AGENT_SCHEME)) ? Genesis.ResourcePool.get(AGENT_SCHEME) : null };
       } catch (e) {
         return { ok:false, error:(e&&e.message)||'observe-failed' };
       }
@@ -231,8 +232,9 @@
       // SOUL-GUN Central Constraint Gate: pay the action's cost from the agent's
       // own pool (scarcity). Engine owns the pool; the soul decides the amount.
       // CASCADE: an over-draw is rejected, never negative. GSK must pace.
-      if (ResourcePool && typeof cmd.cost === 'number' && cmd.cost > 0) {
-        if (!ResourcePool.spend(AGENT_SCHEME, cmd.cost)) return { ok:false, error:'insufficient-energy' };
+      const RP2 = pool();
+      if (RP2 && typeof cmd.cost === 'number' && cmd.cost > 0) {
+        if (!RP2.spend(AGENT_SCHEME, cmd.cost)) return { ok:false, error:'insufficient-energy' };
       }
       return { ok:true };
     }
@@ -254,12 +256,14 @@
 
     // EngineScheduler tick: health + reconnect + DRAIN GSK's command queue
     // (the "body acts" — EngineScheduler applies his world changes, post-CRITIC).
+    function pool() { try { return (Genesis && Genesis.ResourcePool) ? Genesis.ResourcePool : null; } catch (_) { return null; } }
     function drainTick() {
       if (status === 'offline' || status === 'error') {
         if (reconnectAt && Date.now() >= reconnectAt) { reconnectAt = 0; connect(); }
       }
       // Passive stamina regen (one tick of recovery) — Elden Ring cadence.
-      if (ResourcePool) { try { ResourcePool.regen(AGENT_SCHEME); } catch (_) {} }
+      const RP = pool();
+      if (Genesis && Genesis.ResourcePool) { try { Genesis.ResourcePool.regen(AGENT_SCHEME); } catch (_) {} }
       let ran = 0, errs = 0;
       while (commandQueue.length) {
         const cmd = commandQueue.shift();
@@ -272,12 +276,12 @@
           // SOUL-GUN World Reaction Layer: the world notices GSK's act. The engine
           // decides the reaction (rule-driven) — GSK cannot script it. Consequence,
           // not fluff. CASCADE: reactions obey the same protected-entity boundary.
-          if (ReactionRules && r.op === 'spawn' && r.id) {
+          if (Genesis && Genesis.ReactionRules && r.op === 'spawn' && r.id) {
             try {
               const Registry = (Genesis && Genesis.EntityRegistry) ? Genesis.EntityRegistry : null;
               const world = (Registry && typeof Registry.snapshot === 'function') ? Registry.snapshot() : [];
               const entity = (Registry && typeof Registry.get === 'function') ? Registry.get(r.id) : null;
-              const fired = ReactionRules.evaluate(world, AGENT_SCHEME, entity);
+              const fired = (Genesis && Genesis.ReactionRules) ? Genesis.ReactionRules.evaluate(world, AGENT_SCHEME, entity, Registry) : [];
               if (fired && fired.length) {
                 for (const f of fired) emit('genesis:agent:reaction', { actor: AGENT_SCHEME, id: r.id, rule: f.rule, desc: f.desc });
               }
@@ -375,16 +379,19 @@
 
     Genesis.AgentGateway = Gateway;
 
-    // SOUL-GUNS: ensure the pool + reaction systems exist (self-install if not
-    // already loaded by index.html), then seed ONE default consequence rule so
-    // GSK's acts are never fluff. Offline-safe: rule is declarative + engine-owned.
-    try { if (ResourcePool && typeof ResourcePool.install === 'function') ResourcePool.install(Genesis); } catch (_) {}
-    try { if (ReactionRules && typeof ReactionRules.install === 'function') ReactionRules.install(Genesis); } catch (_) {}
+    // SOUL-GUNS: pool + reaction systems were (re)installed onto the
+    // CURRENT Genesis above; seed ONE default consequence rule so GSK's
+    // acts are never fluff. Offline-safe: rule is declarative + engine-owned.
+    // Reference Genesis.* directly (never a stale closure var).
+    const RP = (Genesis && Genesis.ResourcePool) ? Genesis.ResourcePool : null;
+    const RR = (Genesis && Genesis.ReactionRules) ? Genesis.ReactionRules : null;
+    try { if (RP && typeof RP.install === 'function') RP.install(Genesis); } catch (_) {}
+    try { if (RR && typeof RR.install === 'function') RR.install(Genesis); } catch (_) {}
     try {
-      if (ReactionRules && typeof ReactionRules.addRule === 'function') {
+      if (RR && typeof RR.addRule === 'function') {
         // Default: when GSK spawns a "light" entity, any "building" in the world
         // lights up (consequence -> the world visibly answers him). Engine decides.
-        ReactionRules.addRule('light-answers-building',
+        RR.addRule('light-answers-building',
           (ctx) => !!(ctx.entity && ctx.entity.kind === 'light') && Array.isArray(ctx.world) && ctx.world.some((e) => e.kind === 'building'),
           (ctx) => {
             const Registry = ctx.Registry;

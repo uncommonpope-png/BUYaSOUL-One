@@ -62,6 +62,7 @@
       const BRAIN = descriptor.brain || {};
       const ENDPOINT = descriptor.endpoint || resolveEndpoint(SCHEME);
       const SPAWN = descriptor.spawn || null;
+      const AFFORDS = descriptor.affords || ['talk']; // interaction affordances (Smart-Object style)
 
       let ws = null;
       let status = 'idle';
@@ -73,6 +74,8 @@
       const commandQueue = [];
       const learnings = [];
       const observeLog = [];
+      const dialogueLog = [];        // C4.1: per-citizen conversation memory (relationship continuity)
+      let affinity = 0;              // C4.1: relationship score with the player (rises on talk)
       let entityId = null;
 
       function panelPush(thought) {
@@ -231,25 +234,58 @@
         return id;
       }
 
+      // C4.1: relationship + dialogue memory. talk() records the exchange and
+      // raises affinity so returning later shows continuity (Smart-Object affordance).
+      function talk(prompt, reply) {
+        const entry = { at: Date.now(), prompt: (prompt || '').slice(0, 200), reply: (reply || '').slice(0, 200) };
+        if (dialogueLog.length >= 64) dialogueLog.shift();
+        dialogueLog.push(entry);
+        affinity = Math.min(100, affinity + 1); // relationship grows with each contact
+        try {
+          if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function'
+              && typeof window.CustomEvent === 'function') {
+            window.dispatchEvent(new window.CustomEvent('genesis:citizen:dialogue', { detail: Object.assign({ citizen: SCHEME, affinity }, entry) }));
+          }
+        } catch (_) {}
+        return entry;
+      }
+
+      // C4.1: Step 5 persistence surface — citizen's relationship self (Surface A slice).
+      function serialize() {
+        return { scheme: SCHEME, name: NAME, role: ROLE, affords: AFFORDS.slice(), affinity, dialogue: dialogueLog.slice(), learned: learnings.length };
+      }
+
+      // C4.1: rehydrate from a save (Surface A). Internal use by immortality restore.
+      function _restore(snap) {
+        if (!snap || typeof snap !== 'object') return;
+        if (typeof snap.affinity === 'number') affinity = Math.max(0, Math.min(100, snap.affinity));
+        if (Array.isArray(snap.dialogue)) { dialogueLog.length = 0; for (const d of snap.dialogue.slice(-64)) dialogueLog.push(d); }
+        if (Array.isArray(snap.affords) && snap.affords.length) { AFFORDS.length = 0; snap.affords.forEach((a) => AFFORDS.push(a)); }
+      }
+
       const Citizen = {
         scheme: SCHEME,
         get agentId() { return SCHEME; },
         name: NAME,
         role: ROLE,
         brain: BRAIN,
+        affords: AFFORDS,
         isEnabled,
-        connect, disconnect, ingest, dispatch, observe, learn, applyCommand, tick, manifest,
+        connect, disconnect, ingest, dispatch, observe, learn, applyCommand, tick, manifest, talk, serialize, _restore,
         owns(id) {
           try { const Registry = (Genesis && Genesis.EntityRegistry) ? Genesis.EntityRegistry : null;
             const o = Registry && Registry.resolve && Registry.resolve(id);
             return !!(o && o.owner === SCHEME);
           } catch (_) { return false; }
         },
+        affinity() { return affinity; },
+        dialogue() { return dialogueLog.slice(); },
         learnings() { return learnings.slice(); },
         summary() {
           return {
             enabled: isEnabled(), citizen: SCHEME, name: NAME, role: ROLE, status, endpoint,
             received, piped, applied, rejected, learned: learnings.length, entityId,
+            affords: AFFORDS, affinity, dialogues: dialogueLog.length,
             worldCount: (Genesis && Genesis.EntityRegistry && typeof Genesis.EntityRegistry.count === 'function') ? Genesis.EntityRegistry.count() : 0,
             offline: (status === 'offline' || status === 'error'), lastError
           };

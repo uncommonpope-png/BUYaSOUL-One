@@ -102,8 +102,11 @@
           // She/he perceives + speaks (own brain). No egress unless flag set.
           try { citizen.observe(); } catch (_) {}
           const r = localLine(who, prompt, record);
-          // Surface the citizen's learning of this exchange (own brain ingests).
-          try { citizen.learn({ op:'learn', text: 'talk: ' + (prompt||''), topic:'dialogue' }); } catch (_) {}
+          // Relationship + dialogue memory (C4.1): persist the exchange on the citizen.
+          try {
+            citizen.learn({ op:'learn', text: 'talk: ' + (prompt||''), topic:'dialogue' });
+            if (typeof citizen.talk === 'function') citizen.talk(prompt, r);
+          } catch (_) {}
           return r;
         }
       }
@@ -233,15 +236,56 @@
       const rec = hits.length ? recordForObject(hits[0].object) : null;
       if (rec !== hovered) {
         hovered = rec;
+        // Active-element distinction (Medium rule): advertise affordances so the
+        // player can tell clickable agents from passive scenery. Highlight the mesh.
+        let affordance = null;
+        if (rec && rec.owner && rec.owner.indexOf('agent://') === 0) {
+          const citizen = (Genesis.AgentCitizen && Genesis.AgentCitizen.citizen)
+            ? Genesis.AgentCitizen.citizen(rec.owner.replace('agent://', '')) : null;
+          affordance = citizen ? (citizen.affords || ['talk']) : ['talk'];
+          try { const o = Genesis.EntityRegistry.resolve(rec.id); if (o && o.material && o.material.emissive) o.material.emissive.setHex(0x335577); } catch (_) {}
+        }
         try { if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof window.CustomEvent === 'function')
-          window.dispatchEvent(new window.CustomEvent('genesis:interact:hover', { detail: rec })); } catch (_) {}
+          window.dispatchEvent(new window.CustomEvent('genesis:interact:hover', { detail: Object.assign({}, rec, { affordance }) })); } catch (_) {}
       }
+    }
+
+    // C4.1: keyboard command console — operate the world without mouse aim.
+    // Commands: "talk <id> [msg]" | "inspect <id|last>" | "plt" | "help"
+    function console(input) {
+      if (!input || typeof input !== 'string') return { ok:false, error:'empty' };
+      const parts = input.trim().split(/\s+/);
+      const cmd = (parts[0] || '').toLowerCase();
+      const arg = parts.slice(1).join(' ');
+      if (cmd === 'help') return { ok:true, lines: ['talk <allie|aria|gsk|scribe> [msg]', 'inspect <id|last>', 'plt', 'roster'] };
+      if (cmd === 'roster') {
+        const list = (Genesis.AgentCitizen && Genesis.AgentCitizen.list) ? Genesis.AgentCitizen.list() : [];
+        return { ok:true, lines: list.map((c) => c.citizen + ' (' + c.role + ', affinity ' + c.affinity + ')') };
+      }
+      if (cmd === 'plt') return { ok:true, lines: ['PLT: Profit + Love - Tax (see REDBUTTON)'] };
+      if (cmd === 'inspect') {
+        const id = (arg === 'last' || !arg) ? (lastPick && lastPick.id) : arg;
+        const rec = id ? (Genesis.EntityRegistry && Genesis.EntityRegistry.get ? Genesis.EntityRegistry.get(id) : null) : lastPick;
+        return { ok:true, lines: [JSON.stringify(rec || lastPick || {})] };
+      }
+      if (cmd === 'talk') {
+        const target = (parts[1] || '').toLowerCase();
+        const msg = parts.slice(2).join(' ');
+        const citizen = (Genesis.AgentCitizen && Genesis.AgentCitizen.citizen) ? Genesis.AgentCitizen.citizen(target) : null;
+        if (!citizen) return { ok:false, error:'no-citizen:' + target };
+        // Build a pseudo-record so talkTo routes correctly.
+        const rec = { id: target, owner: 'agent://' + target, kind: 'citizen', meta: { name: citizen.name }, pos: { x:0,y:0,z:0 } };
+        const reply = talkTo(rec, msg || null);
+        if (reply) { const o = (Genesis.EntityRegistry && Genesis.EntityRegistry.resolve) ? Genesis.EntityRegistry.resolve(rec.id) : null; if (o && o.position) say(o.position, reply, '#ffe9a8'); }
+        return { ok:true, reply };
+      }
+      return { ok:false, error:'unknown-command:' + cmd };
     }
 
     const System = {
       scheme: 'genesis-interaction',
       isEnabled,
-      onClick, onHover, ambientTick, talkTo, say, recordForObject,
+      onClick, onHover, ambientTick, talkTo, say, recordForObject, console,
       pick() { return lastPick; },
       summary() {
         return { enabled: isEnabled(), picks: pickCount, talks: talkCount, greets: greetCount, lastPick: lastPick ? lastPick.id : null };
@@ -256,6 +300,15 @@
         if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
           window.addEventListener('pointerdown', (e) => { try { onClick(e); } catch (_) {} }, { passive: true });
           window.addEventListener('pointermove', (e) => { try { onHover(e); } catch (_) {} }, { passive: true });
+          // C4.1: command console — ` (backtick) or / focuses a text input if present.
+          window.addEventListener('keydown', (e) => {
+            try {
+              if ((e.key === '`' || e.key === '/') && !e.repeat) {
+                const el = document.getElementById('genesis-console');
+                if (el && typeof el.focus === 'function') { e.preventDefault(); el.focus(); }
+              }
+            } catch (_) {}
+          });
         }
       } catch (_) {}
       // Drive ambient life via EngineScheduler if present.

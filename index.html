@@ -2107,7 +2107,13 @@
                         const Imm = (typeof window !== 'undefined') ? window.GenesisImmortality : null;
                         const AG = (typeof window !== 'undefined' && window.Genesis && window.Genesis.AgentGateway) ? window.Genesis.AgentGateway : null;
                         const Reg = (typeof window !== 'undefined' && window.Genesis && window.Genesis.EntityRegistry) ? window.Genesis.EntityRegistry : null;
-                        function saveNow() { if (!Imm || !AG) return; try { const save = Imm.snapshot({ self: null, world: AG.worldSnapshot() }); if (typeof localStorage !== 'undefined') localStorage.setItem(KEY, JSON.stringify(save)); } catch (_) {} }
+                        function saveNow() { if (!Imm || !AG) return; try {
+                          let citizens = null;
+                          try { const AC = (window.Genesis && window.Genesis.AgentCitizen); if (AC && AC.list) citizens = AC.list().map((c) => { const cz = AC.citizen(c.citizen.replace('agent://','')); return cz && cz.serialize ? cz.serialize() : c; }); } catch (_) {}
+                          const self = (citizens && citizens.length) ? { citizens } : null;
+                          const save = Imm.snapshot({ self, world: AG.worldSnapshot() });
+                          if (typeof localStorage !== 'undefined') localStorage.setItem(KEY, JSON.stringify(save));
+                        } catch (_) {} }
                         function restore() {
                             if (!Imm || !Reg) return;
                             try {
@@ -2117,6 +2123,17 @@
                                 if (r.ok && r.state && Array.isArray(r.state.world)) {
                                     for (const e of r.state.world) { try { if (!Reg.has(e.id)) Reg.register(null, { id: e.id, kind: e.kind, owner: e.owner, tags: e.tags || [] }); } catch (_) {} }
                                     if (typeof console !== 'undefined') console.log('[Genesis] Agent Gateway restored world from save (Surface B).');
+                                    // C4.1: rehydrate citizen relationship selves (Surface A) — affinity + dialogue continuity.
+                                    try {
+                                      const self = r.state.self;
+                                      if (self && Array.isArray(self.citizens) && window.Genesis && window.Genesis.AgentCitizen) {
+                                        for (const c of self.citizens) {
+                                          const cz = window.Genesis.AgentCitizen.citizen(c.scheme ? c.scheme.replace('agent://','') : null);
+                                          if (cz && c.scheme && typeof cz._restore === 'function') cz._restore(c);
+                                        }
+                                        if (typeof console !== 'undefined') console.log('[Genesis] Restored ' + self.citizens.length + ' citizen relationship selves (Surface A).');
+                                      }
+                                    } catch (_) {}
                                 } else if (!r.ok) {
                                     if (typeof console !== 'undefined') console.warn('[Genesis] Save corrupt - skipped (last-known-good fallback pending).');
                                 }

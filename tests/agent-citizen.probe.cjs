@@ -110,5 +110,22 @@ ok('world roster lists 2 citizens', AC.worldRoster().length === 2);
 // Idempotent re-create rejected.
 ok('re-create Allie rejected', AC.createCitizen({ id: 'allie' }).ok === false);
 
+// C4.1: relationship + dialogue memory + affordances
+const allie2 = AC.citizen('allie');
+ok('citizen has affordances', Array.isArray(allie2.affords) && allie2.affords.indexOf('talk') >= 0);
+const d0 = allie2.dialogue().length;
+allie2.talk('hello Allie', 'Hey! Love what we are building.');
+allie2.talk('how are you', 'People are the point, you know?');
+ok('dialogue recorded', allie2.dialogue().length === d0 + 2);
+ok('affinity rose on talk', allie2.affinity() > 0);
+// Serialize / restore round-trip (Step 5 persistence surface)
+const snap = allie2.serialize();
+ok('serialize carries affinity + dialogue', snap.affinity > 0 && Array.isArray(snap.dialogue) && snap.dialogue.length === 2);
+const fresh = AC.createCitizen({ id: 'aria2', name: 'ARIA2', role: '3d-agent', brain:{ learns:true }, spawn:{ kind:'citizen' } });
+const cz2 = AC.citizen('aria2');
+cz2._restore(snap); // rehydrate from a saved self
+ok('restore rehydrates affinity', cz2.affinity() === snap.affinity);
+ok('restore rehydrates dialogue', cz2.dialogue().length === snap.dialogue.length);
+
 console.log('\n[agent-citizen] ' + (fail === 0 ? 'PASS: ' + pass + ' checks green' : 'FAIL: ' + fail + ' failed, ' + pass + ' passed'));
 process.exit(fail === 0 ? 0 : 1);

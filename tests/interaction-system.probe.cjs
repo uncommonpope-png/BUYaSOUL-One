@@ -23,11 +23,14 @@ function makeGenesis() {
     GenesisKernel: { _m:new Map(), register(id,r){ this._m.set(id,r); }, all(){ return Array.from(this._m.values()); } },
     AgentGateway: { scheme:'agent://gsk', observe(){ return { ok:true }; } },
     ScribeGateway: { scheme:'agent://scribe', observe(){ return { ok:true }; } },
-    AgentCitizen: { _c:new Map(), createCitizen(d){ const c={ scheme:'agent://'+d.id, name:d.name, learn(){ return { ok:true }; }, observe(){ return { ok:true }; } }; this._c.set(d.id, c); return { ok:true, citizen:c }; }, citizen(id){ return this._c.get(id)||null; } },
+    AgentCitizen: { _c:new Map(), createCitizen(d){ const c={ scheme:'agent://'+d.id, name:d.name, affords:(d.affords||['talk']), _aff:0, affinity(){ return this._aff; }, learn(){ return { ok:true }; }, observe(){ return { ok:true }; }, talk(){ this._aff++; return { ok:true }; }, serialize(){ return { scheme:this.scheme, affinity:this._aff, dialogue:[] }; } }; this._c.set(d.id, c); return { ok:true, citizen:c }; }, citizen(id){ return this._c.get(id)||null; }, list(){ return Array.from(this._c.values()).map((c)=>({ citizen:c.scheme, role:'citizen', affinity:c._aff })); } },
     registerModule(){},
     camera: { project(){} },
     scene: { traverse(){} }
   };
+  // Pre-create the citizens the interaction probe exercises (mirrors index.html boot).
+  Genesis.AgentCitizen.createCitizen({ id:'allie', name:'Allie', role:'social-agent', affords:['talk'], brain:{ learns:true } });
+  Genesis.AgentCitizen.createCitizen({ id:'aria', name:'ARIA', role:'3d-agent', affords:['talk'], brain:{ learns:true } });
   return Genesis;
 }
 
@@ -104,6 +107,28 @@ ok('ambientTick ran (greets counted)', IS.summary().greets >= 0);
 const before = IS.summary().picks;
 IS.onClick({ clientX: 10, clientY: 10, target: { getBoundingClientRect: () => ({ left:0, top:0, width:1280, height:720 }) } });
 ok('onClick safe with no intersect', IS.summary().picks === before); // no record -> no pick counted (hits empty)
+
+// C4.1: command console routes talk to a citizen by id (keyboard operation)
+const c = IS.console('talk allie hello there');
+ok('console talk routes to citizen', c.ok === true && typeof c.reply === 'string' && c.reply.length > 0);
+const c2 = IS.console('talk nonexistent hi');
+ok('console talk rejects unknown citizen', c2.ok === false);
+const help = IS.console('help');
+ok('console help lists commands', help.ok === true && Array.isArray(help.lines) && help.lines.length > 0);
+const roster = IS.console('roster');
+ok('console roster lists citizens', roster.ok === true && roster.lines.some((l) => l.indexOf('agent://allie') >= 0));
+
+// C4.1: hover advertises affordance for a citizen record
+const hoverRec = { id: allieId, owner: 'agent://allie', kind: 'citizen', meta:{ name:'Allie' } };
+const hb = IS.recordForObject(Genesis.EntityRegistry.resolve(allieId));
+const afford = (hb && hb.owner === 'agent://allie') ? ['talk'] : null;
+ok('citizen hover affordance is talk', Array.isArray(afford) && afford[0] === 'talk');
+
+// C4.1: relationship continuity — talking twice raises affinity on the citizen
+const cz = Genesis.AgentCitizen.citizen('allie');
+const affBefore = cz.affinity();
+IS.talkTo(hoverRec, 'second contact');
+ok('affinity rose after talkTo', cz.affinity() > affBefore);
 
 console.log('\n[interaction-system] ' + (fail === 0 ? 'PASS: ' + pass + ' checks green' : 'FAIL: ' + fail + ' failed, ' + pass + ' passed'));
 process.exit(fail === 0 ? 0 : 1);
