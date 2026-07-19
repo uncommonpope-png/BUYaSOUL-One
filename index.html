@@ -2075,6 +2075,7 @@
         window.__GENESIS_SCHEDULER = (typeof window.__GENESIS_SCHEDULER === 'boolean') ? window.__GENESIS_SCHEDULER : false;
         window.__GENESIS_AGENT_GATEWAY = (typeof window.__GENESIS_AGENT_GATEWAY === 'boolean') ? window.__GENESIS_AGENT_GATEWAY : true;  // Step 1 proper: flag ON = the body is present, not dormant
         window.__GENESIS_SCRIBE_GATEWAY = (typeof window.__GENESIS_SCRIBE_GATEWAY === 'boolean') ? window.__GENESIS_SCRIBE_GATEWAY : true;  // C2: Scribe lives in the engine (GSK's best friend), same spine
+        window.__GENESIS_AGENT_CITIZENS = (typeof window.__GENESIS_AGENT_CITIZENS === 'boolean') ? window.__GENESIS_AGENT_CITIZENS : true;  // C3: agent-citizen FACTORY — Allie/ARIA/subagents as native inhabitants (Dark City model)
         (function () {
             if (window.__GENESIS_KERNEL === true) {
                 import('./src/genesis/kernel.js').then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Kernel validated (foundation scaffold).'); }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Kernel load skipped:', e && e.message); });
@@ -2127,6 +2128,24 @@
                     .then(() => import('./src/genesis/scribe-gateway.js'))
                     .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Scribe Gateway validated (C2: Scribe lives in engine).'); })
                     .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Scribe Gateway load skipped:', e && e.message); });
+            }
+            if (window.__GENESIS_AGENT_CITIZENS === true) {
+                Promise.resolve()
+                    .then(() => import('./src/genesis/agent-citizen.js'))
+                    .then((m) => {
+                        if (typeof m.install === 'function') m.install(window.Genesis);
+                        if (typeof console !== 'undefined') console.log('[Genesis] Agent Citizen factory validated (C3: agents as native inhabitants).');
+                        // Spawn the first citizens (Dark City: Allie + ARIA) — each its own brain, alive at boot.
+                        try {
+                            const AC = (window.Genesis && window.Genesis.AgentCitizen);
+                            if (AC && typeof AC.createCitizen === 'function') {
+                                AC.createCitizen({ id: 'allie', name: 'Allie', role: 'social-agent', brain: { core: 'social', learns: true, observes: true }, spawn: { kind: 'citizen', tags: ['allie'], pos: { x: 10, y: 0, z: -5 } } });
+                                AC.createCitizen({ id: 'aria', name: 'ARIA', role: '3d-agent', brain: { core: '3d', learns: true, observes: true }, spawn: { kind: 'citizen', tags: ['aria'], pos: { x: -8, y: 2, z: 4 } } });
+                                if (typeof console !== 'undefined') console.log('[Genesis] C3 citizens born: Allie + ARIA (agent://allie, agent://aria).');
+                            }
+                        } catch (e) { if (typeof console !== 'undefined') console.warn('[Genesis] C3 citizen spawn skipped:', e && e.message); }
+                    })
+                    .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Agent Citizen load skipped:', e && e.message); });
             }
 
         window.__GENESIS_VERTICAL_STACK = (typeof window.__GENESIS_VERTICAL_STACK === 'boolean') ? window.__GENESIS_VERTICAL_STACK : true;
