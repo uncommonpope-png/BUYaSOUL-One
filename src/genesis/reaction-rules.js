@@ -52,5 +52,5 @@ function install(Genesis) {
   if (typeof window !== 'undefined') window.GenesisReactionRules = ReactionRules;
 }
 
-module.exports = { install: install, ReactionRules: ReactionRules };
+if (typeof module !== 'undefined' && module.exports) module.exports = { install: install, ReactionRules: ReactionRules };
 if (typeof window !== 'undefined' && window.Genesis) install(window.Genesis);

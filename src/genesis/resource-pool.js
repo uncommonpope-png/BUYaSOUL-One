@@ -81,5 +81,5 @@ function install(Genesis) {
   if (typeof window !== 'undefined') window.GenesisResourcePool = ResourcePool;
 }
 
-module.exports = { install: install, ResourcePool: ResourcePool };
+if (typeof module !== 'undefined' && module.exports) module.exports = { install: install, ResourcePool: ResourcePool };
 if (typeof window !== 'undefined' && window.Genesis) install(window.Genesis);

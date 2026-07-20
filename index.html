@@ -2078,6 +2078,134 @@
         window.__GENESIS_SCRIBE_GATEWAY = (typeof window.__GENESIS_SCRIBE_GATEWAY === 'boolean') ? window.__GENESIS_SCRIBE_GATEWAY : true;  // C2: Scribe lives in the engine (GSK's best friend), same spine
         window.__GENESIS_AGENT_CITIZENS = (typeof window.__GENESIS_AGENT_CITIZENS === 'boolean') ? window.__GENESIS_AGENT_CITIZENS : true;  // C3: agent-citizen FACTORY — Allie/ARIA/subagents as native inhabitants (Dark City model)
         window.__GENESIS_INTERACTION = (typeof window.__GENESIS_INTERACTION === 'boolean') ? window.__GENESIS_INTERACTION : true;  // C4-INTERACTION: living clickable world — click citizens to talk, ambient greetings, speech bubbles
+        (async function orderedGenesisBoot() {
+            const G = window.Genesis;
+            if (!G) return;
+            const bootStamp = '?boot=' + Date.now();
+            async function loadGenesisModule(path, label) {
+                try {
+                    const m = await import(path + bootStamp);
+                    if (m && typeof m.install === 'function') m.install(G);
+                    if (typeof console !== 'undefined') console.log('[Genesis] Ordered boot loaded ' + label + '.');
+                    return true;
+                } catch (e) {
+                    if (typeof console !== 'undefined') console.warn('[Genesis] Ordered boot failed ' + label + ':', e && e.message);
+                    return false;
+                }
+            }
+            if (window.__GENESIS_KERNEL === true) await loadGenesisModule('./src/genesis/kernel.js', 'kernel');
+            if (window.__GENESIS_ENTITY_REGISTRY === true) await loadGenesisModule('./src/genesis/entity-registry.js', 'entity-registry');
+            if (window.__GENESIS_SCHEDULER === true) await loadGenesisModule('./src/genesis/scheduler.js', 'scheduler');
+            if (window.__GENESIS_AGENT_GATEWAY === true) {
+                await loadGenesisModule('./src/genesis/command-vocab.js', 'command-vocab');
+                await loadGenesisModule('./src/genesis/resource-pool.js', 'resource-pool');
+                await loadGenesisModule('./src/genesis/reaction-rules.js', 'reaction-rules');
+                await loadGenesisModule('./src/genesis/agent-gateway.js', 'agent-gateway');
+                await loadGenesisModule('./src/genesis/immortality.js', 'immortality');
+                try {
+                    const KEY = 'genesis:gsk-save';
+                    const Imm = window.GenesisImmortality;
+                    const AG = G.AgentGateway;
+                    const Reg = G.EntityRegistry;
+                    if (Imm && AG && Reg && !window.__GENESIS_IMMORTALITY_BRIDGE_READY) {
+                        window.__GENESIS_IMMORTALITY_BRIDGE_READY = true;
+                        const restore = function () {
+                            try {
+                                const raw = localStorage.getItem(KEY); if (!raw) return;
+                                const r = Imm.load(JSON.parse(raw), null);
+                                if (r.ok && r.state && Array.isArray(r.state.world)) {
+                                    for (const e of r.state.world) if (e && e.id && !Reg.has(e.id)) Reg.register(null, { id: e.id, kind: e.kind, owner: e.owner, tags: e.tags || [] });
+                                    if (typeof console !== 'undefined') console.log('[Genesis] Ordered boot restored Surface B world save.');
+                                }
+                            } catch (_) {}
+                        };
+                        const saveNow = function () {
+                            try {
+                                const save = Imm.snapshot({ self: null, world: AG.worldSnapshot() });
+                                localStorage.setItem(KEY, JSON.stringify(save));
+                            } catch (_) {}
+                        };
+                        restore();
+                        window.addEventListener('pagehide', saveNow);
+                        window.addEventListener('visibilitychange', () => { try { if (document.visibilityState === 'hidden') saveNow(); } catch (_) {} });
+                        if (typeof console !== 'undefined') console.log('[Genesis] Ordered immortality bridge ready.');
+                    }
+                } catch (e) { if (typeof console !== 'undefined') console.warn('[Genesis] Ordered immortality bridge skipped:', e && e.message); }
+            }
+        })();
+        (function browserCoreFallbackBoot() {
+            function installFallback() {
+                const G = window.Genesis;
+                if (!G || !G.EntityRegistry || !G.EngineScheduler) return setTimeout(installFallback, 300);
+                if (!G.ResourcePool) {
+                    const pools = new Map();
+                    G.ResourcePool = {
+                        ensure(owner, max = 100, regen = 1) { if (!pools.has(owner)) pools.set(owner, { energy: max, max, regen }); return pools.get(owner); },
+                        spend(owner, amount) { const p = this.ensure(owner); const n = Math.max(0, Math.floor(amount || 0)); if (n > p.energy) return false; p.energy -= n; return true; },
+                        regenAll() { for (const p of pools.values()) p.energy = Math.min(p.max, p.energy + p.regen); },
+                        get(owner) { const p = pools.get(owner); return p ? { energy: p.energy, max: p.max, regen: p.regen } : null; },
+                        snapshot() { const out = {}; for (const [k, p] of pools) out[k] = { energy: p.energy, max: p.max, regen: p.regen }; return out; },
+                        load(state) { if (!state || typeof state !== 'object') return false; for (const k of Object.keys(state)) pools.set(k, state[k]); return true; }
+                    };
+                    window.GenesisResourcePool = G.ResourcePool;
+                    if (G.registerModule) G.registerModule('resource-pool', { status: 'fallback', path: 'index.html#browserCoreFallbackBoot' });
+                }
+                if (!G.ReactionRules) {
+                    const rules = [];
+                    G.ReactionRules = {
+                        addRule(id, when, effect) { if (typeof when !== 'function' || typeof effect !== 'function') return false; rules.push({ id, when, effect }); return true; },
+                        evaluate(world, actor, entity, Registry) { const fired = []; for (const r of rules) { try { if (r.when({ world, actor, entity, Registry })) { const desc = r.effect({ world, actor, entity, Registry }); if (desc) fired.push({ rule: r.id, desc }); } } catch (_) {} } return fired; },
+                        rules() { return rules.slice(); }
+                    };
+                    G.ReactionRules.addRule('light-answers-building',
+                        (ctx) => !!(ctx.entity && ctx.entity.kind === 'light') && Array.isArray(ctx.world) && ctx.world.some((e) => e.kind === 'building'),
+                        (ctx) => { const b = ctx.Registry && ctx.Registry.find ? ctx.Registry.find('building') : []; for (const e of b) if (e && e.meta) e.meta.litBy = (ctx.entity && ctx.entity.id) || null; return { kind: 'building-lit', by: (ctx.entity && ctx.entity.id) || null }; });
+                    window.GenesisReactionRules = G.ReactionRules;
+                    if (G.registerModule) G.registerModule('reaction-rules', { status: 'fallback', path: 'index.html#browserCoreFallbackBoot' });
+                }
+                if (!window.GenesisImmortality) {
+                    function checksum(obj) { const s = JSON.stringify(obj); let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h >>> 0; }
+                    window.GenesisImmortality = {
+                        VERSION: 1,
+                        checksum,
+                        snapshot(surfaces) { const p = { v: 1, at: Date.now(), self: (surfaces && surfaces.self) || null, world: (surfaces && surfaces.world) || [] }; p.checksum = checksum(p); return p; },
+                        validate(save) { if (!save || save.v !== 1) return { ok: false, error: 'bad-save' }; const probe = checksum(Object.assign({}, save, { checksum: undefined })); return probe === save.checksum ? { ok: true } : { ok: false, error: 'checksum-mismatch' }; },
+                        load(save, lastGood) { const v = this.validate(save); if (v.ok) return { ok: true, state: save }; if (lastGood && this.validate(lastGood).ok) return { ok: true, fromLastGood: true, state: lastGood }; return { ok: false, error: v.error }; }
+                    };
+                    if (G.registerModule) G.registerModule('immortality', { status: 'fallback', path: 'index.html#browserCoreFallbackBoot' });
+                }
+                if (!G.AgentGateway) {
+                    const queue = [], built = [], results = [];
+                    const SCHEME = 'agent://gsk';
+                    function safe(cmd) { return cmd && typeof cmd === 'object' && ['spawn', 'move', 'delete', 'observe', 'learn'].indexOf(cmd.op) !== -1; }
+                    function apply(cmd) {
+                        const R = G.EntityRegistry;
+                        if (!safe(cmd) || !R) return { ok: false, error: 'bad-command' };
+                        if (cmd.op === 'spawn') { const id = R.register(cmd.obj || null, { kind: cmd.kind || 'agent-entity', owner: cmd.owner || SCHEME, tags: cmd.tags || ['gsk-controlled'], meta: cmd.meta || {} }); built.push({ id, kind: cmd.kind || 'agent-entity', at: Date.now() }); return { ok: true, op: 'spawn', id }; }
+                        if (cmd.op === 'move') { const rec = R.get(cmd.id); if (!rec || rec.owner !== SCHEME) return { ok: false, error: 'protected-entity' }; const o = R.resolve(cmd.id); if (o && o.position && cmd.pos) o.position.set(cmd.pos.x || 0, cmd.pos.y || 0, cmd.pos.z || 0); return { ok: true, op: 'move', id: cmd.id }; }
+                        if (cmd.op === 'delete') { const rec = R.get(cmd.id); if (!rec || rec.owner !== SCHEME) return { ok: false, error: 'protected-entity' }; return { ok: R.unregister(cmd.id), op: 'delete', id: cmd.id }; }
+                        return { ok: true, op: cmd.op };
+                    }
+                    function tick() { G.ResourcePool.regenAll(); while (queue.length) { const cmd = queue.shift(); const r = apply(cmd); results.push(r); const RR = G.ReactionRules; if (r.ok && RR && cmd.op === 'spawn') RR.evaluate(G.EntityRegistry.snapshot(), SCHEME, { id: r.id, kind: cmd.kind || 'agent-entity' }, G.EntityRegistry); } }
+                    G.AgentGateway = {
+                        scheme: SCHEME,
+                        isEnabled() { return window.__GENESIS_AGENT_GATEWAY === true; },
+                        dispatch(cmd) { if (!safe(cmd)) return { ok: false, error: 'bad-command' }; queue.push(cmd); return { ok: true, queued: queue.length }; },
+                        observe(filter) { if (filter && filter.kind && G.EntityRegistry.find) return { ok: true, entities: G.EntityRegistry.find(filter.kind) }; return { ok: true, count: G.EntityRegistry.count(), entities: G.EntityRegistry.snapshot() }; },
+                        worldSnapshot() { return G.EntityRegistry.snapshot(); },
+                        worldState() { return this.observe(); },
+                        built() { return built.slice(); },
+                        summary() { return { enabled: this.isEnabled(), agent: SCHEME, queued: queue.length, built: built.length, worldCount: G.EntityRegistry.count(), status: 'fallback-browser' }; },
+                        tick
+                    };
+                    G.EngineScheduler.defineTick('agent-gateway', tick, () => G.AgentGateway.isEnabled());
+                    if (G.registerModule) G.registerModule('agent-gateway', { status: 'fallback', path: 'index.html#browserCoreFallbackBoot' });
+                    if (typeof console !== 'undefined') console.log('[Genesis] Browser fallback AgentGateway ready.');
+                }
+            }
+            window.__installGenesisCoreFallback = installFallback;
+            installFallback();
+        })();
         (function () {
             if (window.__GENESIS_KERNEL === true) {
                 import('./src/genesis/kernel.js').then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Kernel validated (foundation scaffold).'); }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Kernel load skipped:', e && e.message); });
@@ -3197,6 +3325,7 @@ renderer.toneMappingExposure = 0.75;
         Genesis.scene = scene;
         Genesis.camera = camera;
         Genesis.setStatus('booting renderer', 'ok');
+        try { if (window.__installGenesisCoreFallback) window.__installGenesisCoreFallback(); } catch (_) {}
 
         // ========== GENESIS PHASE 2: first-frame survival baseline ==========
         const genesisFallbackGroup = new THREE.Group();
@@ -13797,6 +13926,7 @@ bloomPass.radius = 0.7;
             if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager && Genesis.SectorManager.tick) Genesis.SectorManager.tick();
             if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility && Genesis.Visibility.tick) Genesis.Visibility.tick();
             if (window.__GENESIS_ANIM_SCHEDULER !== false && Genesis.AnimationScheduler && Genesis.AnimationScheduler.tick) Genesis.AnimationScheduler.tick(dt, ++_genesisFrameSerial);
+            if (window.__GENESIS_AGENT_GATEWAY === true && window.__installGenesisCoreFallback && (!Genesis.AgentGateway || !Genesis.ResourcePool || !Genesis.ReactionRules || !window.GenesisImmortality)) { try { window.__installGenesisCoreFallback(); } catch (_) {} }
             if (window.__GENESIS_SCHEDULER === true && Genesis.EngineScheduler && typeof Genesis.EngineScheduler.run === 'function') Genesis.EngineScheduler.run({ dt, time, serial: _genesisFrameSerial, scene, camera, renderer, surfaceActive: surfaceStratumActive, hubActive });
             if (window.__GENESIS_POPULATION_ENGINE !== false && Genesis.PopulationEngine && typeof Genesis.PopulationEngine.tick === 'function') Genesis.PopulationEngine.tick(dt);
             // Genesis Scale Engine (Phase E): tick AFTER PopulationEngine. Bounded
