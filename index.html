@@ -2509,7 +2509,13 @@
                 Promise.resolve()
                     .then(() => import('./src/genesis/trust-ledger.js'))
                     .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Trust Ledger validated (P-A: conflict & consequence).'); })
-                    .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Trust Ledger load skipped:', e && e.message); });
+                    .then(() => import('./src/genesis/citizen-ai.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] CitizenAI present (P-D substrate).'); })
+                    .then(() => import('./src/genesis/behavior-attacher.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Behavior Attacher validated (P-D).'); })
+                    .then(() => import('./src/genesis/perception_action_loop.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Sovereign Agent FSM validated (P-D).'); })
+                    .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Trust Ledger / P-D load skipped:', e && e.message); });
             }
 
             // ═══ ACT XVII BODY GRAFT (P178) ═══
