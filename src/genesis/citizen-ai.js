@@ -36,6 +36,29 @@
       return (typeof window !== 'undefined') && window.__GENESIS_CITIZEN_AI === true;
     }
 
+    function makeCitizenProxy(record) {
+      const T = (typeof window !== 'undefined') ? window.THREE : null;
+      const scene = Genesis && Genesis.scene;
+      if (!T || !scene || !record) return null;
+      const group = new T.Group();
+      const name = (record.meta && record.meta.name) || record.owner || record.id;
+      group.name = 'citizen-proxy-' + String(name).replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
+      const color = (String(name).toLowerCase().indexOf('aria') !== -1) ? 0xff88dd : 0x66ddff;
+      const body = new T.Mesh(new T.CylinderGeometry(0.7, 0.9, 2.0, 12), new T.MeshStandardMaterial({ color, emissive: 0x081828, roughness: 0.7 }));
+      body.position.y = 1.0;
+      const head = new T.Mesh(new T.SphereGeometry(0.65, 14, 10), new T.MeshStandardMaterial({ color: 0xffffff, emissive: color, emissiveIntensity: 0.15 }));
+      head.position.y = 2.35;
+      group.add(body); group.add(head);
+      const idx = citizens.size;
+      const a = idx * Math.PI * 0.72;
+      const r = 190 + (idx % 3) * 18;
+      group.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+      scene.add(group);
+      // Mutate the registry record so click/inspect systems can resolve the body.
+      record.obj = group;
+      return group;
+    }
+
     // Deterministic rule-based transition. Server-decided fallback when no
     // CASCADE hook is present (model proposes nothing; the kernel decides).
     function decideState(rec, snap, dt) {
@@ -115,13 +138,20 @@
         let added = 0;
         for (const r of reg.find('citizen')) {
           if (citizens.has(r.id)) continue;
+          const body = r.obj || makeCitizenProxy(r);
+          const homePos = body && body.position ? { x: body.position.x, z: body.position.z } : { x: 0, z: 0 };
           const rec = {
             id: r.id,
-            obj: r.obj,
+            obj: body,
             state: STATE.PATROL,
             target: null,
-            home: r.obj && r.obj.position ? { x: r.obj.position.x, z: r.obj.position.z } : { x: 0, z: 0 },
-            route: null,
+            home: homePos,
+            route: [
+              { x: homePos.x + 18, z: homePos.z + 8 },
+              { x: homePos.x + 6, z: homePos.z + 24 },
+              { x: homePos.x - 18, z: homePos.z - 8 },
+              { x: homePos.x - 6, z: homePos.z - 24 }
+            ],
             legIndex: 0,
             waitT: Math.random() * 4,
             speed: 2.2

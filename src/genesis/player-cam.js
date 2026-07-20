@@ -7,7 +7,8 @@
 //   Provides an optional third-person camera rig + player collision + drag
 //   controls so a visitor can INHABIT the Dark City (the kit's
 //   third-person-camera + player-collision + drag-controls). Controls mirror
-//   the CPL base UI: WASD move, Shift run, Space up, Q/F yaw, drag to orbit.
+//   the CPL base UI: WASD move, Shift run, Space up, Q down, F fly toggle,
+//   drag to orbit.
 //
 // CASCADE: movement is local/visual only and never mutates world GOVERNANCE.
 //   Player input is NOT an agent command channel; it cannot spawn/edit GSK's
@@ -26,6 +27,7 @@
     let target = null;       // THREE.Object3D the camera follows (player proxy)
     const keys = {};         // pressed-key state
     let yaw = 0, pitch = 0.25;
+    let fly = false;
     let dragging = false, lastX = 0, lastY = 0;
     let enabled = false;
 
@@ -51,7 +53,11 @@
       return target;
     }
 
-    function onKeyDown(e) { keys[e.code || e.key] = true; }
+    function onKeyDown(e) {
+      const code = e.code || e.key;
+      keys[code] = true;
+      if (code === 'KeyF' && !e.repeat) fly = !fly;
+    }
     function onKeyUp(e) { keys[e.code || e.key] = false; }
     function onDown(e) { dragging = true; lastX = e.clientX; lastY = e.clientY; }
     function onMove(e) {
@@ -88,7 +94,7 @@
       if (!target) ensureTarget(ctx && ctx.scene);
       if (!target) return;
 
-      // Movement: WASD + Shift(run) + Space(up) + Q/F(yaw trim).
+      // Movement: WASD + Shift(run) + Space(up) + Q(down) + F(fly toggle).
       const run = (keys['ShiftLeft'] || keys['ShiftRight']) ? 2.2 : 1;
       const sp = (typeof dt === 'number' ? dt : 0.016) * 14 * run;
       let mx = 0, mz = 0;
@@ -96,16 +102,15 @@
       if (keys['KeyS']) mz += 1;
       if (keys['KeyA']) mx -= 1;
       if (keys['KeyD']) mx += 1;
-      if (keys['KeyQ']) yaw += 0.02;
-      if (keys['KeyF']) yaw -= 0.02;
       if (mx || mz) {
         const ca = Math.cos(yaw), sa = Math.sin(yaw);
         target.position.x += (mx * ca - mz * sa) * sp;
         target.position.z += (mx * sa + mz * ca) * sp;
       }
-      if (keys['Space']) target.position.y = Math.min(40, target.position.y + sp);
-      // Simple ground clamp / collision proxy: keep above y=1.2.
-      if (target.position.y < 1.2) target.position.y = 1.2;
+      if (keys['Space']) target.position.y = Math.min(42, target.position.y + sp);
+      if (keys['KeyQ']) target.position.y = Math.max(-50.8, target.position.y - sp);
+      // Simple collision proxy: ground is surface unless flying/descending to undercity.
+      if (!fly && target.position.y > -0.5 && target.position.y < 1.2) target.position.y = 1.2;
 
       // Third-person follow: orbit behind the target at (yaw,pitch) distance.
       const dist = 12;
@@ -129,7 +134,7 @@
       detach() { unbind(); enabled = false; target = null; },
       tick,
       summary() {
-        return { enabled: flagOn(), attached: enabled, hasTarget: !!target };
+        return { enabled: flagOn(), attached: enabled, hasTarget: !!target, fly };
       }
     };
 

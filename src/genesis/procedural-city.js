@@ -42,14 +42,26 @@
     }
 
     // Build a single block/tower mesh. r128/r160 safe (BoxGeometry, MeshStandard).
-    function makeBlock(x, z, w, d, h, color) {
+    function makeBlock(x, z, w, d, h, color, yBase) {
       if (!THREEOK()) return null;
       const T = window.THREE;
       const geo = new T.BoxGeometry(w, h, d);
       const mat = new T.MeshStandardMaterial({ color: color || 0x222233, roughness: 0.85, metalness: 0.1, emissive: 0x05060a });
       const mesh = new T.Mesh(geo, mat);
-      mesh.position.set(x, h / 2, z);
+      mesh.position.set(x, (yBase || 0) + h / 2, z);
       mesh.castShadow = true; mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    function makeFloor(size, y, color) {
+      if (!THREEOK()) return null;
+      const T = window.THREE;
+      const geo = new T.PlaneGeometry(size, size, 1, 1);
+      const mat = new T.MeshStandardMaterial({ color: color || 0x080a14, roughness: 0.95, metalness: 0.05, emissive: 0x050716 });
+      const mesh = new T.Mesh(geo, mat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(0, y, 0);
+      mesh.receiveShadow = true;
       return mesh;
     }
 
@@ -66,32 +78,82 @@
       blocks.clear();
       seed = opts.seed || 1337;
 
-      const grid = opts.grid || 8;       // 8x8 blocks
-      const spacing = opts.spacing || 26;
+      // Surface build rule: do NOT cover the sacred library at the origin.
+      // Populate only the edges/ring around the existing CPL world.
+      const grid = opts.grid || 16;
+      const spacing = opts.spacing || 28;
+      const clearRadius = opts.centerClearRadius || 150;
+      const outerRadius = opts.outerRadius || 360;
       const reg = Genesis.EntityRegistry;
       let added = 0;
       for (let i = 0; i < grid; i++) {
         for (let j = 0; j < grid; j++) {
-          if (rng() < 0.12) continue;     // scattered plazas
           const x = (i - grid / 2) * spacing + (rng() - 0.5) * 4;
           const z = (j - grid / 2) * spacing + (rng() - 0.5) * 4;
+          const dist = Math.hypot(x, z);
+          if (dist < clearRadius || dist > outerRadius) continue;
+          if (rng() < 0.14) continue;     // scattered edge plazas
           const isTower = rng() > 0.72;
           const w = isTower ? 8 + rng() * 6 : 14 + rng() * 8;
           const d = isTower ? 8 + rng() * 6 : 14 + rng() * 8;
           const h = isTower ? 40 + rng() * 90 : 10 + rng() * 26;
           const hue = 0x1a1a2e + Math.floor(rng() * 0x222222);
-          const mesh = makeBlock(x, z, w, d, h, hue);
+          const mesh = makeBlock(x, z, w, d, h, hue, 0);
           if (!mesh) continue;
+          mesh.name = 'edge-city-' + i + '-' + j;
           root.add(mesh);
           const id = 'city_' + i + '_' + j;
           const rec = { mesh, baseY: h / 2, kind: isTower ? 'tower' : 'block', h };
           blocks.set(id, rec);
-          if (reg) reg.register(mesh, { id, kind: rec.kind, owner: 'city', tags: ['structure', rec.kind] });
+          if (reg) reg.register(mesh, { id, kind: rec.kind, owner: 'edge-city', tags: ['structure', 'edge-city', rec.kind] });
           added++;
         }
       }
+
+      let underAdded = 0;
+      if (opts.undercity !== false) {
+        const underY = opts.underY || -52;
+        const underSize = opts.underSize || 360;
+        const floor = makeFloor(underSize, underY, 0x070916);
+        if (floor) {
+          floor.name = 'undercity-walkable-floor';
+          root.add(floor);
+          if (reg) reg.register(floor, { id: 'undercity_floor', kind: 'floor', owner: 'undercity', tags: ['undercity', 'walkable', 'floor'] });
+        }
+        // Four clear shafts mark how to descend, without blocking the central library.
+        const shaftPts = [{x: 90, z: 90}, {x: -90, z: 90}, {x: 90, z: -90}, {x: -90, z: -90}];
+        for (let s = 0; s < shaftPts.length; s++) {
+          const p = shaftPts[s];
+          const shaft = makeBlock(p.x, p.z, 7, 7, 52, 0x123355, underY);
+          if (!shaft) continue;
+          shaft.name = 'undercity-access-shaft-' + s;
+          root.add(shaft);
+          if (reg) reg.register(shaft, { id: 'undercity_shaft_' + s, kind: 'access-shaft', owner: 'undercity', tags: ['undercity', 'access'] });
+        }
+        const underGrid = opts.underGrid || 9;
+        const underSpacing = opts.underSpacing || 28;
+        for (let i = 0; i < underGrid; i++) {
+          for (let j = 0; j < underGrid; j++) {
+            const x = (i - underGrid / 2) * underSpacing + underSpacing / 2;
+            const z = (j - underGrid / 2) * underSpacing + underSpacing / 2;
+            if (Math.hypot(x, z) < 35) continue; // keep an under-plaza open
+            if (rng() < 0.18) continue;
+            const h = 8 + rng() * 32;
+            const w = 7 + rng() * 8;
+            const d = 7 + rng() * 8;
+            const mesh = makeBlock(x, z, w, d, h, 0x0d1830 + Math.floor(rng() * 0x111133), underY);
+            if (!mesh) continue;
+            mesh.name = 'undercity-block-' + i + '-' + j;
+            root.add(mesh);
+            const id = 'undercity_' + i + '_' + j;
+            blocks.set(id, { mesh, baseY: underY + h / 2, kind: 'undercity-block', h });
+            if (reg) reg.register(mesh, { id, kind: 'undercity-block', owner: 'undercity', tags: ['structure', 'undercity'] });
+            underAdded++;
+          }
+        }
+      }
       if (scene && typeof scene.add === 'function') scene.add(root);
-      return { built: true, blocks: added, towers: Array.from(blocks.values()).filter((b) => b.kind === 'tower').length };
+      return { built: true, blocks: added, undercityBlocks: underAdded, towers: Array.from(blocks.values()).filter((b) => b.kind === 'tower').length, centerClearRadius: clearRadius };
     }
 
     // Heightmap: deterministic undulating ground plane (realm terrain seed).

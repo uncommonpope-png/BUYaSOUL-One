@@ -2071,9 +2071,9 @@
         // mutating the legacy world. Built in a local sandbox fork
         // (genesis-foundation) so the production cosmic-pyramid-library repo is
         // untouched until Craig approves a merge.
-        window.__GENESIS_KERNEL = (typeof window.__GENESIS_KERNEL === 'boolean') ? window.__GENESIS_KERNEL : false;
-        window.__GENESIS_ENTITY_REGISTRY = (typeof window.__GENESIS_ENTITY_REGISTRY === 'boolean') ? window.__GENESIS_ENTITY_REGISTRY : false;
-        window.__GENESIS_SCHEDULER = (typeof window.__GENESIS_SCHEDULER === 'boolean') ? window.__GENESIS_SCHEDULER : false;
+        window.__GENESIS_KERNEL = (typeof window.__GENESIS_KERNEL === 'boolean') ? window.__GENESIS_KERNEL : true;
+        window.__GENESIS_ENTITY_REGISTRY = (typeof window.__GENESIS_ENTITY_REGISTRY === 'boolean') ? window.__GENESIS_ENTITY_REGISTRY : true;
+        window.__GENESIS_SCHEDULER = (typeof window.__GENESIS_SCHEDULER === 'boolean') ? window.__GENESIS_SCHEDULER : true;
         window.__GENESIS_AGENT_GATEWAY = (typeof window.__GENESIS_AGENT_GATEWAY === 'boolean') ? window.__GENESIS_AGENT_GATEWAY : true;  // Step 1 proper: flag ON = the body is present, not dormant
         window.__GENESIS_SCRIBE_GATEWAY = (typeof window.__GENESIS_SCRIBE_GATEWAY === 'boolean') ? window.__GENESIS_SCRIBE_GATEWAY : true;  // C2: Scribe lives in the engine (GSK's best friend), same spine
         window.__GENESIS_AGENT_CITIZENS = (typeof window.__GENESIS_AGENT_CITIZENS === 'boolean') ? window.__GENESIS_AGENT_CITIZENS : true;  // C3: agent-citizen FACTORY — Allie/ARIA/subagents as native inhabitants (Dark City model)
@@ -2187,12 +2187,22 @@
                 Promise.resolve()
                     .then(() => import('./src/genesis/citizen-ai.js'))
                     .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] CitizenAI validated (Act VI: living FSM).'); })
+                    .then(() => {
+                        const trySyncCitizens = () => {
+                            const G = window.Genesis;
+                            if (!G || !G.CitizenAI || !G.EntityRegistry || !G.scene) return setTimeout(trySyncCitizens, 300);
+                            if (G.EntityRegistry.find && G.EntityRegistry.find('citizen').length === 0) return setTimeout(trySyncCitizens, 300);
+                            const n = G.CitizenAI.syncFromRegistry();
+                            if (typeof console !== 'undefined') console.log('[Act VI] CitizenAI synced visible citizen bodies:', n);
+                        };
+                        trySyncCitizens();
+                    })
                     .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] CitizenAI load skipped:', e && e.message); });
             }
             if (window.__GENESIS_WORLD_REACTION === true) {
                 Promise.resolve()
                     .then(() => import('./src/genesis/world-reaction.js'))
-                    .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] WorldReaction validated (Act VI: mood->world).'); })
+                    .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (window.Genesis && window.Genesis.WorldReaction) window.Genesis.WorldReaction.observeMood('neutral'); if (typeof console !== 'undefined') console.log('[Genesis] WorldReaction validated (Act VI: mood->world).'); })
                     .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] WorldReaction load skipped:', e && e.message); });
             }
             if (window.__GENESIS_PROCEDURAL_CITY === true) {
@@ -2204,7 +2214,7 @@
                         const tryGen = () => {
                             const G = window.Genesis, sc = (G && G.scene);
                             if (!G || !G.ProceduralCity || !sc) return setTimeout(tryGen, 300);
-                            const r = G.ProceduralCity.generate({ scene: sc, grid: 10, spacing: 26, seed: 1337 });
+                            const r = G.ProceduralCity.generate({ scene: sc, grid: 18, spacing: 28, seed: 1337, centerClearRadius: 165, outerRadius: 360, undercity: true, underY: -52, underSize: 380 });
                             if (typeof console !== 'undefined') console.log('[Act VI] City generated:', JSON.stringify(r));
                         };
                         tryGen();
@@ -13787,6 +13797,7 @@ bloomPass.radius = 0.7;
             if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager && Genesis.SectorManager.tick) Genesis.SectorManager.tick();
             if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility && Genesis.Visibility.tick) Genesis.Visibility.tick();
             if (window.__GENESIS_ANIM_SCHEDULER !== false && Genesis.AnimationScheduler && Genesis.AnimationScheduler.tick) Genesis.AnimationScheduler.tick(dt, ++_genesisFrameSerial);
+            if (window.__GENESIS_SCHEDULER === true && Genesis.EngineScheduler && typeof Genesis.EngineScheduler.run === 'function') Genesis.EngineScheduler.run({ dt, time, serial: _genesisFrameSerial, scene, camera, renderer, surfaceActive: surfaceStratumActive, hubActive });
             if (window.__GENESIS_POPULATION_ENGINE !== false && Genesis.PopulationEngine && typeof Genesis.PopulationEngine.tick === 'function') Genesis.PopulationEngine.tick(dt);
             // Genesis Scale Engine (Phase E): tick AFTER PopulationEngine. Bounded
             // population bands + instanced traffic sync. No-op when flag OFF (it is
