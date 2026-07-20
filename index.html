@@ -2423,6 +2423,22 @@
                     .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] PlayerCam load skipped:', e && e.message); });
             }
 
+            // ═══ ACT XIII BODY GRAFT (P121) ═══
+            window.__GENESIS_CITIZEN_MEMORY = (typeof window.__GENESIS_CITIZEN_MEMORY === 'boolean') ? window.__GENESIS_CITIZEN_MEMORY : true;
+            if (window.__GENESIS_CITIZEN_MEMORY === true) {
+                Promise.resolve()
+                    .then(() => import('./src/genesis/citizen-memory.js'))
+                    .then((m) => {
+                        if (typeof m.install === 'function') {
+                            m.install(window.Genesis);
+                            // Expose install function globally for early loading if needed
+                            window.installEpisodicMemory = m.install;
+                        }
+                        if (typeof console !== 'undefined') console.log('[Genesis] Citizen Memory validated (Act XIII: episodic memory).');
+                    })
+                    .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Citizen Memory load skipped:', e && e.message); });
+            }
+
         window.__GENESIS_VERTICAL_STACK = (typeof window.__GENESIS_VERTICAL_STACK === 'boolean') ? window.__GENESIS_VERTICAL_STACK : true;
         (function () {
             const STATES = Object.freeze({ UNLOADED: 'UNLOADED', LOADED: 'LOADED', ACTIVE: 'ACTIVE', SLEEPING: 'SLEEPING' });

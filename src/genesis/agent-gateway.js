@@ -172,6 +172,10 @@
             const o = Registry.resolve(id);
             if (o && o.position && cmd.pos) o.position.set(cmd.pos.x||0, cmd.pos.y||0, cmd.pos.z||0);
           }
+          // Record episode for newly spawned citizen
+          if (Genesis.CitizenAI && cmd.kind === 'citizen') {
+            Genesis.CitizenAI.addEpisode(id, 'spawn', `Spawned into existence`, [id, cmd.owner], cmd.pos, 'neutral', ['spawn', cmd.kind]);
+          }
           return { ok:true, op:'spawn', id };
         }
         if (cmd.op === 'move') {
@@ -283,7 +287,13 @@
               const entity = (Registry && typeof Registry.get === 'function') ? Registry.get(r.id) : null;
               const fired = (Genesis && Genesis.ReactionRules) ? Genesis.ReactionRules.evaluate(world, AGENT_SCHEME, entity, Registry) : [];
               if (fired && fired.length) {
-                for (const f of fired) emit('genesis:agent:reaction', { actor: AGENT_SCHEME, id: r.id, rule: f.rule, desc: f.desc });
+                for (const f of fired) {
+                  emit('genesis:agent:reaction', { actor: AGENT_SCHEME, id: r.id, rule: f.rule, desc: f.desc });
+                  // Record reaction episode for affected entities (e.g., citizen)
+                  if (Genesis.CitizenAI && entity && entity.kind === 'citizen') {
+                    Genesis.CitizenAI.addEpisode(entity.id, 'world_reaction', f.desc.kind || 'unknown', [entity.id, AGENT_SCHEME], entity.pos, 'neutral', [f.rule]);
+                  }
+                }
               }
             } catch (_) {}
           }

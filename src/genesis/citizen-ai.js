@@ -24,13 +24,29 @@
     if (!Genesis) return;
     if (Genesis.CitizenAI) return; // idempotent
 
+    // Ensure EpisodicMemory is installed
+    if (Genesis.EpisodicMemory === undefined && typeof Genesis.registerModule === 'function') {
+      Genesis.registerModule('citizen-memory', { status: 'required' });
+      // Attempt to install it now if it was delayed
+      if (typeof window.installEpisodicMemory === 'function') {
+          window.installEpisodicMemory(Genesis);
+      }
+      if (Genesis.EpisodicMemory === undefined) {
+          console.warn('[CitizenAI] EpisodicMemory not available. Citizen memory will be disabled.');
+          // Provide a dummy class to prevent errors
+          Genesis.EpisodicMemory = class { constructor() { this.chronos = []; } addEpisode() {} snapshot() { return {}; } load() {} };
+      }
+    }
+
+
     const STATE = { WANDER: 'wander', PATROL: 'patrol', PURSUE: 'pursue', IDLE: 'idle', FOLLOW: 'follow' };
     const RULE_STATES = [STATE.WANDER, STATE.PATROL, STATE.PURSUE, STATE.IDLE, STATE.FOLLOW];
 
     // Internal citizen record (state + memory of last target).
-    const citizens = new Map(); // id -> { state, target, home, route, legIndex, waitT, speed, get obj() }
+    const citizens = new Map(); // id -> { state, target, home, route, legIndex, waitT, speed, get obj(), memory: EpisodicMemory }
     let cascadeHook = null;     // optional (proposed, decided) CASCADE decision fn
     let gskTrackerId = null;    // entity id treated as "the mind" to pursue/follow
+
 
     function flagOn() {
       return (typeof window !== 'undefined') && window.__GENESIS_CITIZEN_AI === true;
@@ -154,9 +170,15 @@
             ],
             legIndex: 0,
             waitT: Math.random() * 4,
-            speed: 2.2
+            speed: 2.2,
+            memory: new Genesis.EpisodicMemory(r.id)
           };
+          if (r.meta && r.meta.memory) {
+            rec.memory.load(r.meta.memory);
+          }
           citizens.set(r.id, rec);
+          // Update entity meta with current memory snapshot for persistence
+          r.meta.memory = rec.memory.snapshot();
           added++;
         }
         return added;
@@ -165,6 +187,23 @@
       setRoute(id, route) {
         const rec = citizens.get(id);
         if (rec) { rec.route = route || null; rec.legIndex = 0; }
+      },
+      // Expose episodic memory for external querying
+      getMemory(id) {
+        const rec = citizens.get(id);
+        return rec ? rec.memory : null;
+      },
+      // External entry for adding episodes (e.g., from AgentGateway interactions)
+      addEpisode(id, type, description, entities = [], location = null, sentiment = 'neutral', keywords = []) {
+        const rec = citizens.get(id);
+        if (rec && rec.memory) {
+          rec.memory.addEpisode(type, description, entities, location, sentiment, keywords);
+          // Ensure memory snapshot is updated for persistence
+          const reg = Genesis.EntityRegistry;
+          if (reg && reg.has(id)) {
+            reg.get(id).meta.memory = rec.memory.snapshot();
+          }
+        }
       },
       // Per-frame tick (registered on EngineScheduler). Mirrors if-chain.
       tick(dt, serial, ctx) {
@@ -188,9 +227,18 @@
             let allowed = false;
             try { allowed = cascadeHook(proposed); } catch (_) { allowed = false; }
             if (!allowed) toState = fromState; // server rejected -> hold
+
+            // Record proposal in memory
+            rec.memory.addEpisode('proposal', `Proposed state change to ${proposed.toState} from ${proposed.fromState}`, [rec.id, gskTrackerId], proposed.pos, allowed ? 'positive' : 'negative', ['cascade', proposed.toState]);
+          }
+          if (rec.state !== toState) {
+            // Record state change in memory
+            rec.memory.addEpisode('state_change', `State changed from ${rec.state} to ${toState}`, [rec.id], rec.obj.position, 'neutral', [rec.state, toState]);
           }
           rec.state = toState;
           step(rec, dt);
+          // Update meta with current memory snapshot for persistence on each tick
+          reg.get(rec.id).meta.memory = rec.memory.snapshot();
         }
       },
       summary() {
