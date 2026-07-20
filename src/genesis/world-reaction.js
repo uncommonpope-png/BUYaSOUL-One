@@ -40,6 +40,7 @@
     let currentPreset = MOOD_MAP[DEFAULT_MOOD];
     let cascadeHook = null;     // (proposal) => boolean ; server decides
     const listeners = [];       // observer callbacks for Genesis reaction events
+    let currentPLT = { profit: 0, love: 0, tax: 0 }; // Track overall PLT state
 
     function flagOn() {
       return (typeof window !== 'undefined') && window.__GENESIS_WORLD_REACTION === true;
@@ -48,6 +49,43 @@
     // Resolve a mood/phase observation to a preset. Pure, deterministic.
     function presetFor(mood) {
       return MOOD_MAP[mood] || MOOD_MAP[DEFAULT_MOOD];
+    }
+    
+    // Calculate global PLT mood based on all agent resource pools
+    function calculatePLTMood(resourcePool) {
+      if (!resourcePool || !resourcePool._pools || resourcePool._pools.size === 0) {
+        currentPLT = { profit: 0, love: 0, tax: 0 }; // Reset
+        return DEFAULT_MOOD;
+      }
+
+      let totalProfit = 0;
+      let totalLove = 0;
+      let totalTax = 0;
+      let agentCount = 0;
+
+      for (const p of resourcePool._pools.values()) {
+        totalProfit += p.profit;
+        totalLove += p.love;
+        totalTax += p.tax;
+        agentCount++;
+      }
+
+      if (agentCount === 0) {
+        currentPLT = { profit: 0, love: 0, tax: 0 }; // Reset
+        return DEFAULT_MOOD;
+      }
+
+      // Aggregate for currentPLT
+      currentPLT = { profit: totalProfit, love: totalLove, tax: totalTax };
+
+      // Simple heuristic for mood from aggregated PLT
+      const netPLT = totalProfit + totalLove - totalTax;
+
+      if (netPLT > 20) return 'joy';
+      if (netPLT > 10) return 'calm';
+      if (totalTax > totalProfit + totalLove && totalTax > 10) return 'wrath';
+      if (netPLT < -10) return 'melancholy';
+      return 'neutral';
     }
 
     // Apply the preset. In the sandbox this only mutates an in-memory preset
@@ -86,13 +124,15 @@
       currentMood() { return currentMood; },
       currentPreset() { return currentPreset; },
       moodTable() { return Object.keys(MOOD_MAP); },
+      currentPLT() { return currentPLT; }, // Expose current overall PLT state
       summary() {
         return {
           enabled: flagOn(),
           cascadeRegistered: !!cascadeHook,
           mood: currentMood,
           preset: currentPreset,
-          observerCount: listeners.length
+          observerCount: listeners.length,
+          currentPLT: currentPLT // Include current PLT in summary
         };
       }
     };
@@ -103,7 +143,11 @@
     // world reflects the mind in the same frame order as the legacy if-chain.
     if (Genesis.EngineScheduler && typeof Genesis.EngineScheduler.defineTick === 'function') {
       Genesis.EngineScheduler.defineTick('world-reaction', function () {
-        // No per-frame work needed unless mood changed; observeMood is event-driven.
+        // Drive mood based on overall PLT state periodically
+        if (Genesis.ResourcePool) {
+          const newMood = calculatePLTMood(Genesis.ResourcePool);
+          WorldReaction.observeMood(newMood);
+        }
       }, function () { return flagOn(); });
     }
     if (typeof Genesis.registerModule === 'function') {
