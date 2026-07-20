@@ -967,6 +967,7 @@
 
     <script type="module">
         import * as THREE from 'three';
+        window.THREE = THREE; // expose for Act VI BODY graft modules (procedural-city/player-cam)
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         import { DragControls } from 'three/addons/controls/DragControls.js';
         import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -2176,6 +2177,54 @@
                     .then(() => import('./src/genesis/interaction-system.js'))
                     .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis, window.THREE); if (typeof console !== 'undefined') console.log('[Genesis] Interaction System validated (C4: living clickable world).'); })
                     .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Interaction System load skipped:', e && e.message); });
+            }
+            // ═══ ACT VI BODY GRAFT (Craig: turn it ALL on, make the city alive) ═══
+            window.__GENESIS_CITIZEN_AI = true;
+            window.__GENESIS_WORLD_REACTION = true;
+            window.__GENESIS_PROCEDURAL_CITY = true;
+            window.__GENESIS_PLAYER_CAM = true;
+            if (window.__GENESIS_CITIZEN_AI === true) {
+                Promise.resolve()
+                    .then(() => import('./src/genesis/citizen-ai.js'))
+                    .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] CitizenAI validated (Act VI: living FSM).'); })
+                    .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] CitizenAI load skipped:', e && e.message); });
+            }
+            if (window.__GENESIS_WORLD_REACTION === true) {
+                Promise.resolve()
+                    .then(() => import('./src/genesis/world-reaction.js'))
+                    .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] WorldReaction validated (Act VI: mood->world).'); })
+                    .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] WorldReaction load skipped:', e && e.message); });
+            }
+            if (window.__GENESIS_PROCEDURAL_CITY === true) {
+                Promise.resolve()
+                    .then(() => import('./src/genesis/procedural-city.js'))
+                    .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] ProceduralCity validated (Act VI: gen-from-code Dark City).'); })
+                    .then(() => {
+                        // Generate once the module + scene are live.
+                        const tryGen = () => {
+                            const G = window.Genesis, sc = (G && G.scene);
+                            if (!G || !G.ProceduralCity || !sc) return setTimeout(tryGen, 300);
+                            const r = G.ProceduralCity.generate({ scene: sc, grid: 10, spacing: 26, seed: 1337 });
+                            if (typeof console !== 'undefined') console.log('[Act VI] City generated:', JSON.stringify(r));
+                        };
+                        tryGen();
+                    })
+                    .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] ProceduralCity load skipped:', e && e.message); });
+            }
+            if (window.__GENESIS_PLAYER_CAM === true) {
+                Promise.resolve()
+                    .then(() => import('./src/genesis/player-cam.js'))
+                    .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] PlayerCam validated (Act VI: inhabitation).'); })
+                    .then(() => {
+                        const tryCam = () => {
+                            const G = window.Genesis, sc = (G && G.scene), cam = (G && G.camera), dom = (G && G.renderer && G.renderer.domElement);
+                            if (!G || !G.PlayerCam || !cam || !dom) return setTimeout(tryCam, 300);
+                            const ok = G.PlayerCam.attach(cam, dom, sc);
+                            if (typeof console !== 'undefined') console.log('[Act VI] PlayerCam attached:', ok);
+                        };
+                        tryCam();
+                    })
+                    .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] PlayerCam load skipped:', e && e.message); });
             }
 
         window.__GENESIS_VERTICAL_STACK = (typeof window.__GENESIS_VERTICAL_STACK === 'boolean') ? window.__GENESIS_VERTICAL_STACK : true;
