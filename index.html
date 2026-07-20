@@ -2436,8 +2436,23 @@
                         }
                         if (typeof console !== 'undefined') console.log('[Genesis] Citizen Memory validated (Act XIII: episodic memory).');
                     })
-                    .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Citizen Memory load skipped:', e && e.message); });
+                        .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Citizen Memory load skipped:', e && e.message); });
             }
+
+            // ═══ ACT XIV BODY GRAFT (P136) ═══
+            window.__GENESIS_MERCHANT = (typeof window.__GENESIS_MERCHANT === 'boolean') ? window.__GENESIS_MERCHANT : true;
+            if (window.__GENESIS_MERCHANT === true) {
+                Promise.resolve()
+                    .then(() => import('./src/genesis/merchant.js'))
+                    .then((m) => {
+                        if (typeof m.install === 'function') {
+                            m.install(window.Genesis, window.THREE);
+                        }
+                        if (typeof console !== 'undefined') console.log('[Genesis] Merchant system validated (Act XIV: commerce).');
+                    })
+                    .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Merchant system load skipped:', e && e.message); });
+            }
+
 
         window.__GENESIS_VERTICAL_STACK = (typeof window.__GENESIS_VERTICAL_STACK === 'boolean') ? window.__GENESIS_VERTICAL_STACK : true;
         (function () {
