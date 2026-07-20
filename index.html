@@ -2078,6 +2078,58 @@
         window.__GENESIS_SCRIBE_GATEWAY = (typeof window.__GENESIS_SCRIBE_GATEWAY === 'boolean') ? window.__GENESIS_SCRIBE_GATEWAY : true;  // C2: Scribe lives in the engine (GSK's best friend), same spine
         window.__GENESIS_AGENT_CITIZENS = (typeof window.__GENESIS_AGENT_CITIZENS === 'boolean') ? window.__GENESIS_AGENT_CITIZENS : true;  // C3: agent-citizen FACTORY — Allie/ARIA/subagents as native inhabitants (Dark City model)
         window.__GENESIS_INTERACTION = (typeof window.__GENESIS_INTERACTION === 'boolean') ? window.__GENESIS_INTERACTION : true;  // C4-INTERACTION: living clickable world — click citizens to talk, ambient greetings, speech bubbles
+        (function establishGenesisBootContract() {
+            const G = window.Genesis || (window.Genesis = {});
+            if (window.__genesisBootContract) {
+                G.bootReady = window.__genesisBootContract.promise;
+                return;
+            }
+            let resolveReady = null;
+            const contract = {
+                ready: false,
+                detail: null,
+                promise: new Promise((resolve) => { resolveReady = resolve; })
+            };
+            function moduleReady(flag, value) {
+                return window[flag] !== true || !!value;
+            }
+            function collectDetail(source) {
+                const GG = window.Genesis || {};
+                return {
+                    source,
+                    at: Date.now(),
+                    spine: {
+                        kernel: moduleReady('__GENESIS_KERNEL', GG.GenesisKernel),
+                        entityRegistry: moduleReady('__GENESIS_ENTITY_REGISTRY', GG.EntityRegistry),
+                        scheduler: moduleReady('__GENESIS_SCHEDULER', GG.EngineScheduler),
+                        resourcePool: !!GG.ResourcePool,
+                        reactionRules: !!GG.ReactionRules,
+                        agentGateway: moduleReady('__GENESIS_AGENT_GATEWAY', GG.AgentGateway),
+                        immortality: !!window.GenesisImmortality,
+                        scribeGateway: moduleReady('__GENESIS_SCRIBE_GATEWAY', GG.ScribeGateway)
+                    }
+                };
+            }
+            function isReady(detail) {
+                return detail.spine.kernel && detail.spine.entityRegistry && detail.spine.scheduler &&
+                    detail.spine.resourcePool && detail.spine.reactionRules && detail.spine.agentGateway &&
+                    detail.spine.immortality && detail.spine.scribeGateway;
+            }
+            window.__maybeGenesisBootReady = function (source) {
+                if (contract.ready) return true;
+                const detail = collectDetail(source || 'unknown');
+                if (!isReady(detail)) return false;
+                contract.ready = true;
+                contract.detail = detail;
+                window.__GENESIS_BOOT_READY = true;
+                G.bootReadyDetail = detail;
+                try { window.dispatchEvent(new CustomEvent('genesis:boot-ready', { detail })); } catch (_) {}
+                if (resolveReady) resolveReady(detail);
+                return true;
+            };
+            window.__genesisBootContract = contract;
+            G.bootReady = contract.promise;
+        })();
         (async function orderedGenesisBoot() {
             const G = window.Genesis;
             if (!G) return;
@@ -2132,6 +2184,10 @@
                     }
                 } catch (e) { if (typeof console !== 'undefined') console.warn('[Genesis] Ordered immortality bridge skipped:', e && e.message); }
             }
+            if (window.__GENESIS_SCRIBE_GATEWAY === true) {
+                await loadGenesisModule('./src/genesis/scribe-gateway.js', 'scribe-gateway');
+            }
+            try { if (window.__maybeGenesisBootReady) window.__maybeGenesisBootReady('ordered-boot'); } catch (_) {}
         })();
         (function browserCoreFallbackBoot() {
             function installFallback() {
@@ -2202,6 +2258,7 @@
                     if (G.registerModule) G.registerModule('agent-gateway', { status: 'fallback', path: 'index.html#browserCoreFallbackBoot' });
                     if (typeof console !== 'undefined') console.log('[Genesis] Browser fallback AgentGateway ready.');
                 }
+                try { if (window.__maybeGenesisBootReady) window.__maybeGenesisBootReady('fallback-install'); } catch (_) {}
             }
             window.__installGenesisCoreFallback = installFallback;
             installFallback();
@@ -2280,6 +2337,7 @@
                 Promise.resolve()
                     .then(() => import('./src/genesis/scribe-gateway.js'))
                     .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Scribe Gateway validated (C2: Scribe lives in engine).'); })
+                    .then(() => { try { if (window.__maybeGenesisBootReady) window.__maybeGenesisBootReady('promise-scribe-gateway'); } catch (_) {} })
                     .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Scribe Gateway load skipped:', e && e.message); });
             }
             if (window.__GENESIS_AGENT_CITIZENS === true) {
@@ -7914,7 +7972,7 @@ bloomPass.radius = 0.7;
 
         // Phase 2: denizen identity + realm quest loops
         const WORLD_STATE_KEY = 'cpl-world-state-v2';
-        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], prophecies: [] };
+        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], prophecies: [], questConsequences: {}, witnessPacks: [], resume: null };
         try {
             const saved = JSON.parse(localStorage.getItem(WORLD_STATE_KEY) || 'null');
             if (saved && typeof saved === 'object') worldState = { ...worldState, ...saved };
@@ -7946,6 +8004,13 @@ bloomPass.radius = 0.7;
             legacyGroup.add(sigil);
             questSigils[key] = sigil;
         });
+        Object.keys(questDefs).forEach((key) => {
+            if (questComplete[key] && !(worldState.questConsequences && worldState.questConsequences[key])) {
+                worldState.questConsequences = Object.assign({}, worldState.questConsequences || {}, {
+                    [key]: { key, name: questDefs[key].name, at: Date.now(), sigil: true }
+                });
+            }
+        });
         const legacyCore = new THREE.Mesh(
             new THREE.DodecahedronGeometry(1.1, 0),
             new THREE.MeshStandardMaterial({ color: 0x9effc4, emissive: 0x44ffaa, emissiveIntensity: 0.7, roughness: 0.25, metalness: 0.5 })
@@ -7961,9 +8026,60 @@ bloomPass.radius = 0.7;
             legacyCore.scale.setScalar(scale);
             legacyCore.material.emissiveIntensity = Math.min(2.2, 0.55 + progress * 0.12);
         }
+        function serializeVec3(v) {
+            if (!v || typeof v.x !== 'number' || typeof v.y !== 'number' || typeof v.z !== 'number') return null;
+            return { x: Number(v.x), y: Number(v.y), z: Number(v.z) };
+        }
+        function captureResumeState() {
+            if (typeof playerNPC === 'undefined' || !playerNPC || !playerNPC.position) return null;
+            return {
+                at: Date.now(),
+                playerKind,
+                activeStratum: (typeof getActiveStratum === 'function') ? getActiveStratum() : 'surface',
+                realm: (typeof currentRealm === 'function' && currentRealm()) || 'surface',
+                chamberIndex: (typeof currentChamber === 'number' && currentChamber >= 0) ? currentChamber : null,
+                position: serializeVec3(playerNPC.position),
+                yaw: playerYaw,
+                floorY: playerFloorY,
+                flying: !!playerFlying,
+                grounded: !!playerGrounded,
+                cameraMode
+            };
+        }
+        function syncQuestConsequenceEntities() {
+            try {
+                const Reg = window.Genesis && window.Genesis.EntityRegistry;
+                if (!Reg) return false;
+                Object.keys(questDefs).forEach((key) => {
+                    if (!questComplete[key]) return;
+                    const sigil = questSigils[key];
+                    const id = 'quest-consequence:' + key;
+                    const meta = (worldState.questConsequences && worldState.questConsequences[key]) || { key, name: questDefs[key].name, at: Date.now(), sigil: true };
+                    if (!Reg.has(id)) {
+                        const pos = sigil ? sigil.position.clone() : new THREE.Vector3(0, 0, 0);
+                        const stub = { position: { x: pos.x, y: pos.y, z: pos.z, set(x, y, z) { this.x = x; this.y = y; this.z = z; } } };
+                        Reg.register(stub, { id, kind: 'quest-consequence', owner: 'world', tags: ['quest-consequence', key], meta });
+                    } else {
+                        const rec = Reg.get(id);
+                        if (rec) rec.meta = Object.assign({}, rec.meta || {}, meta);
+                    }
+                });
+                return true;
+            } catch (_) { return false; }
+        }
+        function saveResumeState() {
+            const resume = captureResumeState();
+            if (!resume) return false;
+            worldState.resume = resume;
+            try { localStorage.setItem(WORLD_STATE_KEY, JSON.stringify(worldState)); }
+            catch (e) { console.warn('[WorldState] resume save failed', e); }
+            return true;
+        }
         function saveWorldState() {
             worldState.quests = { ...questComplete };
             worldState.metDenizens = [...metDenizens];
+            saveResumeState();
+            syncQuestConsequenceEntities();
             try { localStorage.setItem(WORLD_STATE_KEY, JSON.stringify(worldState)); }
             catch (e) { console.warn('[WorldState] save failed', e); }
             updateWorldLegacy();
@@ -8463,6 +8579,10 @@ bloomPass.radius = 0.7;
         }
         function onQuestComplete(key) {
             const d = questDefs[key];
+            worldState.questConsequences = Object.assign({}, worldState.questConsequences || {}, {
+                [key]: { key, name: d.name, at: Date.now(), sigil: true }
+            });
+            syncQuestConsequenceEntities();
             if (typeof gskAvatar !== 'undefined' && gskAvatar) {
                 spawnWhisper(gskAvatar.group.position.clone().add(new THREE.Vector3(0, 3, 0)), `GSK · ${d.name} understood.`);
             }
@@ -11992,8 +12112,48 @@ bloomPass.radius = 0.7;
             el.className = 'cc-status' + (cls ? ' ' + cls : '');
         }
         function issueWorldCommand(type, data) {
+            const routeLocalGenesis = () => {
+                try {
+                    const G = window.Genesis;
+                    if (!window.__GENESIS_BOOT_READY || !G) return { ok: false, error: 'genesis-not-ready' };
+                    const gateway = G && G.AgentGateway;
+                    if (!gateway || typeof gateway.dispatch !== 'function') return { ok: false };
+                    const basePos = (typeof playerNPC !== 'undefined' && playerNPC && playerNPC.position)
+                        ? playerNPC.position.clone().add(new THREE.Vector3(0, 0, -6))
+                        : new THREE.Vector3(0, 0, -6);
+                    const makeStub = () => ({ position: { x: basePos.x, y: basePos.y, z: basePos.z, set(x, y, z) { this.x = x; this.y = y; this.z = z; } } });
+                    if (type === 'spawn') {
+                        const entity = (data && data.entity) || 'soul';
+                        const kind = entity === 'building' ? 'building' : 'soul';
+                        return gateway.dispatch({
+                            op: 'spawn',
+                            obj: makeStub(),
+                            kind,
+                            owner: 'agent://gsk',
+                            tags: ['ui-intent', 'command-center', String(entity)],
+                            pos: { x: basePos.x, y: basePos.y, z: basePos.z },
+                            meta: { source: 'world-ui', entity, archetype: data && data.archetype || null, theme: data && data.theme || null }
+                        });
+                    }
+                    if (type === 'tune' && G.WorldReaction && typeof G.WorldReaction.observeMood === 'function') {
+                        const mood = (data && data.mood) || 'neutral';
+                        return { ok: G.WorldReaction.observeMood(mood) !== false };
+                    }
+                    if (type === 'recall' && typeof window.__genesisResumeRestore === 'function') {
+                        return window.__genesisResumeRestore();
+                    }
+                    return { ok: false };
+                } catch (_) { return { ok: false }; }
+            };
             const s = (typeof window !== 'undefined') ? window.__sanctum : null;
             if (!s || !s.ws || s.ws.readyState !== WebSocket.OPEN) {
+                const local = routeLocalGenesis();
+                if (local && local.ok) {
+                    const label = (typeof data === 'object' && data) ? JSON.stringify(data) : '';
+                    setCmdStatus('→ routed ' + type + (label ? ' ' + label : '') + ' through local Genesis gateway', 'ok');
+                    pushRuntime('local:' + type + (label ? ' ' + label : ''));
+                    return true;
+                }
                 setCmdStatus('sanctum: offline — command not sent', 'err');
                 return false;
             }
@@ -12557,6 +12717,27 @@ bloomPass.radius = 0.7;
                 ws.onerror = () => { try { ws.close(); } catch (_) {} };
             } catch (e) {}
         }
+        window.addEventListener('genesis:scribe:witness', (ev) => {
+            try {
+                const detail = ev && ev.detail ? ev.detail : null;
+                if (!detail) return;
+                const item = {
+                    id: detail.id || null,
+                    kind: detail.kind || 'unknown',
+                    from: detail.from || 'agent://gsk',
+                    note: detail.note || 'GSK built this in the world',
+                    ts: detail.ts || Date.now(),
+                    head: (window.__GENESIS_HEAD || null)
+                };
+                worldState.witnessPacks = [...(worldState.witnessPacks || []), item].slice(-24);
+                pushScribeConsole('WITNESS · ' + item.kind + ' · ' + item.id);
+                saveWorldState();
+            } catch (_) {}
+        });
+        window.__witnessRecorder = {
+            latest() { const packs = worldState.witnessPacks || []; return packs.length ? packs[packs.length - 1] : null; },
+            all() { return (worldState.witnessPacks || []).slice(); }
+        };
 
         function buildScribeRealm() {
             const floor = new THREE.Mesh(
@@ -13766,6 +13947,72 @@ bloomPass.radius = 0.7;
             if (inChamber) return 'chamber';
             return null;
         }
+        function applyResumeState(saved) {
+            if (!saved || typeof saved !== 'object' || !saved.position) return false;
+            try {
+                if (saved.playerKind && saved.playerKind !== playerKind) setPlayerAvatar(saved.playerKind);
+                const realm = saved.realm || 'surface';
+                if (realm === 'scribe' && !inScribe) enterScribeRealm();
+                else if (realm === 'merchant' && !inMerchant) enterMerchantRealm();
+                else if (realm === 'builder' && !inBuilder) enterBuilderRealm();
+                else if (realm === 'prophet' && !inProphet) enterProphetRealm();
+                else if (realm === 'chamber' && !inChamber) enterChamber(saved.chamberIndex != null ? saved.chamberIndex : 0);
+                playerNPC.position.set(saved.position.x || 0, saved.position.y || 0, saved.position.z || 0);
+                playerYaw = typeof saved.yaw === 'number' ? saved.yaw : playerYaw;
+                playerFloorY = typeof saved.floorY === 'number' ? saved.floorY : playerFloorY;
+                playerFlying = !!saved.flying;
+                playerGrounded = !!saved.grounded;
+                playerVelY = 0;
+                if (saved.cameraMode) setCameraMode(saved.cameraMode);
+                if (saved.activeStratum === 'heaven' && typeof transitionPlayerStratum === 'function' && getActiveStratum() !== 'heaven') {
+                    transitionPlayerStratum('heaven').catch(() => {});
+                }
+                spawnWhisper(playerNPC.position.clone(), 'Mid-life resume restored.');
+                return true;
+            } catch (e) {
+                console.warn('[Resume] restore failed', e);
+                return false;
+            }
+        }
+        window.__genesisResumeRestore = function () {
+            const ok = applyResumeState(worldState.resume);
+            return ok ? { ok: true } : { ok: false, error: 'no-resume' };
+        };
+        window.__phaseTools = {
+            ready() {
+                const G = window.Genesis;
+                return (G && G.bootReady) ? G.bootReady : Promise.resolve(null);
+            },
+            issueWorldCommand,
+            onQuestComplete,
+            travelToRealm,
+            saveWorldState,
+            saveResumeState,
+            currentRealm,
+            applyResumeState,
+            playerState() {
+                return {
+                    kind: playerKind,
+                    position: playerNPC && playerNPC.position ? serializeVec3(playerNPC.position) : null,
+                    yaw: playerYaw,
+                    floorY: playerFloorY,
+                    flying: !!playerFlying,
+                    grounded: !!playerGrounded,
+                    cameraMode
+                };
+            },
+            setPlayerState(next) {
+                if (!next || typeof next !== 'object') return false;
+                if (next.kind && next.kind !== playerKind) setPlayerAvatar(next.kind);
+                if (next.position && playerNPC && playerNPC.position) playerNPC.position.set(next.position.x || 0, next.position.y || 0, next.position.z || 0);
+                if (typeof next.yaw === 'number') playerYaw = next.yaw;
+                if (typeof next.floorY === 'number') playerFloorY = next.floorY;
+                if (typeof next.flying === 'boolean') playerFlying = next.flying;
+                if (typeof next.grounded === 'boolean') playerGrounded = next.grounded;
+                if (next.cameraMode) setCameraMode(next.cameraMode);
+                return true;
+            }
+        };
         const _realmEnter = { scribe: enterScribeRealm, merchant: enterMerchantRealm, builder: enterBuilderRealm, prophet: enterProphetRealm, chamber: () => enterChamber(0) };
         const _realmExit = { scribe: exitScribeRealm, merchant: exitMerchantRealm, builder: exitBuilderRealm, prophet: exitProphetRealm, chamber: exitChamber };
         function travelToRealm(name) {
@@ -13776,6 +14023,14 @@ bloomPass.radius = 0.7;
             const cur = currentRealm();
             if (cur && cur !== name && _realmExit[cur]) _realmExit[cur]();
             if (name !== 'hub' && _realmEnter[name]) _realmEnter[name]();
+        }
+        if (worldState.resume && worldState.resume.position) {
+            const G = window.Genesis;
+            if (G && G.bootReady && typeof G.bootReady.then === 'function') {
+                G.bootReady.then(() => { try { applyResumeState(worldState.resume); } catch (_) {} });
+            } else {
+                setTimeout(() => { try { applyResumeState(worldState.resume); } catch (_) {} }, 450);
+            }
         }
         let _compassRose = null, _compassHead = null, _lastCompassRot = '', _lastCompassHeading = '';
         function updateCompass() {
@@ -13910,6 +14165,7 @@ bloomPass.radius = 0.7;
             }
         });
         
+        let _lastResumePersistAt = 0;
         function animate() {
             if (!_perfRunning) return; // tab hidden -> stop the loop entirely
             requestAnimationFrame(animate);
@@ -13975,6 +14231,7 @@ bloomPass.radius = 0.7;
                 _uiTick = 0;
                 updateCompass();
                 refreshObjective();
+                if (time - _lastResumePersistAt >= 4) { _lastResumePersistAt = time; saveResumeState(); }
             }
             updateCommandCenter(dt, time);
             
