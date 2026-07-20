@@ -315,4 +315,31 @@ check('SoulGun reaction: GSK spawn lights a building (consequence)', () => {
   assert.ok(b.meta.litBy, 'building reacted (litBy set) — act had consequence, not fluff');
 });
 
+// 18. P28: Surface B persists reaction state across save/load roundtrip.
+check('P28 Surface B: reaction-mutated meta survives save/load', () => {
+  const reg = { m:new Map(), seq:0,
+    register(o,opts){ const id=(opts&&opts.id)||('ent_'+(++this.seq)); this.m.set(id,{id,obj:o||null,owner:(opts&&opts.owner)||'world',tags:(opts&&opts.tags)||[],kind:(opts&&opts.kind)||'x',meta:(opts&&opts.meta)||{}}); return id; },
+    resolve(id){ return this.m.get(id)||null; }, get(id){ return this.m.get(id)||null; },
+    unregister(id){ return this.m.delete(id); }, has(id){ return this.m.has(id); },
+    find(k){ return Array.from(this.m.values()).filter(e=>e.kind===k); },
+    count(){ return this.m.size; }, snapshot(){ return Array.from(this.m.values()).map((e)=>({ id:e.id, kind:e.kind, owner:e.owner, tags:e.tags, meta:e.meta||{}, pos:null })); } };
+  let tickFn = null;
+  const sched = { defineTick(n,fn){ tickFn = fn; } };
+  const G = load({ EntityRegistry: reg, EngineScheduler: sched });
+  const buildingId = reg.register(null, { owner:'world', kind:'building', meta:{} });
+  G.AgentGateway.dispatch({ op:'spawn', kind:'light', owner:'agent://gsk' });
+  tickFn();
+  const reacted = reg.get(buildingId);
+  assert.ok(reacted.meta.litBy, 'reaction did not mark building');
+  const Imm = require(path.join(__dirname, '..', 'src', 'genesis', 'immortality.js'));
+  const save = Imm.snapshot({ self:null, world:G.AgentGateway.worldSnapshot() });
+  const restored = new Map();
+  for (const e of save.world) {
+    reg.register(null, { id:e.id, kind:e.kind, owner:e.owner, tags:e.tags || [], meta:e.meta || {} });
+    restored.set(e.id, reg.get(e.id));
+  }
+  assert.strictEqual(save.world.find((e) => e.id === buildingId).meta.litBy, reacted.meta.litBy, 'snapshot dropped reaction meta');
+  assert.strictEqual(restored.get(buildingId).meta.litBy, reacted.meta.litBy, 'restore dropped reaction meta');
+});
+
 console.log('[agent-gateway] PASS: ' + passed + ' checks green');

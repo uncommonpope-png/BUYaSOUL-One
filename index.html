@@ -2114,7 +2114,7 @@
                                 const raw = localStorage.getItem(KEY); if (!raw) return;
                                 const r = Imm.load(JSON.parse(raw), null);
                                 if (r.ok && r.state && Array.isArray(r.state.world)) {
-                                    for (const e of r.state.world) if (e && e.id && !Reg.has(e.id)) Reg.register(null, { id: e.id, kind: e.kind, owner: e.owner, tags: e.tags || [] });
+                                    for (const e of r.state.world) if (e && e.id && !Reg.has(e.id)) Reg.register(null, { id: e.id, kind: e.kind, owner: e.owner, tags: e.tags || [], meta: e.meta || {} });
                                     if (typeof console !== 'undefined') console.log('[Genesis] Ordered boot restored Surface B world save.');
                                 }
                             } catch (_) {}
@@ -2250,7 +2250,7 @@
                                 const raw = localStorage.getItem(KEY); if (!raw) return;
                                 const r = Imm.load(JSON.parse(raw), null);
                                 if (r.ok && r.state && Array.isArray(r.state.world)) {
-                                    for (const e of r.state.world) { try { if (!Reg.has(e.id)) Reg.register(null, { id: e.id, kind: e.kind, owner: e.owner, tags: e.tags || [] }); } catch (_) {} }
+                                    for (const e of r.state.world) { try { if (!Reg.has(e.id)) Reg.register(null, { id: e.id, kind: e.kind, owner: e.owner, tags: e.tags || [], meta: e.meta || {} }); } catch (_) {} }
                                     if (typeof console !== 'undefined') console.log('[Genesis] Agent Gateway restored world from save (Surface B).');
                                     // C4.1: rehydrate citizen relationship selves (Surface A) — affinity + dialogue continuity.
                                     try {

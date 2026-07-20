@@ -69,15 +69,15 @@
         if (set) set.delete(id);
         return true;
       },
-      // Perception snapshot for external agents: id + kind + position (if present)
-      // + tags. Never mutates the scene. Lightweight, safe to call every frame.
+      // Perception snapshot for external agents and Surface B persistence.
+      // Include record meta so consequence state survives save/load.
       snapshot() {
         const out = [];
         for (const r of byId.values()) {
           const o = r.obj;
           let pos = null;
           if (o && o.position) pos = { x: o.position.x, y: o.position.y, z: o.position.z };
-          out.push({ id: r.id, kind: r.kind, owner: r.owner, tags: r.tags, pos });
+          out.push({ id: r.id, kind: r.kind, owner: r.owner, tags: r.tags, pos, meta: r.meta || {} });
         }
         return out;
       },
