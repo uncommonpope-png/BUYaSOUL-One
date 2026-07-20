@@ -2310,6 +2310,12 @@
                 import('./src/genesis/scheduler.js').then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Engine Scheduler validated (foundation scaffold).'); }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Engine Scheduler load skipped:', e && e.message); });
             }
         })();
+            // ═══ P-F EVENT BRIDGE / TRIGGERS (Genie Engine graft — the consequence spine) ═══
+            // Always-on infrastructure: trust changes, resource earns, world events all
+            // emit through Genesis.EventBridge so other systems react via triggers.
+            if (true) {
+                import('./src/genesis/event-bridge.js').then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Event Bridge validated (P-F: Genie trigger spine).'); }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Event Bridge load skipped:', e && e.message); });
+            }
             if (window.__GENESIS_AGENT_GATEWAY === true) {
                 Promise.resolve()
                     .then(() => import('./src/genesis/command-vocab.js'))
@@ -2493,6 +2499,17 @@
                         if (typeof console !== 'undefined') console.log('[Genesis] Merchant system validated (Act XIV: commerce).');
                     })
                     .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Merchant system load skipped:', e && e.message); });
+            }
+
+            // ═══ P-A TRUST LEDGER CORE (conflict & consequence; Genie "villager loyalty" graft) ═══
+            // Flag default ON (law: flags default ON). Writes episodic memory + emits trust
+            // events through the EventBridge (P-F) so dialogue/quests/world can react.
+            window.__GENESIS_TRUST_LEDGER = (typeof window.__GENESIS_TRUST_LEDGER === 'boolean') ? window.__GENESIS_TRUST_LEDGER : true;
+            if (window.__GENESIS_TRUST_LEDGER === true) {
+                Promise.resolve()
+                    .then(() => import('./src/genesis/trust-ledger.js'))
+                    .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Trust Ledger validated (P-A: conflict & consequence).'); })
+                    .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Trust Ledger load skipped:', e && e.message); });
             }
 
             // ═══ ACT XVII BODY GRAFT (P178) ═══
