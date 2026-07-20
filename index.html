@@ -2085,14 +2085,24 @@
                 return;
             }
             let resolveReady = null;
+            let rejectReady = null; // Add reject for the promise
             const contract = {
                 ready: false,
                 detail: null,
-                promise: new Promise((resolve) => { resolveReady = resolve; })
+                promise: new Promise((resolve, reject) => {
+                    resolveReady = resolve;
+                    rejectReady = reject;
+                })
             };
-            function moduleReady(flag, value) {
-                return window[flag] !== true || !!value;
-            }
+            // Set a timeout for bootReady. If it's not ready within BOOT_FAILURE_TIMEOUT,
+            // assume a boot failure and trigger rollback.
+            let bootTimeoutId = setTimeout(() => {
+                if (!contract.ready) {
+                    const failureDetail = collectDetail('boot-timeout');
+                    if (rejectReady) rejectReady({ reason: 'Boot Ready Timeout', detail: failureDetail }); // Reject the promise
+                    window.applyGenesisRollback('Boot Ready Timeout', 'Genesis.bootReady did not resolve in time.');
+                }
+            }, BOOT_FAILURE_TIMEOUT);
             function collectDetail(source) {
                 const GG = window.Genesis || {};
                 return {
@@ -2119,16 +2129,42 @@
                 if (contract.ready) return true;
                 const detail = collectDetail(source || 'unknown');
                 if (!isReady(detail)) return false;
+                
+                // If boot successful, clear timeout
+                clearTimeout(bootTimeoutId);
+                
                 contract.ready = true;
                 contract.detail = detail;
                 window.__GENESIS_BOOT_READY = true;
                 G.bootReadyDetail = detail;
                 try { window.dispatchEvent(new CustomEvent('genesis:boot-ready', { detail })); } catch (_) {}
                 if (resolveReady) resolveReady(detail);
+
+                // Now that boot is successful, save current state as last-good
+                if (typeof localStorage !== 'undefined') {
+                    const currentSave = localStorage.getItem(GENESIS_SAVE_KEY);
+                    if (currentSave) {
+                        try {
+                            const Imm = window.GenesisImmortality;
+                            if (Imm && Imm.validate(JSON.parse(currentSave)).ok) {
+                                localStorage.setItem(GENESIS_LAST_GOOD_KEY, currentSave);
+                                if (typeof console !== 'undefined') console.log('[Genesis Boot Contract] Stored last-good snapshot after successful boot.');
+                            }
+                        } catch (e) {
+                            if (typeof console !== 'undefined') console.warn('[Genesis Boot Contract] Failed to save last-good snapshot:', e);
+                        }
+                    }
+                }
+                
                 return true;
             };
             window.__genesisBootContract = contract;
             G.bootReady = contract.promise;
+            // Catch any explicit rejections of the bootReady promise and trigger rollback
+            G.bootReady.catch(error => {
+                if (window.__GENESIS_ROLLBACK_IN_PROGRESS) return;
+                window.applyGenesisRollback(error.reason || 'Boot Ready Promise Rejected', error);
+            });
         })();
         (async function orderedGenesisBoot() {
             const G = window.Genesis;
@@ -2304,8 +2340,11 @@
                             if (!Imm || !Reg) return;
                             try {
                                 if (typeof localStorage === 'undefined') return;
-                                const raw = localStorage.getItem(KEY); if (!raw) return;
-                                const r = Imm.load(JSON.parse(raw), null);
+                                let currentSaveRaw = localStorage.getItem(GENESIS_SAVE_KEY);
+                                let lastGoodRaw = localStorage.getItem(GENESIS_LAST_GOOD_KEY);
+                                
+                                let r = Imm.load(currentSaveRaw ? JSON.parse(currentSaveRaw) : null, lastGoodRaw ? JSON.parse(lastGoodRaw) : null);
+
                                 if (r.ok && r.state && Array.isArray(r.state.world)) {
                                     for (const e of r.state.world) { try { if (!Reg.has(e.id)) Reg.register(null, { id: e.id, kind: e.kind, owner: e.owner, tags: e.tags || [], meta: e.meta || {} }); } catch (_) {} }
                                     if (typeof console !== 'undefined') console.log('[Genesis] Agent Gateway restored world from save (Surface B).');
@@ -2321,9 +2360,13 @@
                                       }
                                     } catch (_) {}
                                 } else if (!r.ok) {
-                                    if (typeof console !== 'undefined') console.warn('[Genesis] Save corrupt - skipped (last-known-good fallback pending).');
+                                    if (typeof console !== 'undefined') console.warn('[Genesis] Save corrupt - triggering rollback.', r.error);
+                                    window.applyGenesisRollback('Corrupt/Missing Save Data', r.error);
                                 }
-                            } catch (_) {}
+                            } catch (e) {
+                                if (typeof console !== 'undefined') console.warn('[Genesis] Error during restore - triggering rollback.', e);
+                                window.applyGenesisRollback('Restore Error', e);
+                            }
                         }
                         restore();
                         if (typeof window !== 'undefined' && window.addEventListener) {
@@ -2439,8 +2482,7 @@
                         .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Citizen Memory load skipped:', e && e.message); });
             }
 
-            // ═══ ACT XIV BODY GRAFT (P136) ═══
-            window.__GENESIS_MERCHANT = (typeof window.__GENESIS_MERCHANT === 'boolean') ? window.__GENESIS_MERCHANT : true;
+        window.__GENESIS_MERCHANT = (typeof window.__GENESIS_MERCHANT === 'boolean') ? window.__GENESIS_MERCHANT : true;
             if (window.__GENESIS_MERCHANT === true) {
                 Promise.resolve()
                     .then(() => import('./src/genesis/merchant.js'))
@@ -2452,6 +2494,108 @@
                     })
                     .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Merchant system load skipped:', e && e.message); });
             }
+
+            // ═══ ACT XVII BODY GRAFT (P178) ═══
+            // Systemic Rollback / Self-Healing Boot
+            const GENESIS_SAVE_KEY = 'genesis:gsk-save';
+            const GENESIS_LAST_GOOD_KEY = 'genesis:gsk-last-good';
+            const BOOT_FAILURE_TIMEOUT = 15000; // 15 seconds for bootReady to resolve
+
+            window.__GENESIS_ROLLBACK_IN_PROGRESS = false;
+
+            function showGenesisFailure(message) {
+                const failureDiv = document.getElementById('genesis-failure');
+                if (failureDiv) {
+                    failureDiv.innerHTML = `<h1>GENESIS BOOT FAILURE</h1><p>${message}</p><p>Attempting rollback...</p>`;
+                    failureDiv.style.display = 'block';
+                }
+                if (typeof console !== 'undefined') console.error('[Genesis Boot Failure]', message);
+            }
+
+            function clearGenesisStorage() {
+                try {
+                    if (typeof localStorage !== 'undefined') {
+                        localStorage.removeItem(GENESIS_SAVE_KEY);
+                        localStorage.removeItem(GENESIS_LAST_GOOD_KEY);
+                        localStorage.removeItem('cpl-world-state-v2'); // Specific to an old save format
+                        // Clear any other Genesis-related localStorage keys if known
+                    }
+                    if (typeof console !== 'undefined') console.log('[Genesis Rollback] Cleared all Genesis related localStorage.');
+                } catch (e) {
+                    if (typeof console !== 'undefined') console.warn('[Genesis Rollback] Failed to clear localStorage:', e);
+                }
+            }
+
+            window.applyGenesisRollback = function (reason, currentError = null) {
+                if (window.__GENESIS_ROLLBACK_IN_PROGRESS) return;
+                window.__GENESIS_ROLLBACK_IN_PROGRESS = true;
+
+                if (typeof console !== 'undefined') console.error(`[Genesis Rollback] Initiating rollback due to: ${reason}`);
+                showGenesisFailure(`Reason: ${reason}. Error: ${currentError ? currentError.message || currentError : 'N/A'}`);
+
+                try {
+                    const Imm = window.GenesisImmortality;
+                    if (!Imm) {
+                        clearGenesisStorage();
+                        location.reload(); // Hard reload after clearing
+                        return;
+                    }
+
+                    // 1. Try to load last good snapshot
+                    let lastGoodRaw = null;
+                    try { if (typeof localStorage !== 'undefined') lastGoodRaw = localStorage.getItem(GENESIS_LAST_GOOD_KEY); } catch (_) {}
+
+                    if (lastGoodRaw) {
+                        const lastGoodSave = JSON.parse(lastGoodRaw);
+                        if (Imm.validate(lastGoodSave).ok) {
+                            if (typeof localStorage !== 'undefined') localStorage.setItem(GENESIS_SAVE_KEY, lastGoodRaw); // Promote last-good to current
+                            if (typeof console !== 'undefined') console.log('[Genesis Rollback] Successfully loaded last good snapshot. Reloading.');
+                            location.reload();
+                            return;
+                        }
+                    }
+
+                    // 2. If last good is corrupt or absent, try current save (if not the cause of current failure)
+                    let currentSaveRaw = null;
+                    try { if (typeof localStorage !== 'undefined') currentSaveRaw = localStorage.getItem(GENESIS_SAVE_KEY); } catch (_) {}
+                    
+                    if (currentSaveRaw && currentSaveRaw !== lastGoodRaw) { // Only try if different from lastGood
+                        const currentSave = JSON.parse(currentSaveRaw);
+                        if (Imm.validate(currentSave).ok) {
+                            // If current save is valid, but caused failure, maybe it's just a transient problem.
+                            // Clear it, then reload. A bit aggressive, but safer than looping on a broken state.
+                            if (typeof console !== 'undefined') console.log('[Genesis Rollback] Current save is valid but likely problematic. Clearing and reloading.');
+                            localStorage.removeItem(GENESIS_SAVE_KEY);
+                            location.reload();
+                            return;
+                        }
+                    }
+
+                    // 3. Fallback: Clear all storage and hard reload (factory reset)
+                    clearGenesisStorage();
+                    if (typeof console !== 'undefined') console.log('[Genesis Rollback] No valid snapshot found. Performing factory reset and reloading.');
+                    location.reload();
+
+                } catch (e) {
+                    if (typeof console !== 'undefined') console.error('[Genesis Rollback] Critical error during rollback. Performing hard reset:', e);
+                    clearGenesisStorage();
+                    location.reload();
+                }
+            };
+
+            // Global error handlers to trigger rollback
+            window.onerror = function (message, source, lineno, colno, error) {
+                if (window.__GENESIS_ROLLBACK_IN_PROGRESS) return;
+                if (message && message.indexOf('Genesis Boot Failure') !== -1) return; // Prevent infinite loop
+                window.applyGenesisRollback('Unhandled JavaScript Error', error || message);
+                return true; // Prevent default browser error handling
+            };
+
+            window.onunhandledrejection = function (event) {
+                if (window.__GENESIS_ROLLBACK_IN_PROGRESS) return;
+                if (event.reason && event.reason.message && event.reason.message.indexOf('Genesis Boot Failure') !== -1) return;
+                window.applyGenesisRollback('Unhandled Promise Rejection', event.reason);
+            };
 
 
         window.__GENESIS_VERTICAL_STACK = (typeof window.__GENESIS_VERTICAL_STACK === 'boolean') ? window.__GENESIS_VERTICAL_STACK : true;
