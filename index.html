@@ -2082,6 +2082,7 @@
         // untouched until Craig approves a merge.
         window.__GENESIS_KERNEL = (typeof window.__GENESIS_KERNEL === 'boolean') ? window.__GENESIS_KERNEL : true;
         window.__GENESIS_EPL = (typeof window.__GENESIS_EPL === 'boolean') ? window.__GENESIS_EPL : true; // Wallmeria: engine portability layer (manifest + routes + health)
+        window.__GENESIS_GODMODE_NEXT_TEN = (typeof window.__GENESIS_GODMODE_NEXT_TEN === 'boolean') ? window.__GENESIS_GODMODE_NEXT_TEN : true; // P38/P51/P14/P55/P56/P54/P82/P83/P84/P95
         window.__GENESIS_ENTITY_REGISTRY = (typeof window.__GENESIS_ENTITY_REGISTRY === 'boolean') ? window.__GENESIS_ENTITY_REGISTRY : true;
         window.__GENESIS_SCHEDULER = (typeof window.__GENESIS_SCHEDULER === 'boolean') ? window.__GENESIS_SCHEDULER : true;
         window.__GENESIS_AGENT_GATEWAY = (typeof window.__GENESIS_AGENT_GATEWAY === 'boolean') ? window.__GENESIS_AGENT_GATEWAY : true;  // Step 1 proper: flag ON = the body is present, not dormant
@@ -2331,6 +2332,38 @@
             // emit through Genesis.EventBridge so other systems react via triggers.
             if (true) {
                 import('./src/genesis/event-bridge.js').then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Event Bridge validated (P-F: Genie trigger spine).'); }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Event Bridge load skipped:', e && e.message); });
+            }
+            if (window.__GENESIS_GODMODE_NEXT_TEN === true) {
+                Promise.resolve()
+                    .then(() => import('./src/genesis/runtime-manifest.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); })
+                    .then(() => import('./src/genesis/agent-route-table.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); })
+                    .then(() => import('./src/genesis/transport-adapter.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); })
+                    .then(() => import('./src/genesis/event-bridge.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); })
+                    .then(() => import('./src/genesis/auth-provider.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); })
+                    .then(() => import('./src/genesis/deployment-profile.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); })
+                    .then(() => import('./src/genesis/engine-health.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); })
+                    .then(() => import('./src/genesis/sanctum-adapter.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); })
+                    .then(() => import('./src/genesis/consequence-audit.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); })
+                    .then(() => import('./src/genesis/litmus-pass.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); })
+                    .then(() => import('./src/genesis/citizen-reflect-loop.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); })
+                    .then(() => import('./src/genesis/affordance-model.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); })
+                    .then(() => import('./src/genesis/grounding-kg.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); })
+                    .then(() => import('./src/genesis/skill-tree.js'))
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Godmode next-ten modules validated.'); })
+                    .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Godmode next-ten load skipped:', e && e.message); });
             }
             if (window.__GENESIS_AGENT_GATEWAY === true) {
                 Promise.resolve()

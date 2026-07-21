@@ -53,10 +53,12 @@
       }
       if (def.capability === 'auth') {
         var auth = m.auth || {};
-        return Object.assign({}, def, { state: auth.provider !== 'none' ? 'unblocked' : 'wallmeria', reason: auth.provider !== 'none' ? 'auth-provider-configured' : 'engine-auth-provider-needed' });
+        var authReady = (Genesis.AuthProvider && Genesis.AuthProvider.summary && Genesis.AuthProvider.summary().bearerPresent) || auth.provider !== 'none';
+        return Object.assign({}, def, { state: authReady ? 'unblocked' : 'wallmeria', reason: authReady ? 'auth-provider-configured' : 'engine-auth-provider-needed' });
       }
       if (def.capability === 'policy') {
-        return Object.assign({}, def, { state: m.profile && m.profile !== 'dev-local' ? 'unblocked' : 'wallmeria', reason: 'deployment-policy-profile-needed' });
+        var profileReady = !!(Genesis.DeploymentProfile && Genesis.DeploymentProfile.policy && Genesis.DeploymentProfile.policy()) || (m.profile && m.profile !== 'dev-local');
+        return Object.assign({}, def, { state: profileReady ? 'unblocked' : 'wallmeria', reason: profileReady ? 'deployment-policy-profile-configured' : 'deployment-policy-profile-needed' });
       }
       if (def.capability === 'manifest') {
         return Object.assign({}, def, { state: m && m.version ? 'unblocked' : 'blocked', reason: m && m.version ? 'runtime-manifest-present' : 'runtime-manifest-missing' });
@@ -86,12 +88,29 @@
       };
     }
     function isProductReal() { return check().productReady; }
+    function proveRoutes() {
+      var c = check();
+      var required = [
+        { uri: 'agent://gsk', channel: 'mcp' },
+        { uri: 'agent://gsk', channel: 'thoughts' },
+        { uri: 'agent://sanctum', channel: 'lobby' }
+      ];
+      var routes = required.map(function (r) {
+        var h = adapterHealth(r.uri, r.channel);
+        return { uri: r.uri, channel: r.channel, ok: !!(h && h.ok), productReady: !!(h && h.productReady), developmentHarness: !!(h && h.developmentHarness), endpoint: h && h.endpoint, status: h && h.status };
+      });
+      var ok = routes.every(function (r) { return r.ok; }) && !!(Genesis.AgentRouteTable && Genesis.AgentRouteTable.has && Genesis.AgentRouteTable.has('agent://gsk'));
+      var productReady = ok && routes.every(function (r) { return r.productReady; }) && !c.dependsOnCraigPC;
+      var proof = { ok: ok, productReady: productReady, profile: c.profile, routes: routes, standingWalls: c.standingWalls, at: Date.now() };
+      try { if (Genesis.EventBridge && Genesis.EventBridge.emit) Genesis.EventBridge.emit('engine-health:proof', proof); } catch (_) {}
+      return proof;
+    }
     function summary() {
       var c = check();
       return { ok: c.ok, productReady: c.productReady, profile: c.profile, dependsOnCraigPC: c.dependsOnCraigPC, standingWalls: c.standingWalls, wallCount: c.wallCount };
     }
 
-    var API = { WALLS: WALLS.slice(), check: check, wallReport: wallReport, isProductReal: isProductReal, summary: summary };
+    var API = { WALLS: WALLS.slice(), check: check, wallReport: wallReport, proveRoutes: proveRoutes, isProductReal: isProductReal, summary: summary };
     Genesis.EngineHealth = API;
     if (typeof Genesis.registerModule === 'function') {
       Genesis.registerModule('engine-health', { status: 'validated', path: './src/genesis/engine-health.js', gun: 'EPL' });
