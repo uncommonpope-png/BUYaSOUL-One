@@ -980,6 +980,15 @@
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
         import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+        import { createNPCScalePass, install as installNPCScalePass } from './src/genesis/npc-scale-pass.js';
+        import { install as installPersonalityDrift } from './src/genesis/personality-drift.js';
+        import { install as installImmortalityAudit } from './src/genesis/immortality-audit.js';
+        import { install as installWitnessRecorder } from './src/genesis/witness-recorder.js';
+        import { install as installScribeLiveBooks } from './src/genesis/scribe-live-books.js';
+        import { install as installChamberHardening } from './src/genesis/chamber-hardening.js';
+        import { install as installWorldTuner } from './src/genesis/world-tuner.js';
+        import { install as installAmbientDriftCam } from './src/genesis/ambient-drift-camera.js';
+        import { install as installPopulationAudit } from './src/genesis/population-audit.js';
 
         // ========== GENESIS TIER 0: telemetry + survival + registry ==========
         const Genesis = window.Genesis || (window.Genesis = {});
@@ -6712,6 +6721,8 @@ bloomPass.radius = 0.7;
         }
         const VIDEO_PLAY_DISTANCE = 130, MAX_ACTIVE_VIDEOS = 6;
         const NPC_SIZE_REF = 1.7; // unified human reference height (world units) for all character NPCs
+        const npcScalePass = createNPCScalePass({ THREE, targetHeight: NPC_SIZE_REF, minScale: 0.4, maxScale: 2.2 });
+        Genesis.NPCScalePass = npcScalePass;
 
         // ========== POSITIONAL AUDIO (engine 1/7) ==========
         // Three.js PositionalAudio — distance-attenuated ambient drones anchored in the world.
@@ -7806,6 +7817,21 @@ bloomPass.radius = 0.7;
         // and (when online) a throttled brain.think enriches one side of each exchange.
         let _angelConvoTimer = 3;
         let _angelGskCd = 0;
+        function recordAngelLife(kind, detail = {}) {
+            try {
+                if (!worldState) return;
+                const stats = worldState.angelLifeStats || { greetings: 0, conversations: 0, gskLines: 0, events: [] };
+                if (kind === 'greeting') stats.greetings = (stats.greetings || 0) + 1;
+                else if (kind === 'gsk-line') stats.gskLines = (stats.gskLines || 0) + 1;
+                else stats.conversations = (stats.conversations || 0) + 1;
+                stats.lastAt = Date.now();
+                stats.lastKind = kind;
+                stats.events = [{ at: stats.lastAt, kind, detail }, ...(stats.events || [])].slice(0, 24);
+                worldState.angelLifeStats = stats;
+                if (typeof saveWorldState === 'function') saveWorldState();
+                window.dispatchEvent(new CustomEvent('genesis:angel:life', { detail: { kind, ...detail, stats } }));
+            } catch (_) {}
+        }
         async function angelGskLine(mood, phase) {
             if (!gskBridge || !gskBridge.gskOnline) return null;
             try {
@@ -7856,6 +7882,7 @@ bloomPass.radius = 0.7;
                         const wj = new THREE.Vector3(); B.obj.getWorldPosition(wj);
                         spawnWhisper(wi, A.name + ' ✶ ' + line);
                         spawnWhisper(wj, B.name + ' ✶ ' + line);
+                        recordAngelLife('greeting', { a: A.name, b: B.name, line, mood });
                     }
                 }
             }
@@ -7876,10 +7903,11 @@ bloomPass.radius = 0.7;
                 const wj = new THREE.Vector3(); heavenAngels[bj].obj.getWorldPosition(wj);
                 spawnWhisper(wi, heavenAngels[bi].name + ': ' + li);
                 spawnWhisper(wj, heavenAngels[bj].name + ': ' + lj);
+                recordAngelLife('conversation', { a: heavenAngels[bi].name, b: heavenAngels[bj].name, li, lj, mood, phase: gskBridge.currentPhase || 'VOID' });
                 if (gskBridge.gskOnline && _angelGskCd <= 0 && Math.random() < 0.6) {
                     _angelGskCd = 10;
                     angelGskLine(mood, gskBridge.currentPhase).then((line) => {
-                        if (line) { const w = new THREE.Vector3(); heavenAngels[bj].obj.getWorldPosition(w); spawnWhisper(w, heavenAngels[bj].name + ': ' + line); }
+                        if (line) { const w = new THREE.Vector3(); heavenAngels[bj].obj.getWorldPosition(w); spawnWhisper(w, heavenAngels[bj].name + ': ' + line); recordAngelLife('gsk-line', { speaker: heavenAngels[bj].name, line, mood, phase: gskBridge.currentPhase || 'VOID' }); }
                     }).catch(() => {});
                 }
             }
@@ -8062,6 +8090,7 @@ bloomPass.radius = 0.7;
         // Pulled from three.js' GitHub repo (Soldier / RobotExpressive / Xbot) so the city
         // citizens are actual animated characters, not sliding placeholders. Each gets a
         // cloned skeleton + an AnimationMixer; Walk plays while moving, Idle while waiting.
+        window.__GENESIS_NPC_SCALE_PASS = (typeof window.__GENESIS_NPC_SCALE_PASS === 'boolean') ? window.__GENESIS_NPC_SCALE_PASS : true;
         const walkerRigUrls = [
             'assets/city/walkers/Soldier.glb',
             'assets/city/walkers/RobotExpressive.glb',
@@ -8095,13 +8124,17 @@ bloomPass.radius = 0.7;
                 // cloned skinned rig returns a degenerate (too-short) bounding box, so s = 1.7/h
                 // ballooned. Measure the SOURCE rig instead, and clamp so a bad measure can't
                 // blow the NPC up. Target standing height = NPC_SIZE_REF (1.7u).
-                const srcBox = new THREE.Box3().setFromObject(rig.scene);
-                const srcSize = new THREE.Vector3(); srcBox.getSize(srcSize);
-                let s = NPC_SIZE_REF / (srcSize.y || 1.8);
-                s = Math.max(0.4, Math.min(2.2, s)); // sane clamp: humanoid, never giant
-                clone.scale.setScalar(s);
-                const box2 = new THREE.Box3().setFromObject(clone);
-                clone.position.y -= box2.min.y; // feet on the ground
+                if (window.__GENESIS_NPC_SCALE_PASS !== false && npcScalePass && npcScalePass.normalize) {
+                    npcScalePass.normalize(clone, rig.scene, { url: walkerRigUrls[rigIdx] || 'walker-rig', npc: talkData.name || talkData.label || 'citizen' });
+                } else {
+                    const srcBox = new THREE.Box3().setFromObject(rig.scene);
+                    const srcSize = new THREE.Vector3(); srcBox.getSize(srcSize);
+                    let s = NPC_SIZE_REF / (srcSize.y || 1.8);
+                    s = Math.max(0.4, Math.min(2.2, s)); // sane clamp: humanoid, never giant
+                    clone.scale.setScalar(s);
+                    const box2 = new THREE.Box3().setFromObject(clone);
+                    clone.position.y -= box2.min.y; // feet on the ground
+                }
                 stampNpcTalk(clone, talkData);
                 group.add(clone);
                 const mixer = new THREE.AnimationMixer(clone);
@@ -8170,7 +8203,7 @@ bloomPass.radius = 0.7;
 
         // Phase 2: denizen identity + realm quest loops
         const WORLD_STATE_KEY = 'cpl-world-state-v2';
-        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], prophecies: [], questConsequences: {}, witnessPacks: [], resume: null };
+        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], prophecies: [], questConsequences: {}, witnessPacks: [], resume: null, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {}, witnessProofPacks: [], npcScaleAudit: [], angelLifeStats: {}, scribeLiveBooks: {}, memoryBuildings: {}, chamberLedger: {}, liveTuning: {}, ambientDriftCam: {}, populationAudit: {} };
         try {
             const saved = JSON.parse(localStorage.getItem(WORLD_STATE_KEY) || 'null');
             if (saved && typeof saved === 'object') worldState = { ...worldState, ...saved };
@@ -8283,6 +8316,27 @@ bloomPass.radius = 0.7;
             updateWorldLegacy();
         }
         updateWorldLegacy();
+
+        // ========== GENESIS CPL PROOF MODULES — canon sync from live CPL ==========
+        window.__GENESIS_PERSONALITY_DRIFT = (typeof window.__GENESIS_PERSONALITY_DRIFT === 'boolean') ? window.__GENESIS_PERSONALITY_DRIFT : true;
+        window.__GENESIS_IMMORTALITY_AUDIT = (typeof window.__GENESIS_IMMORTALITY_AUDIT === 'boolean') ? window.__GENESIS_IMMORTALITY_AUDIT : true;
+        window.__GENESIS_WITNESS_RECORDER = (typeof window.__GENESIS_WITNESS_RECORDER === 'boolean') ? window.__GENESIS_WITNESS_RECORDER : true;
+        window.__GENESIS_NPC_SCALE_PASS = (typeof window.__GENESIS_NPC_SCALE_PASS === 'boolean') ? window.__GENESIS_NPC_SCALE_PASS : true;
+        window.__GENESIS_SCRIBE_LIVE_BOOKS = (typeof window.__GENESIS_SCRIBE_LIVE_BOOKS === 'boolean') ? window.__GENESIS_SCRIBE_LIVE_BOOKS : true;
+        window.__GENESIS_CHAMBER_HARDENING = (typeof window.__GENESIS_CHAMBER_HARDENING === 'boolean') ? window.__GENESIS_CHAMBER_HARDENING : true;
+        window.__GENESIS_WORLD_TUNER = (typeof window.__GENESIS_WORLD_TUNER === 'boolean') ? window.__GENESIS_WORLD_TUNER : true;
+        window.__GENESIS_AMBIENT_DRIFT_CAM = (typeof window.__GENESIS_AMBIENT_DRIFT_CAM === 'boolean') ? window.__GENESIS_AMBIENT_DRIFT_CAM : true;
+        window.__GENESIS_POPULATION_AUDIT = (typeof window.__GENESIS_POPULATION_AUDIT === 'boolean') ? window.__GENESIS_POPULATION_AUDIT : true;
+        if (window.__GENESIS_NPC_SCALE_PASS !== false) installNPCScalePass(window.Genesis, worldState, saveWorldState, { api: npcScalePass, maxRecords: 120 });
+        if (window.__GENESIS_PERSONALITY_DRIFT !== false) installPersonalityDrift(window.Genesis, worldState, saveWorldState);
+        if (window.__GENESIS_IMMORTALITY_AUDIT !== false) installImmortalityAudit(window.Genesis, worldState, { worldStateKey: WORLD_STATE_KEY });
+        if (window.__GENESIS_WITNESS_RECORDER !== false) installWitnessRecorder(window.Genesis, worldState, { worldStateKey: WORLD_STATE_KEY });
+        if (window.__GENESIS_SCRIBE_LIVE_BOOKS !== false) installScribeLiveBooks(window.Genesis, worldState, saveWorldState, { max: 48 });
+        if (window.__GENESIS_CHAMBER_HARDENING !== false) installChamberHardening(window.Genesis, worldState, saveWorldState, { total: 36 });
+        if (window.__GENESIS_WORLD_TUNER !== false) installWorldTuner(window.Genesis, worldState, saveWorldState, { max: 40 });
+        if (window.__GENESIS_AMBIENT_DRIFT_CAM !== false) installAmbientDriftCam(window.Genesis, worldState, saveWorldState, { amp: 0.08, ampY: 0.035, saveEveryMs: 15000 });
+        if (window.__GENESIS_POPULATION_AUDIT !== false) installPopulationAudit(window.Genesis, worldState, saveWorldState, { max: 24 });
+
         const DENIZEN_IDENTITY = {
             scribe: { title: 'Scribe Acolyte', names: ['Vell', 'Sefa', 'Orin', 'Mira', 'Tace', 'Juno'], lines: [
                 'Every memory GSK keeps is a star we are sworn to catalogue.',
@@ -8680,6 +8734,10 @@ bloomPass.radius = 0.7;
             const look = new THREE.Vector3(Math.sin(playerYaw) * Math.cos(playerPitch), Math.sin(playerPitch), Math.cos(playerYaw) * Math.cos(playerPitch));
             const camPos = eye.clone().addScaledVector(look, -camDist);
             camPos.y = Math.max(camPos.y, playerFloorY + 0.6);
+            if (window.__GENESIS_AMBIENT_DRIFT_CAM !== false && Genesis.AmbientDriftCam && Genesis.AmbientDriftCam.offset) {
+                const drift = Genesis.AmbientDriftCam.offset(dt, { idle: !moveZ && !moveX && !_dragLook && !playerFlying && !_commandCenter, mode: cameraMode });
+                if (drift) { camPos.x += drift.x; camPos.y += drift.y; camPos.z += drift.z; }
+            }
             camera.position.lerp(camPos, 1 - Math.pow(0.0001, dt));
             camera.lookAt(eye);
         }
@@ -8738,12 +8796,33 @@ bloomPass.radius = 0.7;
             const data = target.userData.npcTalk || { label: 'NPC' };
             const pos = new THREE.Vector3();
             target.getWorldPosition(pos);
+            const trustId = target.userData.denizenId || data.id || data.name || data.label || 'npc';
+            if (window.__GENESIS_TRUST_LEDGER !== false && Genesis.TrustLedger && Genesis.TrustLedger.addTrustDelta) {
+                try {
+                    Genesis.TrustLedger.addTrustDelta('agent://gsk', trustId, 1, 'talk', 'CPL NPC conversation', 'cpl-talk');
+                    const row = worldState.trustLedger[trustId] || { id: trustId, trust: 0, talks: 0, events: [] };
+                    row.trust = Math.max(-100, Math.min(100, (Number(row.trust) || 0) + 1));
+                    row.talks = (row.talks || 0) + 1;
+                    row.events = [{ at: Date.now(), delta: 1, reason: 'talk' }, ...(row.events || [])].slice(0, 24);
+                    worldState.trustLedger[trustId] = row;
+                    window.dispatchEvent(new CustomEvent('genesis:trust:delta', { detail: { id: trustId, agentId: 'agent://gsk', targetId: trustId, trust: row.trust, delta: 1, reason: 'talk' } }));
+                    saveWorldState();
+                } catch (_) {}
+            }
             let line;
             if (data.lines && data.lines.length) {
                 line = data.lines[Math.floor(Math.random() * data.lines.length)];
                 if (target.userData.denizen) recordDenizen(target.userData.denizenId);
             } else {
                 line = npcTalkLines[Math.floor(Math.random() * npcTalkLines.length)];
+            }
+            if (window.__GENESIS_TRUST_LEDGER !== false && Genesis.TrustLedger && Genesis.TrustLedger.betrayalRecall) {
+                const betrayals = Genesis.TrustLedger.betrayalRecall('agent://gsk', trustId, 1);
+                if (betrayals && betrayals.length) line = 'I remember the betrayal: ' + (betrayals[0].description || betrayals[0].event_type || 'trust was broken') + '. ' + line;
+            }
+            if (window.__GENESIS_PERSONALITY_DRIFT !== false && Genesis.PersonalityDrift && Genesis.PersonalityDrift.tone) {
+                const tone = Genesis.PersonalityDrift.tone(trustId);
+                if (tone && tone !== 'steady') line = `[${tone}] ${line}`;
             }
             const who = data.name ? `${data.name} · ${data.title || ''}` : data.label;
             spawnWhisper(pos, `${who}: ${line}`);
@@ -11199,6 +11278,15 @@ bloomPass.radius = 0.7;
             memoryWeightEl.textContent = 'resonance ' + (w * 100).toFixed(0) + '%' + (w >= 0.8 ? ' — MONUMENT' : '');
             memorySummaryEl.textContent = m.summary || '(no summary recorded)';
             memoryOverlay.classList.add('active');
+            try {
+                const state = worldState.memoryBuildings || { renders: 0, opens: 0, events: [] };
+                state.opens = (state.opens || 0) + 1;
+                state.lastOpenAt = Date.now();
+                state.lastOpen = { id: m.id || null, type: m.type || 'memory', summary: String(m.summary || '').slice(0, 160) };
+                worldState.memoryBuildings = state;
+                saveWorldState();
+                window.dispatchEvent(new CustomEvent('genesis:memory:building-open', { detail: state.lastOpen }));
+            } catch (_) {}
         }
         function hideMemoryModal() { memoryOverlay.classList.remove('active'); }
         document.getElementById('close-memory-btn').addEventListener('click', hideMemoryModal);
@@ -11496,6 +11584,7 @@ bloomPass.radius = 0.7;
         }
 
         const gskBridge = new GSKCityBridge();
+        window.gskBridge = gskBridge;
 
         // Feed GSK status into bridge whenever panel updates
         const origUpdateGskPanel = updateGskPanel;
@@ -11704,18 +11793,24 @@ bloomPass.radius = 0.7;
             }
 
             async poll() {
+                let data = null, source = 'gsk';
                 try {
-                    const data = await gsk.memories();
-                    if (!data || !Array.isArray(data.memories)) return;
-                    this._apply(data.memories);
-                    if (this.memoryCountEl) this.memoryCountEl.textContent = (data.count != null) ? data.count : data.memories.length;
-                    console.log('[Memories] loaded', data.memories.length, 'buildings');
+                    data = await gsk.memories();
                 } catch (e) {
+                    source = 'local-fallback';
                     console.warn('[Memories] poll failed:', e.message);
                 }
+                if ((!data || !Array.isArray(data.memories) || !data.memories.length) && window.__GENESIS_SCRIBE_LIVE_BOOKS !== false && Genesis.ScribeLiveBooks) {
+                    data = Genesis.ScribeLiveBooks.localMemoryData(source);
+                    source = data.source || source;
+                }
+                if (!data || !Array.isArray(data.memories)) return;
+                this._apply(data.memories, source);
+                if (this.memoryCountEl) this.memoryCountEl.textContent = (data.count != null) ? data.count : data.memories.length;
+                console.log('[Memories] loaded', data.memories.length, 'buildings from', source);
             }
 
-            _apply(memories) {
+            _apply(memories, source = 'gsk') {
                 const seen = new Set();
                 memories.forEach((m, i) => {
                     const id = m.id || ('mem-' + i);
@@ -11749,6 +11844,18 @@ bloomPass.radius = 0.7;
                     }
                 }
                 this.layoutAll();
+                try {
+                    const state = worldState.memoryBuildings || { renders: 0, events: [] };
+                    state.renders = (state.renders || 0) + 1;
+                    state.lastAt = Date.now();
+                    state.source = source;
+                    state.count = this.items.size;
+                    state.ids = Array.from(this.items.keys()).slice(0, 48);
+                    state.events = [{ at: state.lastAt, source, count: state.count }, ...(state.events || [])].slice(0, 32);
+                    worldState.memoryBuildings = state;
+                    saveWorldState();
+                    window.dispatchEvent(new CustomEvent('genesis:memory:buildings', { detail: state }));
+                } catch (_) {}
             }
 
             layoutAll() {
@@ -12309,6 +12416,26 @@ bloomPass.radius = 0.7;
             el.textContent = text;
             el.className = 'cc-status' + (cls ? ' ' + cls : '');
         }
+        function applyLocalWorldTune(data = {}, source = 'in-world-console') {
+            const mood = String(data.mood || 'neutral').toLowerCase();
+            const phase = String(data.phase || 'VOID').toUpperCase();
+            if (gskBridge) {
+                gskBridge.currentMood = mood;
+                gskBridge.currentPhase = phase;
+                gskBridge.phaseFx = GSK_PHASE_MAP[phase] || GSK_PHASE_MAP['VOID'];
+                gskBridge.applyPhaseSpeeds();
+                const md = GSK_MOOD_MAP[mood] || GSK_MOOD_MAP.neutral;
+                gskBridge.target.sky.setHex(md.sky);
+                gskBridge.target.fog.setHex(md.fog);
+                gskBridge.target.fogDensity = md.fogDensity;
+                gskBridge.target.bloomStr = md.bloomStr;
+                gskBridge.target.hemiColor.setHex(md.hemi[0]);
+                gskBridge.target.hemiGround.setHex(md.hemi[1]);
+            }
+            if (window.__GENESIS_WORLD_TUNER !== false && Genesis.WorldTuner && Genesis.WorldTuner.tune) Genesis.WorldTuner.tune({ mood, phase }, { source, applied: true });
+            pushRuntime('local tune ' + mood + '/' + phase);
+            return true;
+        }
         function issueWorldCommand(type, data) {
             const routeLocalGenesis = () => {
                 try {
@@ -12348,15 +12475,25 @@ bloomPass.radius = 0.7;
                 const local = routeLocalGenesis();
                 if (local && local.ok) {
                     const label = (typeof data === 'object' && data) ? JSON.stringify(data) : '';
+                    if (window.__GENESIS_WORLD_TUNER !== false && Genesis.WorldTuner && Genesis.WorldTuner.command) Genesis.WorldTuner.command(type, data || {}, 'local-gateway');
+                    if (type === 'tune' && window.__GENESIS_WORLD_TUNER !== false) applyLocalWorldTune(data || {}, 'local-gateway');
                     setCmdStatus('→ routed ' + type + (label ? ' ' + label : '') + ' through local Genesis gateway', 'ok');
                     pushRuntime('local:' + type + (label ? ' ' + label : ''));
                     return true;
                 }
+                if (type === 'tune' && window.__GENESIS_WORLD_TUNER !== false) {
+                    applyLocalWorldTune(data || {}, 'offline-console');
+                    setCmdStatus('sanctum: offline — local tune applied', 'ok');
+                    return true;
+                }
+                if (window.__GENESIS_WORLD_TUNER !== false && Genesis.WorldTuner && Genesis.WorldTuner.command) Genesis.WorldTuner.command(type, data || {}, 'offline-blocked');
                 setCmdStatus('sanctum: offline — command not sent', 'err');
                 return false;
             }
             try {
                 s.sendCommand(type, data || {});
+                if (window.__GENESIS_WORLD_TUNER !== false && Genesis.WorldTuner && Genesis.WorldTuner.command) Genesis.WorldTuner.command(type, data || {}, 'sent');
+                if (type === 'tune' && window.__GENESIS_WORLD_TUNER !== false) applyLocalWorldTune(data || {}, 'sent-console');
                 const label = (typeof data === 'object' && data) ? JSON.stringify(data) : '';
                 setCmdStatus('→ sent ' + type + (label ? ' ' + label : '') + ' to sanctum', 'ok');
                 pushRuntime(type + (label ? ' ' + label : ''));
@@ -12994,8 +13131,12 @@ bloomPass.radius = 0.7;
         }
         async function refreshScribeMemories() {
             if (!gsk) return;
-            let data;
-            try { data = await gsk.memories(); } catch (e) { return; }
+            let data, source = 'gsk';
+            try { data = await gsk.memories(); } catch (e) { source = 'local-fallback'; data = null; }
+            if ((!data || !Array.isArray(data.memories) || !data.memories.length) && window.__GENESIS_SCRIBE_LIVE_BOOKS !== false && Genesis.ScribeLiveBooks) {
+                data = Genesis.ScribeLiveBooks.localMemoryData(source);
+                source = data.source || source;
+            }
             if (!data || !Array.isArray(data.memories)) return;
             const shelf = scribeRealm._memShelf;
             if (!shelf) return;
@@ -13020,10 +13161,12 @@ bloomPass.radius = 0.7;
                 book.userData.book = true;
                 book.userData.gskMemory = true;
                 book.userData.memoryObj = m;
+                book.userData.memory = m.summary || m.text || '(live memory)';
                 shelf.add(book);
                 scribeRealm._memBooks.push(book);
             });
             if (scribeRealm._memCountEl) scribeRealm._memCountEl.textContent = (data.count != null ? data.count : mems.length) + ' GSK entries';
+            if (window.__GENESIS_SCRIBE_LIVE_BOOKS !== false && Genesis.ScribeLiveBooks && Genesis.ScribeLiveBooks.recordRender) Genesis.ScribeLiveBooks.recordRender(data, source);
         }
         buildScribeRealm();
         try { connectGskJournalStream(); } catch (e) {}
@@ -13103,6 +13246,7 @@ bloomPass.radius = 0.7;
             const w = typeof m.weight === 'number' ? m.weight.toFixed(2) : '?';
             const tags = Array.isArray(m.tags) ? m.tags.join(', ') : (m.tags || '');
             showScribeReadout('📖 [' + (m.type || 'memory') + '] ' + (m.summary || '(no summary)') + (tags ? '  ·  ' + tags : '') + '  ·  weight ' + w);
+            if (window.__GENESIS_SCRIBE_LIVE_BOOKS !== false && Genesis.ScribeLiveBooks && Genesis.ScribeLiveBooks.recordOpen) Genesis.ScribeLiveBooks.recordOpen(m);
         }
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && inScribe) exitScribeRealmFade();
@@ -13963,6 +14107,7 @@ bloomPass.radius = 0.7;
             chamberVisited.add(chamberIndex);
             worldState.chambers = [...chamberVisited].sort((a, b) => a - b);
             if (chamberSockets[chamberIndex]) chamberSockets[chamberIndex].lit = true;
+            if (window.__GENESIS_CHAMBER_HARDENING !== false && Genesis.ChamberHardening && Genesis.ChamberHardening.enter) Genesis.ChamberHardening.enter(chamberIndex, { biome: CHAMBER_BIOMES[chamberIndex % CHAMBER_BIOMES.length].name });
             saveWorldState();
             loadRealmAssetsOnce('chamber', chamberRoot, REALM_ASSET_SPECS.chamber, chamberClickTargets);
             playerNPC.position.set(chamberBase.x, chamberBase.y + 2, chamberBase.z + 44);
@@ -13979,6 +14124,7 @@ bloomPass.radius = 0.7;
             currentChamber = -1;
             if (chamberSession) chamberSession.lifecycle = 'exit';
             chamberRoot.userData.chamberLifecycleState = 'exit';
+            if (window.__GENESIS_CHAMBER_HARDENING !== false && Genesis.ChamberHardening && Genesis.ChamberHardening.exit && prevIndex >= 0) Genesis.ChamberHardening.exit(prevIndex);
             clearChamberTransient(chamberRoot);
             if (chamberSession) chamberSession.lifecycle = 'idle';
             restoreSurfaceReturnState();
@@ -14000,6 +14146,7 @@ bloomPass.radius = 0.7;
                 const name = target.userData.chamberName || 'Chamber';
                 const idx = target.userData.chamberIndex;
                 showScribeReadout('CHAMBER ' + (idx + 1) + ' — ' + name + ': ' + CHAMBER_QUOTES[idx % CHAMBER_QUOTES.length]);
+                if (window.__GENESIS_CHAMBER_HARDENING !== false && Genesis.ChamberHardening && Genesis.ChamberHardening.feature) Genesis.ChamberHardening.feature(idx, name);
             }
         }
         function updateChamberRealm(time, dt) {
@@ -14271,7 +14418,7 @@ bloomPass.radius = 0.7;
         if (Genesis.VerticalStackManager && Genesis.VerticalStackManager.refreshCompanions) Genesis.VerticalStackManager.refreshCompanions('surface');
 
         // ========== ANIMATION ==========
-        let time = 0, lastTime = 0, _frameCount = 0, _uiTick = 0, _hintCache = '', _genesisTick = 0, _genesisFrameSerial = 0;
+        let time = 0, lastTime = 0, _frameCount = 0, _uiTick = 0, _hintCache = '', _genesisTick = 0, _genesisFrameSerial = 0, _populationAuditTimer = 0;
         const surfaceSystemTicks = { billboards: 0, videos: 0, particles: 0, physics: 0, audio: 0, souls: 0, legacyAngels: 0, legacyHeaven: 0, sky: 0, traffic: 0, citizens: 0, avatars: 0, taskParticles: 0, gskVisuals: 0, runes: 0, recentExtensions: 0 };
         const heavenSystemTicks = { prototype: 0 };
         function diagnosticsVisibleInTree(object) {
@@ -14745,7 +14892,22 @@ bloomPass.radius = 0.7;
             // --- Thought stream (GSK inner life) ---
             if (hubSurfaceActive && window.__thoughtStream) window.__thoughtStream.update(dt);
             if (hubSurfaceActive && window.__worldSync) window.__worldSync.update(dt);
-            
+            if (window.__GENESIS_POPULATION_AUDIT !== false && Genesis.PopulationAudit && Genesis.PopulationAudit.sample) {
+                _populationAuditTimer += dt;
+                if (_populationAuditTimer >= 8) {
+                    _populationAuditTimer = 0;
+                    Genesis.PopulationAudit.sample({
+                        citizens: citizens.length,
+                        avatars: avatars.length,
+                        angels: heavenAngels.length,
+                        subagents: window.__subagentNPCs && window.__subagentNPCs.items ? window.__subagentNPCs.items.size : 0,
+                        souls: souls.length,
+                        cars: cars.length + groundCars.length + (paimonNPC ? 1 : 0),
+                        memoryBuildings: window.__memoryBuildings && window.__memoryBuildings.items ? window.__memoryBuildings.items.size : 0
+                    }, { hubActive, hubSurfaceActive, hubCityActive, inScribe, inChamber });
+                }
+            }
+
             // --- rune pulse animation ---
             if (hubSurfaceActive) runes.forEach(rune => {
                 const pulse = 0.5 + Math.sin(time * 2.5 + rune.position.x) * 0.4;
