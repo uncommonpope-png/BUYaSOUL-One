@@ -132,6 +132,28 @@
         return enabled;
       },
       detach() { unbind(); enabled = false; target = null; },
+      getTarget() { return target; },
+      getPlayerPosition() {
+        try {
+          if (target && target.position) return { x: target.position.x || 0, y: target.position.y || 0, z: target.position.z || 0 };
+        } catch (_) {}
+        return { x: 0, y: 1.2, z: 0 };
+      },
+      setPlayerPosition(pos, opts) {
+        opts = opts || {};
+        if (!target) ensureTarget(opts.scene || (typeof window !== 'undefined' && window.Genesis && window.Genesis.scene));
+        if (!target || !target.position) return false;
+        pos = pos || {};
+        const x = Number(pos.x || 0);
+        const y = Number(pos.y == null ? 1.2 : pos.y);
+        const z = Number(pos.z || 0);
+        target.position.set(x, y, z);
+        if (camera && camera.position) {
+          camera.position.set(x + 8, y + 5, z + 10);
+          try { camera.lookAt(opts.lookAt || { x, y: y + 1.4, z }); } catch (_) {}
+        }
+        return true;
+      },
       tick,
       summary() {
         return { enabled: flagOn(), attached: enabled, hasTarget: !!target, fly };

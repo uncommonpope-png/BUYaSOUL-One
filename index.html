@@ -2090,6 +2090,7 @@
         window.__GENESIS_AGENT_CITIZENS = (typeof window.__GENESIS_AGENT_CITIZENS === 'boolean') ? window.__GENESIS_AGENT_CITIZENS : true;  // C3: agent-citizen FACTORY — Allie/ARIA/subagents as native inhabitants (Dark City model)
         window.__GENESIS_INTERACTION = (typeof window.__GENESIS_INTERACTION === 'boolean') ? window.__GENESIS_INTERACTION : true;  // C4-INTERACTION: living clickable world — click citizens to talk, ambient greetings, speech bubbles
         window.__GENESIS_INTERIORS = (typeof window.__GENESIS_INTERIORS === 'boolean') ? window.__GENESIS_INTERIORS : true;  // P-APT-1: doors → apartment interiors → ownership/customization/persistence
+        window.__GENESIS_INTERIOR_RENDERER = (typeof window.__GENESIS_INTERIOR_RENDERER === 'boolean') ? window.__GENESIS_INTERIOR_RENDERER : true;  // P-APT-2: visible/walkable room geometry + door markers
         (function establishGenesisBootContract() {
             const G = window.Genesis || (window.Genesis = {});
             if (window.__genesisBootContract) {
@@ -2486,7 +2487,22 @@
                     .then(() => import('./src/genesis/apartment-commerce.js'))
                     .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); })
                     .then(() => import('./src/genesis/interior-persistence.js'))
-                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Interiors stack validated (P-APT-1: doors, apartments, avatars, personal spaces).'); })
+                    .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); })
+                    .then(() => {
+                        if (window.__GENESIS_INTERIOR_RENDERER !== true) return null;
+                        return import('./src/genesis/interior-renderer.js').then((m) => {
+                            if (m && typeof m.install === 'function') m.install(window.Genesis, window.THREE);
+                            const tryAttachInteriorRenderer = () => {
+                                const G = window.Genesis;
+                                if (!G || !G.InteriorRenderer || !G.scene || !G.camera || !G.renderer) return setTimeout(tryAttachInteriorRenderer, 300);
+                                const r = G.InteriorRenderer.attach({ scene: G.scene, camera: G.camera, renderer: G.renderer, domElement: G.renderer.domElement, actor: window.__GENESIS_ACTOR || 'user://guest' });
+                                if (typeof console !== 'undefined') console.log('[Genesis] Interior Renderer attached (P-APT-2):', JSON.stringify(r));
+                            };
+                            tryAttachInteriorRenderer();
+                            return true;
+                        });
+                    })
+                    .then(() => { if (typeof console !== 'undefined') console.log('[Genesis] Interiors stack validated (P-APT-2: visible/walkable apartments).'); })
                     .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Interiors stack load skipped:', e && e.message); });
             }
             // ═══ ACT VI BODY GRAFT (Craig: turn it ALL on, make the city alive) ═══
