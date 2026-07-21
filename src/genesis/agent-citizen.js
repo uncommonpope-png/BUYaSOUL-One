@@ -35,6 +35,10 @@
     }
     function resolveEndpoint(id) {
       try {
+        if (Genesis && Genesis.AgentRouteTable && typeof Genesis.AgentRouteTable.resolveEndpoint === 'function') {
+          var routed = Genesis.AgentRouteTable.resolveEndpoint(id, 'thoughts') || Genesis.AgentRouteTable.resolveEndpoint(GSK_SCHEME, 'thoughts');
+          if (routed) return routed; // EPL route table first; legacy fallback below.
+        }
         if (typeof window !== 'undefined') {
           if (window.GSK_WS_ENDPOINT) return window.GSK_WS_ENDPOINT; // 9Router /gsk when 530 up
           if (window.GSK_ENDPOINT) return window.GSK_ENDPOINT;

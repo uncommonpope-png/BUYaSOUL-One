@@ -31,6 +31,12 @@
       try { return (typeof window !== 'undefined' && window[FLAG] === true); } catch (_) { return false; }
     }
     function resolveEndpoint() {
+      try {
+        if (Genesis && Genesis.AgentRouteTable && typeof Genesis.AgentRouteTable.resolveEndpoint === 'function') {
+          const routed = Genesis.AgentRouteTable.resolveEndpoint(SCHEME, 'thoughts') || Genesis.AgentRouteTable.resolveEndpoint(GSK_SCHEME, 'thoughts');
+          if (routed) return routed; // EPL route table first; legacy fallback below.
+        }
+      } catch (_) {}
       try { if (typeof window !== 'undefined' && window.GSK_WS_ENDPOINT) return window.GSK_WS_ENDPOINT; } catch (_) {}
       return 'ws://localhost:3002';
     }

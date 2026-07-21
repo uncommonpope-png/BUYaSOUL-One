@@ -67,6 +67,10 @@
       : null;
     function resolveEndpoint() {
       try {
+        if (Genesis && Genesis.AgentRouteTable && typeof Genesis.AgentRouteTable.resolveEndpoint === 'function') {
+          var routed = Genesis.AgentRouteTable.resolveEndpoint(AGENT_SCHEME, 'thoughts');
+          if (routed) return routed; // EPL route table, preserving legacy fallback below.
+        }
         if (typeof window !== 'undefined') {
           if (window.GSK_WS_ENDPOINT) return window.GSK_WS_ENDPOINT; // explicit (9Router /gsk when 530 up)
           if (window.GSK_ENDPOINT) return window.GSK_ENDPOINT;

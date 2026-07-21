@@ -19,9 +19,11 @@ Genesis.CitizenAI = {
 };
 
 // Stub TrustLedger
+var gossipDeltas = [];
 Genesis.TrustLedger = {
-  getBand: function(a, b) { return 'NEUTRAL'; },
+  getBand: function(a, b) { return a === 'citizen-2' ? 'FRIEND' : 'NEUTRAL'; },
   addTrustDelta: function(a, b, delta, type, desc) {
+    if (type === 'gossip') gossipDeltas.push({ a, b, delta, type, desc });
     return { ok: true, newScore: 0 - Math.abs(delta) };
   }
 };
@@ -90,6 +92,7 @@ check('Attack dialogue references violence', BR.sayRecall('citizen-1', 'player')
 // Test 7: gossip propagation — TrustLedger.addTrustDelta was called for nearby friends
 check('EventBridge betrayal:recorded emitted', events.some(function(e) { return e.type === 'betrayal:recorded'; }), true);
 check('EventBridge betrayal:gossip emitted', events.some(function(e) { return e.type === 'betrayal:gossip'; }), true);
+check('Gossip only affects FRIEND-band nearby citizens', gossipDeltas.length > 0 && gossipDeltas.every(function(d) { return d.a === 'citizen-2'; }), 'gossip deltas=' + gossipDeltas.length);
 
 // Test 8: snapshot/load persistence
 var snap = BR.snapshot();

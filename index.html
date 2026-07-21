@@ -2081,6 +2081,7 @@
         // (genesis-foundation) so the production cosmic-pyramid-library repo is
         // untouched until Craig approves a merge.
         window.__GENESIS_KERNEL = (typeof window.__GENESIS_KERNEL === 'boolean') ? window.__GENESIS_KERNEL : true;
+        window.__GENESIS_EPL = (typeof window.__GENESIS_EPL === 'boolean') ? window.__GENESIS_EPL : true; // Wallmeria: engine portability layer (manifest + routes + health)
         window.__GENESIS_ENTITY_REGISTRY = (typeof window.__GENESIS_ENTITY_REGISTRY === 'boolean') ? window.__GENESIS_ENTITY_REGISTRY : true;
         window.__GENESIS_SCHEDULER = (typeof window.__GENESIS_SCHEDULER === 'boolean') ? window.__GENESIS_SCHEDULER : true;
         window.__GENESIS_AGENT_GATEWAY = (typeof window.__GENESIS_AGENT_GATEWAY === 'boolean') ? window.__GENESIS_AGENT_GATEWAY : true;  // Step 1 proper: flag ON = the body is present, not dormant
@@ -2191,6 +2192,12 @@
                 }
             }
             if (window.__GENESIS_KERNEL === true) await loadGenesisModule('./src/genesis/kernel.js', 'kernel');
+            if (window.__GENESIS_EPL === true) {
+                await loadGenesisModule('./src/genesis/runtime-manifest.js', 'runtime-manifest');
+                await loadGenesisModule('./src/genesis/agent-route-table.js', 'agent-route-table');
+                await loadGenesisModule('./src/genesis/transport-adapter.js', 'transport-adapter');
+                await loadGenesisModule('./src/genesis/engine-health.js', 'engine-health');
+            }
             if (window.__GENESIS_ENTITY_REGISTRY === true) await loadGenesisModule('./src/genesis/entity-registry.js', 'entity-registry');
             if (window.__GENESIS_SCHEDULER === true) await loadGenesisModule('./src/genesis/scheduler.js', 'scheduler');
             if (window.__GENESIS_AGENT_GATEWAY === true) {
@@ -5755,7 +5762,7 @@ bloomPass.radius = 0.7;
             cc.offlineShown = false;
             if (!cc.ws) {
                 try {
-                    const url = (window.GSK_WS_ENDPOINT) || 'ws://localhost:3002';
+                    const url = window.resolveGenesisRuntimeEndpoint ? window.resolveGenesisRuntimeEndpoint('thoughts', 'ws://localhost:3002') : ((window.GSK_WS_ENDPOINT) || 'ws://localhost:3002');
                     const ws = new WebSocket(url);
                     ws.onmessage = (e) => {
                         let d = null; try { d = JSON.parse(e.data); } catch (_) { d = { type: 'raw', text: e.data }; }
@@ -11222,7 +11229,8 @@ bloomPass.radius = 0.7;
         // ========== GSK PANEL CONTROLLER ==========
         // Endpoint is configurable: set window.GSK_ENDPOINT before load to point the GitHub
         // Pages build at a hosted GSK backend. Defaults to localhost:3001 (your machine).
-        const gsk = new GSKClient(window.GSK_ENDPOINT || '', window.GSK_API_KEY || '');
+        const gskEndpoint = window.resolveGenesisRuntimeEndpoint ? window.resolveGenesisRuntimeEndpoint('gsk', '') : (window.GSK_ENDPOINT || '');
+        const gsk = new GSKClient(gskEndpoint, window.GSK_API_KEY || '');
         const gskPanel = document.getElementById('gsk-panel');
         const gskStatusIndicator = document.getElementById('gsk-status-indicator');
         const gskMood = document.getElementById('gsk-mood');
@@ -12113,6 +12121,7 @@ bloomPass.radius = 0.7;
             }
 
             _wsUrl() {
+                if (window.resolveGenesisRuntimeEndpoint) return window.resolveGenesisRuntimeEndpoint('thoughts', '');
                 if (window.GSK_WS_ENDPOINT) return window.GSK_WS_ENDPOINT;
                 return '';
             }
@@ -12330,7 +12339,7 @@ bloomPass.radius = 0.7;
             }
 
             _wsUrl() {
-                const endpoint = window.SANCTUM_WS_ENDPOINT || '';
+                const endpoint = window.resolveGenesisRuntimeEndpoint ? window.resolveGenesisRuntimeEndpoint('sanctum', '') : (window.SANCTUM_WS_ENDPOINT || '');
                 if (!endpoint) return '';
                 const url = new URL(endpoint);
                 if (this.token) url.searchParams.set('token', this.token);
@@ -13081,7 +13090,7 @@ bloomPass.radius = 0.7;
         }
         function connectGskJournalStream() {
             try {
-                const url = window.GSK_WS_ENDPOINT || 'ws://localhost:3002';
+                const url = window.resolveGenesisRuntimeEndpoint ? window.resolveGenesisRuntimeEndpoint('thoughts', 'ws://localhost:3002') : (window.GSK_WS_ENDPOINT || 'ws://localhost:3002');
                 const ws = new WebSocket(url);
                 ws.onmessage = (e) => {
                     let d = null; try { d = JSON.parse(e.data); } catch (_) { return; }
