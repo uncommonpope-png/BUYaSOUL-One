@@ -8348,6 +8348,16 @@ bloomPass.radius = 0.7;
         if (window.__GENESIS_AMBIENT_DRIFT_CAM !== false) installAmbientDriftCam(window.Genesis, worldState, saveWorldState, { amp: 0.08, ampY: 0.035, saveEveryMs: 15000 });
         if (window.__GENESIS_POPULATION_AUDIT !== false) installPopulationAudit(window.Genesis, worldState, saveWorldState, { max: 24 });
 
+        // ========== P138/P183: PLT LEDGER (per-action Profit + Love - Tax audit trail) ==========
+        window.__GENESIS_PLT_LEDGER = (typeof window.__GENESIS_PLT_LEDGER === 'boolean') ? window.__GENESIS_PLT_LEDGER : true;
+        if (window.__GENESIS_PLT_LEDGER !== false) {
+            import('./src/genesis/plt-ledger.js').then((m) => {
+                if (!m || typeof m.install !== 'function') return;
+                const ledger = m.install(window.Genesis, worldState, saveWorldState, { max: 300 });
+                if (ledger && typeof console !== 'undefined') console.log('[Genesis] PLT Ledger ready:', ledger.summary());
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] PLT Ledger module load skipped:', e && e.message); });
+        }
+
         const DENIZEN_IDENTITY = {
             scribe: { title: 'Scribe Acolyte', names: ['Vell', 'Sefa', 'Orin', 'Mira', 'Tace', 'Juno'], lines: [
                 'Every memory GSK keeps is a star we are sworn to catalogue.',
@@ -10300,6 +10310,16 @@ bloomPass.radius = 0.7;
         let dragControls = new DragControls(draggables, camera, renderer.domElement);
         dragControls.addEventListener('dragstart', () => { controls.enabled = false; });
         dragControls.addEventListener('dragend', () => { controls.enabled = cameraMode === 'orbit'; });
+
+        // ========== P76: DRAG PERSISTENCE (save/restore DragControls positions across reload) ==========
+        window.__GENESIS_DRAG_PERSISTENCE = (typeof window.__GENESIS_DRAG_PERSISTENCE === 'boolean') ? window.__GENESIS_DRAG_PERSISTENCE : true;
+        if (window.__GENESIS_DRAG_PERSISTENCE !== false) {
+            import('./src/genesis/drag-persistence.js').then((m) => {
+                if (!m || typeof m.install !== 'function') return;
+                const dp = m.install(window.Genesis, worldState, saveWorldState, draggables, dragControls);
+                if (dp && typeof console !== 'undefined') console.log('[Genesis] Drag Persistence ready:', dp.summary());
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Drag Persistence module load skipped:', e && e.message); });
+        }
         
         // ========== BOOK READING SYSTEM ==========
         const readingOverlay = document.getElementById('reading-overlay');
@@ -13585,6 +13605,16 @@ bloomPass.radius = 0.7;
             populateDenizens(builderRealm, builderClickTargets, 0x9ecbff, 4, 'Apprentice', 46);
         }
         buildBuilderRealm();
+
+        // ========== P36/P140: BUILDER SCHEMATICS (save/restore builder commissions across reload) ==========
+        window.__GENESIS_BUILDER_SCHEMATICS = (typeof window.__GENESIS_BUILDER_SCHEMATICS === 'boolean') ? window.__GENESIS_BUILDER_SCHEMATICS : true;
+        if (window.__GENESIS_BUILDER_SCHEMATICS !== false) {
+            import('./src/genesis/builder-schematics.js').then((m) => {
+                if (!m || typeof m.install !== 'function') return;
+                const schematics = m.install(window.Genesis, worldState, saveWorldState, { THREE, builderRealm, builderClickTargets, color: BLU });
+                if (schematics && typeof console !== 'undefined') console.log('[Genesis] Builder Schematics ready:', schematics.summary());
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Builder Schematics module load skipped:', e && e.message); });
+        }
 
         function enterBuilderRealm() {
             if (inBuilder || !captureSurfaceReturnState('builder')) return;
