@@ -2536,6 +2536,17 @@
                         .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Trust Dialogue validated (P-C: band-driven NPC responses).'); })
                         .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Trust Dialogue load skipped:', e && e.message); });
                 }
+
+                // ═══ P47/P-B BETRAYAL RECALL (specific event memory + gossip + dialogue) ═══
+                // Requires TrustLedger and TrustDialogue. Records specific betrayal events,
+                // propagates gossip to nearby friends, and provides recall dialogue.
+                window.__GENESIS_BETRAYAL_RECALL = (typeof window.__GENESIS_BETRAYAL_RECALL === 'boolean') ? window.__GENESIS_BETRAYAL_RECALL : true;
+                if (window.__GENESIS_BETRAYAL_RECALL === true) {
+                    Promise.resolve()
+                        .then(() => import('./src/genesis/betrayal-recall.js'))
+                        .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Betrayal Recall validated (P47: specific event memory + gossip).'); })
+                        .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Betrayal Recall load skipped:', e && e.message); });
+                }
             }
 
             // ═══ ACT XVII BODY GRAFT (P178) ═══

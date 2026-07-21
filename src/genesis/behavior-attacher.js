@@ -102,6 +102,8 @@
     });
 
     // ── FLEE: hostile — run away from the visitor, announce hostility ──
+    // P47: if BetrayalRecall is present, the citizen shouts a SPECIFIC
+    // betrayal line referencing what the player did (not generic hostility).
     registerBehavior(STATE.FLEE, {
       enter: function (ctx) { ctx._announced = false; },
       tick: function (ctx, dt) {
@@ -109,8 +111,24 @@
         var ax = ctx.pos.x - t.x, az = ctx.pos.z - t.z, d = Math.hypot(ax, az) || 1;
         var fx = ctx.pos.x + (ax / d) * 40, fz = ctx.pos.z + (az / d) * 40;
         var intent = moveTo(fx, fz, 3.4);
-        if (!ctx._announced) { ctx._announced = true; intent.emit = [{ type: 'agent:hostile', payload: { id: ctx.id, band: 'HOSTILE' } }]; }
-        else if (Math.random() < 0.01) intent.emit = [{ type: 'agent:flee', payload: { id: ctx.id } }];
+        if (!ctx._announced) {
+          ctx._announced = true;
+          // P47: try betrayal-specific dialogue first
+          var BR = (typeof Genesis !== 'undefined' && Genesis.BetrayalRecall);
+          var betrayalSay = BR ? BR.sayRecall(ctx.id, 'player') : null;
+          if (betrayalSay) {
+            intent.say = betrayalSay.say;
+            intent.emit = [{ type: 'agent:betrayal', payload: { id: ctx.id, band: 'HOSTILE', eventType: betrayalSay.meta.eventType, description: betrayalSay.meta.description } }];
+          } else {
+            intent.emit = [{ type: 'agent:hostile', payload: { id: ctx.id, band: 'HOSTILE' } }];
+          }
+        } else if (Math.random() < 0.008) {
+          // Occasionally re-announce hostility with a recall line
+          var BR2 = (typeof Genesis !== 'undefined' && Genesis.BetrayalRecall);
+          var recallLine = BR2 ? BR2.sayRecall(ctx.id, 'player') : null;
+          if (recallLine) intent.say = recallLine.say;
+          intent.emit = [{ type: 'agent:flee', payload: { id: ctx.id } }];
+        }
         return intent;
       }
     });
@@ -124,18 +142,34 @@
     });
 
     // ── THREATEN (non-destructive): hostile shout, keep distance, never strike ──
+    // P47: uses BetrayalRecall to reference specific wrongs when threatening.
     registerBehavior(STATE.THREATEN, {
       enter: function (ctx) { ctx._threat = false; },
       tick: function (ctx, dt) {
         var t = ctx.playerPos || { x: 0, z: 0 };
         var d = dist(t.x, t.z, ctx.pos.x, ctx.pos.z);
+        var intent;
         if (d < 10) {
           var ax = ctx.pos.x - t.x, az = ctx.pos.z - t.z, m = d || 1;
-          var intent = moveTo(ctx.pos.x + (ax / m) * 8, ctx.pos.z + (az / m) * 8, 3.0);
+          intent = moveTo(ctx.pos.x + (ax / m) * 8, ctx.pos.z + (az / m) * 8, 3.0);
         } else {
-          var intent = moveTo(t.x, t.z, 3.0);
+          intent = moveTo(t.x, t.z, 3.0);
         }
-        if (!ctx._threat) { ctx._threat = true; intent.emit = [{ type: 'agent:threaten', payload: { id: ctx.id } }]; }
+        if (!ctx._threat) {
+          ctx._threat = true;
+          // P47: try betrayal-specific dialogue first
+          var BR = (typeof Genesis !== 'undefined' && Genesis.BetrayalRecall);
+          var betrayalSay = BR ? BR.sayRecall(ctx.id, 'player') : null;
+          if (betrayalSay) {
+            intent.say = betrayalSay.say;
+            intent.emit = [{ type: 'agent:threaten', payload: { id: ctx.id, eventType: betrayalSay.meta.eventType } }];
+          } else {
+            intent.emit = [{ type: 'agent:threaten', payload: { id: ctx.id } }];
+          }
+        } else if (Math.random() < 0.005 && Genesis.TrustDialogue) {
+          var hostileSay = Genesis.TrustDialogue.getDialogue(ctx.id, 'threaten');
+          if (hostileSay) intent.say = hostileSay;
+        }
         return intent;
       }
     });
