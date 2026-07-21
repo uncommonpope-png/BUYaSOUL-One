@@ -59,6 +59,10 @@
         var t = ctx.playerPos || { x: 0, z: 0 };
         var intent = moveTo(t.x, t.z, 2.6);
         if (Math.random() < 0.02) {
+          // P-C: trust-gated trade dialogue
+          var TD = (typeof Genesis !== 'undefined' && Genesis.TrustDialogue);
+          var sayText = TD ? TD.getDialogue(ctx.id, 'trade') : null;
+          if (sayText) intent.say = sayText;
           intent.emit = [{ type: 'agent:trade', payload: { id: ctx.id } }];
           intent.trust = trust('player', 1, 'trade', 'Citizen traded with the visitor');
         }
@@ -86,8 +90,11 @@
         var intent = moveTo(t.x, t.z, 2.8);
         if (!ctx.greeted && dist(t.x, t.z, ctx.pos.x, ctx.pos.z) < 12) {
           ctx.greeted = true;
-          intent.say = 'Hello, friend. I remember you.';
-          intent.trust = trust('player', 1, 'socialize', 'Citizen socialized with the visitor');
+          // P-C: trust-gated dialogue (band-aware, personality-toned)
+          var TD = (typeof Genesis !== 'undefined' && Genesis.TrustDialogue);
+          var sayText = TD ? TD.getDialogue(ctx.id, 'greeting') : null;
+          intent.say = sayText || 'Hello, friend. I remember you.';
+          intent.trust = trust('player', 2, 'socialize', 'Citizen socialized with the visitor');
         }
         if (Math.random() < 0.015) intent.trust = trust('player', 1, 'socialize', 'Citizen enjoyed the company');
         return intent;

@@ -2525,6 +2525,17 @@
                     .then(() => import('./src/genesis/perception_action_loop.js'))
                     .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Sovereign Agent FSM validated (P-D).'); })
                     .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Trust Ledger / P-D load skipped:', e && e.message); });
+
+                // ═══ P-C TRUST-GATED DIALOGUE (band-driven NPC responses) ═══
+                // Requires TrustLedger to be present. Provides getDialogue() and
+                // enriches agent:say events with trust-aware responses.
+                window.__GENESIS_TRUST_DIALOGUE = (typeof window.__GENESIS_TRUST_DIALOGUE === 'boolean') ? window.__GENESIS_TRUST_DIALOGUE : true;
+                if (window.__GENESIS_TRUST_DIALOGUE === true) {
+                    Promise.resolve()
+                        .then(() => import('./src/genesis/trust-dialogue.js'))
+                        .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Trust Dialogue validated (P-C: band-driven NPC responses).'); })
+                        .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Trust Dialogue load skipped:', e && e.message); });
+                }
             }
 
             // ═══ ACT XVII BODY GRAFT (P178) ═══
