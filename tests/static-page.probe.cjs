@@ -76,7 +76,7 @@ check('all local static JS refs in index.html exist on disk', () => {
 });
 
 check('boot constants are declared before boot contract use', () => {
-  const decl = mainModule.indexOf("const BOOT_FAILURE_TIMEOUT = 15000");
+  const decl = mainModule.indexOf("const BOOT_FAILURE_TIMEOUT = 45000");
   const use = mainModule.indexOf('}, BOOT_FAILURE_TIMEOUT);');
   assert.ok(decl >= 0, 'BOOT_FAILURE_TIMEOUT declaration missing');
   assert.ok(use >= 0, 'BOOT_FAILURE_TIMEOUT use missing');
@@ -116,6 +116,7 @@ check('boot readiness requires completed evaluation and a visible frame', () => 
   assert.ok(mainModule.includes('detail.runtime.mainEvaluationComplete && detail.runtime.firstFrameSeen && detail.runtime.cplReady'), 'boot contract lacks visible runtime gate');
   assert.ok(mainModule.includes('window.__genesisMainEvaluationComplete = true;'), 'main evaluation completion marker missing');
   assert.ok(!mainModule.includes("window.applyGenesisRollback('Boot Ready Timeout'"), 'boot timeout must not trigger destructive rollback');
+  assert.ok(!mainModule.includes('v.lengthSq()'), 'YUKA velocity is not a Three.Vector3 and must not use lengthSq()');
 });
 
 check('fresh profile and runtime errors do not trigger destructive rollback', () => {

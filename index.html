@@ -2095,7 +2095,7 @@
         window.__GENESIS_INTERIOR_RENDERER = (typeof window.__GENESIS_INTERIOR_RENDERER === 'boolean') ? window.__GENESIS_INTERIOR_RENDERER : true;  // P-APT-2: visible/walkable room geometry + door markers
         const GENESIS_SAVE_KEY = 'genesis:gsk-save';
         const GENESIS_LAST_GOOD_KEY = 'genesis:gsk-last-good';
-        const BOOT_FAILURE_TIMEOUT = 15000; // 15 seconds for bootReady to resolve
+        const BOOT_FAILURE_TIMEOUT = 45000; // slow CDN/module loads may still produce a valid visible world
         function moduleReady(flagName, api) {
             try { return window[flagName] !== true || !!api; } catch (_) { return !!api; }
         }
@@ -14969,7 +14969,10 @@ bloomPass.radius = 0.7;
             }
             
             // --- citizens wandering ---
-            if (hubCityActive && yukaSteering) { yukaTime.update(); for (const e of yukaEntities) e.update(yukaTime); }
+            if (hubCityActive && yukaSteering) {
+                const yukaDelta = yukaTime.update().getDelta();
+                for (const e of yukaEntities) e.update(yukaDelta);
+            }
             if (hubCityActive) for (const c of citizens) {
                 if (yukaSteering && c.yuka) {
                     c.group.position.x = c.yuka.position.x;
@@ -14981,10 +14984,11 @@ bloomPass.radius = 0.7;
                         c.yuka.position.x = c.group.position.x; c.yuka.position.z = c.group.position.z;
                     }
                     const v = c.yuka.velocity;
-                    if (v.lengthSq() > 1e-4) c.group.rotation.y = Math.atan2(v.x, v.z);
+                    const velocitySq = (v.x * v.x) + (v.y * v.y) + (v.z * v.z);
+                    if (velocitySq > 1e-4) c.group.rotation.y = Math.atan2(v.x, v.z);
                     const w = c.group.userData.walker;
                     if (w && w.mixer) {
-                        const moving = v.lengthSq() > 0.02;
+                        const moving = velocitySq > 0.02;
                         const want = moving ? w.walk : w.idle;
                         if (w.current !== want) { w.current.fadeOut(0.25); want.reset().fadeIn(0.25).play(); w.current = want; }
                     }
