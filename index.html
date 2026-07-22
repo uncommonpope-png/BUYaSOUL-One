@@ -8930,9 +8930,18 @@ bloomPass.radius = 0.7;
         }
 
         function applyVerticalPlayerArrival(stratumId) {
-            const arrival = stratumId === 'heaven'
-                ? heavenStratumRoot.localToWorld(new THREE.Vector3(0, 0.38, 6))
-                : cityGroup.localToWorld(new THREE.Vector3(0, 0.02, -46));
+            let arrival;
+            let message;
+            if (stratumId === 'heaven') {
+                arrival = heavenStratumRoot.localToWorld(new THREE.Vector3(0, 0.38, 6));
+                message = 'Sky-plaza reached. The Northstar beacon is live.';
+            } else if (stratumId === 'underworld') {
+                arrival = underworldStratumRoot.localToWorld(new THREE.Vector3(0, 0.38, -14));
+                message = 'The depths stir. The core pulses beneath.';
+            } else {
+                arrival = cityGroup.localToWorld(new THREE.Vector3(0, 0.02, -46));
+                message = 'Surface city restored. The lift remembers the route.';
+            }
             playerNPC.position.copy(arrival);
             playerFloorY = arrival.y;
             playerVelY = 0;
@@ -8947,12 +8956,13 @@ bloomPass.radius = 0.7;
             camera.lookAt(eye);
             controls.target.copy(eye);
             controls.update();
-            spawnWhisper(arrival, stratumId === 'heaven' ? 'Sky-plaza reached. The Northstar beacon is live.' : 'Surface city restored. The lift remembers the route.');
+            spawnWhisper(arrival, message);
         }
 
         function transitionPlayerStratum(stratumId) {
             if (!Genesis.VerticalStackManager || !Genesis.VerticalStackManager.transitionTo) return Promise.reject(new Error('Vertical Stack Manager unavailable'));
-            return Genesis.VerticalStackManager.transitionTo(stratumId, { connectorId: 'surface-heaven' });
+            const connectorId = stratumId === 'underworld' ? 'surface-underworld' : 'surface-heaven';
+            return Genesis.VerticalStackManager.transitionTo(stratumId, { connectorId });
         }
 
         function teleportPlayerToHeaven() {
@@ -9578,6 +9588,15 @@ bloomPass.radius = 0.7;
             bidirectional: true,
             prewarmMs: 140,
             endpoints: { surface: heavenLift, heaven: heavenReturnPad },
+            ready: ({ destination }) => !!(destination && destination.root && destination.root.parent && destination.root.visible),
+            transfer: ({ to }) => applyVerticalPlayerArrival(to)
+        });
+        Genesis.VerticalStackManager.registerConnector('surface-underworld', {
+            from: 'surface',
+            to: 'underworld',
+            bidirectional: true,
+            prewarmMs: 140,
+            endpoints: { surface: underworldLift, underworld: underworldReturnPad },
             ready: ({ destination }) => !!(destination && destination.root && destination.root.parent && destination.root.visible),
             transfer: ({ to }) => applyVerticalPlayerArrival(to)
         });
