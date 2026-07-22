@@ -9433,6 +9433,142 @@ bloomPass.radius = 0.7;
             for (const entry of surfaceLateRoots) roots.push(entry);
             return roots;
         };
+
+        // ========== UNDERWORLD STRATUM — THE WORLD BENEATH (Phase 2: Geometry Only) ==========
+        const UNDERWORLD_STRATUM_Y = -500;
+        const underworldStratumRoot = new THREE.Group();
+        underworldStratumRoot.name = 'underworldStratumRoot';
+        underworldStratumRoot.userData.verticalContentType = 'underworld-cavern';
+        underworldStratumRoot.position.set(0, UNDERWORLD_STRATUM_Y, -52);
+        scene.add(underworldStratumRoot);
+
+        const underworldFloorMat = new THREE.MeshStandardMaterial({ color: 0x0a0a14, emissive: 0x04040a, emissiveIntensity: 0.3, roughness: 0.85, metalness: 0.2 });
+        const underworldStoneMat = new THREE.MeshStandardMaterial({ color: 0x1a1528, emissive: 0x08051a, emissiveIntensity: 0.4, roughness: 0.75, metalness: 0.25 });
+        const underworldCrystalMat = new THREE.MeshStandardMaterial({ color: 0xcc66ff, emissive: 0x8833cc, emissiveIntensity: 1.5, roughness: 0.15, metalness: 0.35 });
+        const underworldCyanMat = new THREE.MeshStandardMaterial({ color: 0x44ddff, emissive: 0x00aadd, emissiveIntensity: 1.2, roughness: 0.2, metalness: 0.3 });
+        const underworldLavaMat = new THREE.MeshStandardMaterial({ color: 0xff4400, emissive: 0xff2200, emissiveIntensity: 0.6, roughness: 0.6, metalness: 0.1 });
+
+        // Cavern floor — dark disc
+        const cavernFloor = new THREE.Mesh(new THREE.CircleGeometry(55, 48), underworldFloorMat);
+        cavernFloor.rotation.x = -Math.PI / 2;
+        cavernFloor.position.y = -0.1;
+        cavernFloor.receiveShadow = true;
+        underworldStratumRoot.add(cavernFloor);
+
+        // Edge ring and inner cyan ring
+        const cavernEdgeRing = new THREE.Mesh(new THREE.TorusGeometry(53, 0.8, 12, 64), underworldStoneMat);
+        cavernEdgeRing.rotation.x = Math.PI / 2;
+        cavernEdgeRing.position.y = 0.05;
+        underworldStratumRoot.add(cavernEdgeRing);
+        const cavernInnerRing = new THREE.Mesh(new THREE.TorusGeometry(18, 0.3, 8, 48), underworldCyanMat);
+        cavernInnerRing.rotation.x = Math.PI / 2;
+        cavernInnerRing.position.y = 0.12;
+        underworldStratumRoot.add(cavernInnerRing);
+
+        // Fissure scar — dark cracks
+        const fissureMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0x440000, emissiveIntensity: 0.2, roughness: 1.0 });
+        for (let i = 0; i < 5; i++) {
+            const seg = new THREE.Mesh(new THREE.BoxGeometry(0.3 + i * 0.4, 0.3, 10 - i * 1.2), fissureMat);
+            seg.position.set((Math.random() - 0.5) * 6, 0.02, (Math.random() - 0.5) * 8);
+            seg.rotation.y = Math.random() * Math.PI;
+            underworldStratumRoot.add(seg);
+        }
+
+        // Ruined pillars — fallen civilization
+        const ruinPositions = [
+            { x: -28, z: -22, rot: 0.3 }, { x: 22, z: -30, rot: -0.7 },
+            { x: -35, z: 18, rot: 1.2 }, { x: 30, z: 25, rot: -0.4 },
+            { x: -12, z: 38, rot: 0.8 }, { x: 38, z: -8, rot: -1.1 }
+        ];
+        for (const rp of ruinPositions) {
+            const ruinGroup = new THREE.Group();
+            for (const side of [-1, 1]) {
+                const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.8, 3.5 + Math.random() * 2, 0.8), underworldStoneMat);
+                pillar.position.set(side * 2.2, 1.8 + Math.random() * 0.5, 0);
+                pillar.rotation.z = side * (0.15 + Math.random() * 0.2);
+                pillar.castShadow = true;
+                ruinGroup.add(pillar);
+            }
+            const beam = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.3, 0.5), underworldStoneMat);
+            beam.position.set(0, 0.2 + Math.random() * 0.3, 0);
+            beam.rotation.x = Math.random() * 0.1;
+            beam.rotation.z = Math.random() * 0.08;
+            ruinGroup.add(beam);
+            for (let i = 0; i < 3; i++) {
+                const debris = new THREE.Mesh(new THREE.BoxGeometry(0.3 + Math.random() * 0.4, 0.2 + Math.random() * 0.3, 0.3 + Math.random() * 0.4), underworldStoneMat);
+                debris.position.set((Math.random() - 0.5) * 4, 0.1, (Math.random() - 0.5) * 3);
+                ruinGroup.add(debris);
+            }
+            ruinGroup.position.set(rp.x, 0.2 + Math.random() * 0.3, rp.z);
+            ruinGroup.rotation.y = rp.rot;
+            underworldStratumRoot.add(ruinGroup);
+        }
+
+        // Crystal clusters — glowing
+        const crystalPositions = [
+            { x: -15, z: -10, count: 5 }, { x: 18, z: 12, count: 7 },
+            { x: -8, z: 25, count: 4 }, { x: 25, z: -18, count: 6 },
+            { x: -30, z: -5, count: 3 }, { x: 5, z: -28, count: 5 }
+        ];
+        const crystalMeshes = [];
+        for (const cp of crystalPositions) {
+            for (let i = 0; i < cp.count; i++) {
+                const cMat = i % 2 === 0 ? underworldCrystalMat : underworldCyanMat;
+                const crystal = new THREE.Mesh(new THREE.ConeGeometry(0.3 + Math.random() * 0.5, 0.8 + Math.random() * 1.8, 6), cMat);
+                crystal.position.set(cp.x + (Math.random() - 0.5) * 3, 0.3 + Math.random() * 0.5, cp.z + (Math.random() - 0.5) * 3);
+                crystal.rotation.set((Math.random() - 0.5) * 0.4, Math.random() * Math.PI, (Math.random() - 0.5) * 0.4);
+                crystal.castShadow = true;
+                underworldStratumRoot.add(crystal);
+                crystalMeshes.push(crystal);
+            }
+        }
+
+        // Core — pulsing heart
+        const coreGroup = new THREE.Group();
+        coreGroup.name = 'Underworld Core';
+        coreGroup.position.set(0, 0.5, -14);
+        const coreSphere = new THREE.Mesh(new THREE.IcosahedronGeometry(2.8, 2), underworldCyanMat);
+        coreSphere.name = 'Underworld Core Sphere';
+        coreGroup.add(coreSphere);
+        const coreRings = [];
+        for (let i = 0; i < 3; i++) {
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(3.8 + i * 1.5, 0.12, 8, 48), i === 1 ? underworldCrystalMat : underworldCyanMat);
+            ring.position.y = i * 0.4;
+            ring.rotation.set(Math.PI / 2.8 + i * 0.3, i * 0.5, 0);
+            coreGroup.add(ring);
+            coreRings.push(ring);
+        }
+        underworldStratumRoot.add(coreGroup);
+
+        // Lava glow pools
+        const glowPoolPositions = [
+            { x: -20, z: -30 }, { x: 25, z: 28 }, { x: -32, z: 25 }, { x: 35, z: -22 }
+        ];
+        for (const gp of glowPoolPositions) {
+            const pool = new THREE.Mesh(new THREE.CircleGeometry(2.5 + Math.random() * 2, 16), underworldLavaMat);
+            pool.rotation.x = -Math.PI / 2;
+            pool.position.set(gp.x, 0.02, gp.z);
+            underworldStratumRoot.add(pool);
+            const glow = new THREE.PointLight(0xff4400, 0.3, 8);
+            glow.position.set(gp.x, 0.5, gp.z);
+            underworldStratumRoot.add(glow);
+        }
+
+        // Underworld lift return pad
+        const underworldReturnPad = new THREE.Group();
+        underworldReturnPad.name = 'Underworld Return Pad';
+        const uwReturnBase = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.8, 0.3, 32), underworldCrystalMat);
+        uwReturnBase.position.y = 0.15;
+        const uwReturnRing = new THREE.Mesh(new THREE.TorusGeometry(4.0, 0.1, 8, 48), underworldCyanMat);
+        uwReturnRing.rotation.x = Math.PI / 2;
+        uwReturnRing.position.y = 0.36;
+        const uwReturnArch = new THREE.Mesh(new THREE.TorusGeometry(4.4, 0.15, 8, 48, Math.PI), underworldCrystalMat);
+        uwReturnArch.position.set(0, 4.2, -2.3);
+        underworldReturnPad.add(uwReturnBase, uwReturnRing, uwReturnArch);
+        underworldStratumRoot.add(underworldReturnPad);
+
+        window.__underworldStratumRoot = underworldStratumRoot;
+
         Genesis.VerticalStackManager.registerStratum('surface', cityGroup, { order: 0, state: 'ACTIVE', floorY: 0, role: 'surface-city', contentType: 'surface-with-legacy-compatibility', companionRoots: surfaceCompanionRoots });
         Genesis.VerticalStackManager.registerStratum('heaven', heavenStratumRoot, { order: 1, state: 'LOADED', floorY: HEAVEN_STRATUM_Y + 0.38, role: 'prototype-heaven', contentType: 'prototype-heaven' });
         Genesis.VerticalStackManager.registerConnector('surface-heaven', {
