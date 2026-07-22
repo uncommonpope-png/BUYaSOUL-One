@@ -8089,6 +8089,27 @@ bloomPass.radius = 0.7;
         heavenGateTargets.push(liftBase, liftRing, liftBeam);
         window.__heavenLift = heavenLift;
 
+        // ========== UNDERWORLD LIFT (Phase 1) — surface portal to the depths ==========
+        const underworldGateTargets = [];
+        const underworldLift = new THREE.Group();
+        underworldLift.name = 'Surface Underworld Lift';
+        underworldLift.position.set(10, 0, -52); // Offset from heaven lift for readability
+        cityGroup.add(underworldLift);
+        const uwLiftMat = new THREE.MeshStandardMaterial({ color: 0x442266, emissive: 0x331188, emissiveIntensity: 0.5, roughness: 0.6, metalness: 0.3 });
+        const uwLiftBase = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.6, 0.25, 48), uwLiftMat);
+        uwLiftBase.position.y = 0.15;
+        uwLiftBase.userData.underworldGate = true;
+        const uwLiftRing = new THREE.Mesh(new THREE.TorusGeometry(3.8, 0.08, 8, 64), new THREE.MeshBasicMaterial({ color: 0xcc66ff, transparent: true, opacity: 0.7 }));
+        uwLiftRing.position.y = 0.38;
+        uwLiftRing.rotation.x = Math.PI / 2;
+        uwLiftRing.userData.underworldGate = true;
+        const uwLiftBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.55, 28, 24), new THREE.MeshBasicMaterial({ color: 0x8833cc, transparent: true, opacity: 0.15, depthWrite: false }));
+        uwLiftBeam.position.y = 14;
+        uwLiftBeam.userData.underworldGate = true;
+        underworldLift.add(uwLiftBase, uwLiftRing, uwLiftBeam);
+        underworldGateTargets.push(uwLiftBase, uwLiftRing, uwLiftBeam);
+        window.__underworldLift = underworldLift;
+
         // ========== GENESIS VERTICAL STACK — AUTHORED HEAVEN PROTOTYPE ==========
         // This is a new independent stratum, not either legacy heaven group. It remains a
         // direct scene child and uses only finite procedural geometry + stable materials.
@@ -10813,7 +10834,7 @@ bloomPass.radius = 0.7;
             if (inMerchant) return filterInteractionTargets([...merchantClickTargets]);
             if (inBuilder) return filterInteractionTargets([...builderClickTargets]);
             if (inProphet) return filterInteractionTargets([...prophetClickTargets]);
-            const targets = [...books, ..._soulMeshes, ...avatars, ...npcTalkTargets, ...heavenGateTargets];
+            const targets = [...books, ..._soulMeshes, ...avatars, ...npcTalkTargets, ...heavenGateTargets, ...(typeof underworldGateTargets !== 'undefined' ? underworldGateTargets : [])];
             if (!isInside) { targets.push(portalPlane); targets.push(...shipPortalTargets); targets.push(...realmPortalTargets); targets.push(...chamberSocketTargets); targets.push(...godWorldClickTargets); targets.push(...caretakerTargets); }
             if (avatar && !isInside) targets.push(avatar);
             if (window.__gskAvatar && window.__gskAvatar.clickMesh) targets.push(window.__gskAvatar.clickMesh);
