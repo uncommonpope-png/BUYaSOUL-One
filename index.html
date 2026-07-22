@@ -4336,7 +4336,7 @@ bloomPass.radius = 0.7;
         controls.enableRotate = true;
         controls.enablePan = true; // WASD/edge sail across districts
         controls.dampingFactor = 0.06;
-        controls.zoomSpeed = 0.8;
+        controls.zoomSpeed = 2.0;
         controls.rotateSpeed = 0.6;
         controls.panSpeed = 1.4;
         controls.screenSpacePanning = false; // keep horizon level while panning
@@ -8688,11 +8688,12 @@ bloomPass.radius = 0.7;
             const orbitBtn = document.getElementById('orbit-mode-btn');
             const npcBtn = document.getElementById('npc-mode-btn');
             if (orbitBtn) orbitBtn.classList.toggle('active', mode === 'orbit');
-            if (npcBtn) npcBtn.classList.toggle('active', mode === 'npc');
-            controls.enabled = mode === 'orbit';
+            if (npcBtn) orbitBtn.classList.toggle('active', mode === 'npc');
+            // OrbitControls always enabled - mouse wheel zoom, WASD pan work in both modes
+            controls.enabled = true;
             const h = document.getElementById('controls-hint');
             if (h) h.textContent = mode === 'npc'
-                ? 'WASD move · Shift run · Space up/jump · Q down · F fly · drag mouse to look · click to interact · ESC orbit'
+                ? 'WASD move · Shift run · Space up/jump · Q down · F fly · scroll zoom · drag look · click · ESC orbit'
                 : 'Drag objects | Click books | Click souls | PLAY to walk';
         }
         function toggleCameraMode() { setCameraMode(cameraMode === 'npc' ? 'orbit' : 'npc'); }
