@@ -2091,6 +2091,12 @@
         window.__GENESIS_INTERACTION = (typeof window.__GENESIS_INTERACTION === 'boolean') ? window.__GENESIS_INTERACTION : true;  // C4-INTERACTION: living clickable world — click citizens to talk, ambient greetings, speech bubbles
         window.__GENESIS_INTERIORS = (typeof window.__GENESIS_INTERIORS === 'boolean') ? window.__GENESIS_INTERIORS : true;  // P-APT-1: doors → apartment interiors → ownership/customization/persistence
         window.__GENESIS_INTERIOR_RENDERER = (typeof window.__GENESIS_INTERIOR_RENDERER === 'boolean') ? window.__GENESIS_INTERIOR_RENDERER : true;  // P-APT-2: visible/walkable room geometry + door markers
+        const GENESIS_SAVE_KEY = 'genesis:gsk-save';
+        const GENESIS_LAST_GOOD_KEY = 'genesis:gsk-last-good';
+        const BOOT_FAILURE_TIMEOUT = 15000; // 15 seconds for bootReady to resolve
+        function moduleReady(flagName, api) {
+            try { return window[flagName] !== true || !!api; } catch (_) { return !!api; }
+        }
         (function establishGenesisBootContract() {
             const G = window.Genesis || (window.Genesis = {});
             if (window.__genesisBootContract) {
@@ -2150,6 +2156,7 @@
                 contract.detail = detail;
                 window.__GENESIS_BOOT_READY = true;
                 G.bootReadyDetail = detail;
+                try { if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('genesis:rollback-attempts'); } catch (_) {}
                 try { window.dispatchEvent(new CustomEvent('genesis:boot-ready', { detail })); } catch (_) {}
                 if (resolveReady) resolveReady(detail);
 
@@ -2634,10 +2641,6 @@
 
             // ═══ ACT XVII BODY GRAFT (P178) ═══
             // Systemic Rollback / Self-Healing Boot
-            const GENESIS_SAVE_KEY = 'genesis:gsk-save';
-            const GENESIS_LAST_GOOD_KEY = 'genesis:gsk-last-good';
-            const BOOT_FAILURE_TIMEOUT = 15000; // 15 seconds for bootReady to resolve
-
             window.__GENESIS_ROLLBACK_IN_PROGRESS = false;
 
             function showGenesisFailure(message) {
@@ -2666,6 +2669,20 @@
             window.applyGenesisRollback = function (reason, currentError = null) {
                 if (window.__GENESIS_ROLLBACK_IN_PROGRESS) return;
                 window.__GENESIS_ROLLBACK_IN_PROGRESS = true;
+
+                try {
+                    if (typeof sessionStorage !== 'undefined') {
+                        const key = 'genesis:rollback-attempts';
+                        const attempts = Number(sessionStorage.getItem(key) || '0') || 0;
+                        if (attempts >= 2) {
+                            window.__GENESIS_ROLLBACK_IN_PROGRESS = false;
+                            if (typeof console !== 'undefined') console.error('[Genesis Rollback] Max reload attempts reached; holding failure state to prevent reload loop.', reason, currentError);
+                            showGenesisFailure('Rollback paused after repeated failures. Hard refresh with ?v=' + Date.now() + ' after fix deploy.');
+                            return;
+                        }
+                        sessionStorage.setItem(key, String(attempts + 1));
+                    }
+                } catch (_) {}
 
                 if (typeof console !== 'undefined') console.error(`[Genesis Rollback] Initiating rollback due to: ${reason}`);
                 showGenesisFailure(`Reason: ${reason}. Error: ${currentError ? currentError.message || currentError : 'N/A'}`);
@@ -3325,6 +3342,14 @@
             Genesis.setStatus(safe, 'warn');
             if (typeof window.__genesisReleaseLoader === 'function') window.__genesisReleaseLoader(safe);
         }
+        function markCplReady(reason) {
+            const firstDispatch = !window.__cplReadyDispatched;
+            window.__cplReady = true;
+            if (firstDispatch) {
+                window.__cplReadyDispatched = true;
+                try { window.dispatchEvent(new CustomEvent('cpl:ready', { detail: { reason: reason || 'ready', at: performance.now() } })); } catch (_) {}
+            }
+        }
         criticalManager.onStart = () => { if (!window.__cplReady) loaderOverlay.classList.remove('hidden'); };
         criticalManager.onProgress = (url, loaded, total) => { _bytes[url] = { loaded, total }; _refreshProgress();
             if (window.__GENESIS_P9_SCROLLWORLD !== false) {
@@ -3344,7 +3369,7 @@
                 if (eng) eng.textContent = ((Genesis.getManagerCount && Genesis.getManagerCount()) || 0) + ' managers online · world governed · enter when ready';
             }
             loaderPct.textContent = 'entering the library…';
-            window.__cplReady = true;
+            markCplReady('critical-manager:onLoad');
             Genesis.boot.criticalLoadedAt = performance.now();
             Genesis.boot.backstopReleased = !!window.__genesisBackstopReleased;
             Genesis.setStatus('critical load complete', 'ok');
@@ -3364,7 +3389,7 @@
             if (window.__cplReady) return;
             if (window.__genesisFirstFrameSeen && window.__genesisBackstopReleased) {
                 console.log('[Genesis] readiness resolved by first-frame + backstop (not criticalManager.onLoad).');
-                window.__cplReady = true;
+                markCplReady('first-frame-backstop');
                 if (typeof window.__genesisReleaseLoader === 'function') window.__genesisReleaseLoader('readiness resolved by frame');
                 Genesis.boot.criticalLoadedAt = Genesis.boot.criticalLoadedAt || performance.now();
             } else if (window.__genesisFirstFrameSeen) {
@@ -8204,7 +8229,8 @@ bloomPass.radius = 0.7;
         // Craig (2026-07-16): rigged OUR OWN characters in Blender headless (npc_bruno / npc_sudo)
         // and drop them into the walker pool so the city populates with animated NPCs we made.
         // Gated by __GENESIS_NPC_RIG (default OFF) so the live world is unchanged until flipped.
-        if (window.__GENESIS_NPC_RIG !== false) {
+        window.__GENESIS_NPC_RIG = (typeof window.__GENESIS_NPC_RIG === 'boolean') ? window.__GENESIS_NPC_RIG : false;
+        if (window.__GENESIS_NPC_RIG === true) {
             walkerRigUrls.push('assets/npc-rigs/npc_bruno.glb', 'assets/npc-rigs/npc_sudo.glb');
         }
         const walkerRigPool = [];

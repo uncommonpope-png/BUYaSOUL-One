@@ -1,0 +1,114 @@
+// static-page.probe.cjs — GitHub Pages static boot ultra-review guard
+// Run: node tests/static-page.probe.cjs
+'use strict';
+
+const assert = require('assert');
+const cp = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.join(__dirname, '..');
+const INDEX = path.join(ROOT, 'index.html');
+
+let passed = 0;
+function check(label, fn) { fn(); passed++; console.log('  ✅ ' + label); }
+
+function syntaxCheckModuleSource(source, label) {
+  const r = cp.spawnSync(process.execPath, ['--input-type=module', '--check'], { input: source, encoding: 'utf8' });
+  assert.strictEqual(r.status, 0, label + ' syntax failed:\n' + (r.stderr || r.stdout));
+}
+
+function extractMainModule(html) {
+  const imp = html.indexOf('import * as THREE');
+  assert.ok(imp >= 0, 'main module import not found');
+  const start = html.lastIndexOf('>', imp) + 1;
+  const end = html.indexOf('</script>', imp);
+  assert.ok(start > 0 && end > start, 'main module script bounds not found');
+  return html.slice(start, end);
+}
+
+function collectLocalRefs(html) {
+  const refs = new Set(['./cpl-config.js']);
+  const patterns = [
+    /from\s+['"](\.\/[^'"]+)['"]/g,
+    /import\(\s*['"](\.\/[^'"]+)['"]\s*\)/g,
+    /<script[^>]+src=['"](\.\/[^'"]+)['"]/g
+  ];
+  for (const pattern of patterns) {
+    let m;
+    while ((m = pattern.exec(html))) refs.add(m[1]);
+  }
+  return refs;
+}
+
+function walkJs(dir, out = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walkJs(full, out);
+    else if (entry.isFile() && entry.name.endsWith('.js')) out.push(full);
+  }
+  return out;
+}
+
+console.log('\n=== STATIC PAGE ULTRA REVIEW PROBE ===\n');
+
+const html = fs.readFileSync(INDEX, 'utf8');
+const mainModule = extractMainModule(html);
+
+check('main inline module parses as JavaScript module', () => {
+  syntaxCheckModuleSource(mainModule, 'index.html main inline module');
+});
+
+check('all src/genesis modules parse as JavaScript modules', () => {
+  const files = walkJs(path.join(ROOT, 'src', 'genesis'));
+  assert.ok(files.length >= 70, 'unexpectedly few genesis modules: ' + files.length);
+  for (const file of files) syntaxCheckModuleSource(fs.readFileSync(file, 'utf8'), path.relative(ROOT, file));
+});
+
+check('all local static JS refs in index.html exist on disk', () => {
+  const missing = [];
+  for (const ref of collectLocalRefs(html)) {
+    const clean = ref.split('?')[0].replace(/^\.\//, '');
+    if (!fs.existsSync(path.join(ROOT, clean))) missing.push(ref);
+  }
+  assert.deepStrictEqual(missing, []);
+});
+
+check('boot constants are declared before boot contract use', () => {
+  const decl = mainModule.indexOf("const BOOT_FAILURE_TIMEOUT = 15000");
+  const use = mainModule.indexOf('}, BOOT_FAILURE_TIMEOUT);');
+  assert.ok(decl >= 0, 'BOOT_FAILURE_TIMEOUT declaration missing');
+  assert.ok(use >= 0, 'BOOT_FAILURE_TIMEOUT use missing');
+  assert.ok(decl < use, 'BOOT_FAILURE_TIMEOUT used before declaration');
+  assert.strictEqual((mainModule.match(/const BOOT_FAILURE_TIMEOUT/g) || []).length, 1, 'duplicate BOOT_FAILURE_TIMEOUT declaration');
+  assert.strictEqual((mainModule.match(/const GENESIS_SAVE_KEY/g) || []).length, 1, 'duplicate GENESIS_SAVE_KEY declaration');
+  assert.strictEqual((mainModule.match(/const GENESIS_LAST_GOOD_KEY/g) || []).length, 1, 'duplicate GENESIS_LAST_GOOD_KEY declaration');
+});
+
+check('moduleReady helper exists before collectDetail uses it', () => {
+  const helper = mainModule.indexOf('function moduleReady(');
+  const use = mainModule.indexOf("kernel: moduleReady('__GENESIS_KERNEL'");
+  assert.ok(helper >= 0, 'moduleReady helper missing');
+  assert.ok(use >= 0, 'moduleReady use missing');
+  assert.ok(helper < use, 'moduleReady helper appears after use');
+});
+
+check('cpl ready state dispatches cpl:ready event through helper', () => {
+  assert.ok(mainModule.includes('function markCplReady(reason)'), 'markCplReady helper missing');
+  assert.ok(mainModule.includes("markCplReady('critical-manager:onLoad')"), 'critical manager does not call markCplReady');
+  assert.ok(mainModule.includes("markCplReady('first-frame-backstop')"), 'first-frame fallback does not call markCplReady');
+  const directAssignments = (mainModule.match(/window\.__cplReady\s*=\s*true/g) || []).length;
+  assert.strictEqual(directAssignments, 1, 'only markCplReady should directly assign __cplReady');
+});
+
+check('missing local NPC rig GLBs are not requested by default', () => {
+  assert.ok(mainModule.includes("window.__GENESIS_NPC_RIG = (typeof window.__GENESIS_NPC_RIG === 'boolean') ? window.__GENESIS_NPC_RIG : false"), 'NPC rig flag does not default false');
+  assert.ok(mainModule.includes('if (window.__GENESIS_NPC_RIG === true)'), 'NPC rig GLBs not gated by explicit true');
+});
+
+check('rollback reload loop has attempt cap', () => {
+  assert.ok(mainModule.includes('genesis:rollback-attempts'), 'rollback attempt cap missing');
+  assert.ok(mainModule.includes('Max reload attempts reached'), 'rollback max-attempt hold missing');
+});
+
+console.log('\n=== STATIC PAGE ULTRA REVIEW: ' + passed + ' checks passed ===\n');
