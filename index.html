@@ -8974,7 +8974,7 @@ bloomPass.radius = 0.7;
         function activateVerticalConnector(target) {
             const meta = target && target.userData ? target.userData.verticalConnector : null;
             if (!meta || !isInteractionEligible(target)) return Promise.resolve(false);
-            const expected = meta.endpoint === 'heaven' ? 'heaven' : 'surface';
+            const expected = meta.endpoint === 'heaven' ? 'heaven' : (meta.endpoint === 'underworld' ? 'underworld' : 'surface');
             if (!isStratumActive(expected)) return Promise.resolve(false);
             const endpointPosition = new THREE.Vector3();
             target.getWorldPosition(endpointPosition);
@@ -8982,7 +8982,18 @@ bloomPass.radius = 0.7;
                 spawnWhisper(endpointPosition, 'Move closer to the lift to travel.');
                 return Promise.resolve(false);
             }
-            const destination = expected === 'surface' ? 'heaven' : 'surface';
+            // Determine destination based on which endpoint we're at
+            // If endpoint is 'underworld', we're going back to 'surface'  
+            // If endpoint is 'heaven', we're going back to 'surface'  
+            // If endpoint is 'surface', go to the other end of the connector
+            let destination;
+            if (meta.endpoint === 'underworld') {
+                destination = 'surface';
+            } else if (meta.endpoint === 'heaven') {
+                destination = 'surface';
+            } else {
+                destination = meta.from === 'surface' ? meta.to : meta.from;
+            }
             return transitionPlayerStratum(destination).then(() => true).catch((error) => {
                 console.warn('[VerticalStack] transition failed', error);
                 spawnWhisper(endpointPosition, 'The vertical route is stabilizing. Try again.');
