@@ -9570,6 +9570,7 @@ bloomPass.radius = 0.7;
         window.__underworldStratumRoot = underworldStratumRoot;
 
         Genesis.VerticalStackManager.registerStratum('surface', cityGroup, { order: 0, state: 'ACTIVE', floorY: 0, role: 'surface-city', contentType: 'surface-with-legacy-compatibility', companionRoots: surfaceCompanionRoots });
+        Genesis.VerticalStackManager.registerStratum('underworld', underworldStratumRoot, { order: 0, state: 'LOADED', floorY: UNDERWORLD_STRATUM_Y + 0.38, role: 'underworld-cavern', contentType: 'underworld-cavern' });
         Genesis.VerticalStackManager.registerStratum('heaven', heavenStratumRoot, { order: 1, state: 'LOADED', floorY: HEAVEN_STRATUM_Y + 0.38, role: 'prototype-heaven', contentType: 'prototype-heaven' });
         Genesis.VerticalStackManager.registerConnector('surface-heaven', {
             from: 'surface',
@@ -9581,7 +9582,9 @@ bloomPass.radius = 0.7;
             transfer: ({ to }) => applyVerticalPlayerArrival(to)
         });
         if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('heaven-prototype', heavenStratumRoot, { maxDistance: 1600, autoSleep: false });
+        if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('underworld-cavern', underworldStratumRoot, { maxDistance: 1600, autoSleep: false });
         if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('heaven-prototype', heavenStratumRoot, { priority: 9, maxDistance: 1600, stateOwned: true, owner: 'vertical-stack' });
+        if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('underworld-cavern', underworldStratumRoot, { priority: 9, maxDistance: 1600, stateOwned: true, owner: 'vertical-stack' });
         Genesis.VerticalStackManager.tick({ exteriorVisible: true });
 
         const verticalStackDebugEnabled = new URLSearchParams(location.search).get('genesisDebug') === '1' || new URLSearchParams(location.search).get('genesisTest') === '1';
