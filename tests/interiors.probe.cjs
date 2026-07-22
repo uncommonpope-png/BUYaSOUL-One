@@ -57,7 +57,9 @@ check('modules install and default apartments seed', () => {
   });
   assert.ok(G.ApartmentCommerce.listCatalog().length >= 3, 'default catalog missing');
   assert.ok(G.PropertyLedger.list({ status: 'for-sale' }).length >= 3, 'properties not seeded');
-  assert.ok(G.DoorPortalManager.list().length >= 3, 'doors not seeded');
+  const doors = G.DoorPortalManager.list();
+  assert.ok(doors.length >= 3, 'doors not seeded');
+  assert.strictEqual(new Set(doors.map((door) => [door.pos.x, door.pos.y, door.pos.z].join(','))).size, doors.length, 'seeded apartment doors overlap at one position');
 });
 
 check('door portal enters preview interior and exits to exact street position', () => {

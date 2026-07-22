@@ -254,7 +254,7 @@
 
     // Wire EventBridge listener
     if (Genesis.EventBridge && typeof Genesis.EventBridge.on === 'function') {
-      try { Genesis.EventBridge.on('trust:change', onTrustChange); } catch (_) {}
+      try { Genesis.EventBridge.on('trust:change', function (ev) { onTrustChange(ev && ev.payload ? ev.payload : ev); }); } catch (_) {}
     }
     // Also listen on window event
     if (typeof window !== 'undefined') {

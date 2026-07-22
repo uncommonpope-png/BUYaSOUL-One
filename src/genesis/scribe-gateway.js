@@ -108,16 +108,21 @@
           return { ok:true, op:'spawn', id };
         }
         if (cmd.op === 'move') {
+          const rec = Registry.get ? Registry.get(cmd.id) : null;
           const o = Registry.resolve && Registry.resolve(cmd.id);
-          if (!o) return { ok:false, error:'no-entity:' + cmd.id };
-          if (o.owner && o.owner !== SCHEME) return { ok:false, error:'cascade-denied:not-scribe-owned' };
+          if (!rec && !o) return { ok:false, error:'no-entity:' + cmd.id };
+          const owner = rec ? rec.owner : o.owner;
+          if (owner && owner !== SCHEME) return { ok:false, error:'cascade-denied:not-scribe-owned' };
+          if (!o) return { ok:false, error:'no-world-object:' + cmd.id };
           if (o.position && cmd.pos) o.position.set(cmd.pos.x||0, cmd.pos.y||0, cmd.pos.z||0);
           return { ok:true, op:'move', id: cmd.id };
         }
         if (cmd.op === 'delete') {
+          const rec = Registry.get ? Registry.get(cmd.id) : null;
           const o = Registry.resolve && Registry.resolve(cmd.id);
-          if (!o) return { ok:false, error:'no-entity:' + cmd.id };
-          if (o.owner && o.owner !== SCHEME) return { ok:false, error:'cascade-denied:not-scribe-owned' };
+          if (!rec && !o) return { ok:false, error:'no-entity:' + cmd.id };
+          const owner = rec ? rec.owner : o.owner;
+          if (owner && owner !== SCHEME) return { ok:false, error:'cascade-denied:not-scribe-owned' };
           const ok = (typeof Registry.unregister === 'function') ? Registry.unregister(cmd.id) : false;
           return { ok, op:'delete', id: cmd.id };
         }
@@ -126,8 +131,8 @@
     }
 
     function dispatch(raw) {
-      const v = (typeof window !== 'undefined' && window.__agentVocab && window.__agentVocab.validate)
-        ? window.__agentVocab.validate(raw) : { ok:false, error:'no-vocab' };
+      const vocab = (typeof window !== 'undefined') ? (window.__agentVocab || window.GenesisCommandVocab) : null;
+      const v = (vocab && vocab.validate) ? vocab.validate(raw) : { ok:false, error:'no-vocab' };
       if (!v.ok) { rejected++; return { ok:false, error:v.error }; }
       if (commandQueue.length >= MAX_QUEUE) commandQueue.shift();
       commandQueue.push(v.cmd);

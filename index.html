@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <link rel="icon" href="data:,">
     <meta property="og:title" content="Mystical Library — PLT Framework Books & Soul Economy">
     <meta property="og:description" content="Explore the PLT Doctrine, The Soul Economy, and 16 sacred texts inside an interactive 3D mystical library. Click books to read, click souls for whispers.">
     <meta property="og:image" content="https://uncommonpope-png.github.io/cosmic-pyramid-library/covers/the-soul-economy.png">
@@ -921,9 +922,10 @@
         function __genesisMarkFirstFrame() {
             if (window.__genesisFirstFrameSeen) return;
             window.__genesisFirstFrameSeen = true;
-            if (!window.__cplReady && window.__genesisPendingLoaderReleaseReason && !window.__genesisBackstopReleased) {
+            if (window.__genesisPendingLoaderReleaseReason && !window.__genesisBackstopReleased) {
                 __genesisReleaseLoader(window.__genesisPendingLoaderReleaseReason);
             }
+            try { if (typeof window.__maybeGenesisBootReady === 'function') window.__maybeGenesisBootReady('first-visible-frame'); } catch (_) {}
         }
         function __genesisPushError(message) {
             window.__cplErr = message || 'script error';
@@ -1857,7 +1859,7 @@
                 }
                 let buildingMat = null;
                 if (typeof getFacadeTexture === 'function') {
-                    const facadeTex = getFacadeTexture('tower', 0x223355, Math.floor(Math.random() * 4));
+                    const facadeTex = getFacadeTexture('Tower', [0.13, 0.2, 0.33], Math.floor(Math.random() * 4));
                     if (facadeTex && facadeTex.isTexture) buildingMat = new THREE.MeshStandardMaterial({ map: facadeTex, roughness: 0.6, metalness: 0.3, emissive: 0x0a1430, emissiveIntensity: 0.35 });
                 }
                 if (!buildingMat) buildingMat = new THREE.MeshStandardMaterial({ color: 0x1b2030, roughness: 0.6, metalness: 0.4, emissive: 0x0a1430, emissiveIntensity: 0.35 });
@@ -2057,8 +2059,6 @@
                 if (typeof cloneAvatarModel === 'function') window.cloneAvatarModel = cloneAvatarModel;
                 if (typeof requestAvatarAsset === 'function') window.requestAvatarAsset = requestAvatarAsset;
                 if (typeof onAvatarReady === 'function') window.onAvatarReady = onAvatarReady;
-                if (typeof NPC_WALKER_KINDS !== 'undefined') window.NPC_WALKER_KINDS = NPC_WALKER_KINDS;
-                if (typeof groundCars !== 'undefined') window.groundCars = groundCars;
             } catch (_) {}
             // No-op stub first so call sites before async load never throw.
             Genesis.ScaleEngine = { enable(){}, disable(){}, tick(){}, summary(){return {enabled:false,tier:'high',bands:{hero:0,near:0,mid:0,far:0},mixersRegistered:0,instancedTrafficCount:0,drawCallEstimate:0,tier:'high',surfaceActive:true};}, sample(){return {enabled:false,near:[],mid:[],far:[],frame:0};}, BAND_CAPS:{} };
@@ -2066,9 +2066,11 @@
                 if (typeof m.install === 'function') m.install(window.Genesis, THREE, camera, scene, cityGroup);
                 if (typeof console !== 'undefined') console.log('[Genesis] Scale Engine module validated (inline manager replaced).');
                 // Auto-enable once the world is ready (flag ON = opt-in to scale).
-                window.addEventListener('cpl:ready', () => {
+                const enableScaleEngine = () => {
                     try { if (Genesis.ScaleEngine && typeof Genesis.ScaleEngine.enable === 'function') Genesis.ScaleEngine.enable(); } catch (e) { console.warn('[ScaleEngine] enable failed:', e && e.message); }
-                }, { once: true, passive: true });
+                };
+                if (window.__cplReady) enableScaleEngine();
+                else window.addEventListener('cpl:ready', enableScaleEngine, { once: true, passive: true });
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Scale Engine module load skipped:', e && e.message); });
         })();
 
@@ -2104,22 +2106,25 @@
                 return;
             }
             let resolveReady = null;
-            let rejectReady = null; // Add reject for the promise
             const contract = {
                 ready: false,
+                timedOut: false,
+                status: 'pending',
                 detail: null,
-                promise: new Promise((resolve, reject) => {
+                promise: new Promise((resolve) => {
                     resolveReady = resolve;
-                    rejectReady = reject;
                 })
             };
-            // Set a timeout for bootReady. If it's not ready within BOOT_FAILURE_TIMEOUT,
-            // assume a boot failure and trigger rollback.
+            // A slow boot is diagnostic, not proof that persisted state is corrupt.
+            // Keep the promise pending so a later first visible frame can still complete boot.
             let bootTimeoutId = setTimeout(() => {
                 if (!contract.ready) {
                     const failureDetail = collectDetail('boot-timeout');
-                    if (rejectReady) rejectReady({ reason: 'Boot Ready Timeout', detail: failureDetail }); // Reject the promise
-                    window.applyGenesisRollback('Boot Ready Timeout', 'Genesis.bootReady did not resolve in time.');
+                    contract.timedOut = true;
+                    contract.status = 'timeout';
+                    contract.detail = failureDetail;
+                    if (typeof console !== 'undefined') console.error('[Genesis Boot Contract] Timed out before visible readiness.', failureDetail);
+                    if (typeof window.__genesisPushError === 'function') window.__genesisPushError('Genesis boot timed out before visible readiness');
                 }
             }, BOOT_FAILURE_TIMEOUT);
             function collectDetail(source) {
@@ -2127,6 +2132,12 @@
                 return {
                     source,
                     at: Date.now(),
+                    runtime: {
+                        mainEvaluationComplete: !!window.__genesisMainEvaluationComplete,
+                        firstFrameSeen: !!window.__genesisFirstFrameSeen,
+                        cplReady: !!window.__cplReady,
+                        loaderReleased: !!window.__genesisBackstopReleased
+                    },
                     spine: {
                         kernel: moduleReady('__GENESIS_KERNEL', GG.GenesisKernel),
                         entityRegistry: moduleReady('__GENESIS_ENTITY_REGISTRY', GG.EntityRegistry),
@@ -2140,7 +2151,8 @@
                 };
             }
             function isReady(detail) {
-                return detail.spine.kernel && detail.spine.entityRegistry && detail.spine.scheduler &&
+                return detail.runtime.mainEvaluationComplete && detail.runtime.firstFrameSeen && detail.runtime.cplReady &&
+                    detail.spine.kernel && detail.spine.entityRegistry && detail.spine.scheduler &&
                     detail.spine.resourcePool && detail.spine.reactionRules && detail.spine.agentGateway &&
                     detail.spine.immortality && detail.spine.scribeGateway;
             }
@@ -2153,6 +2165,7 @@
                 clearTimeout(bootTimeoutId);
                 
                 contract.ready = true;
+                contract.status = 'ready';
                 contract.detail = detail;
                 window.__GENESIS_BOOT_READY = true;
                 G.bootReadyDetail = detail;
@@ -2180,11 +2193,6 @@
             };
             window.__genesisBootContract = contract;
             G.bootReady = contract.promise;
-            // Catch any explicit rejections of the bootReady promise and trigger rollback
-            G.bootReady.catch(error => {
-                if (window.__GENESIS_ROLLBACK_IN_PROGRESS) return;
-                window.applyGenesisRollback(error.reason || 'Boot Ready Promise Rejected', error);
-            });
         })();
         (async function orderedGenesisBoot() {
             const G = window.Genesis;
@@ -2379,7 +2387,7 @@
             if (window.__GENESIS_AGENT_GATEWAY === true) {
                 Promise.resolve()
                     .then(() => import('./src/genesis/command-vocab.js'))
-                    .then((m) => { if (m && m.Vocab) window.__agentVocab = m.Vocab; if (typeof console !== 'undefined') console.log('[Genesis] Command vocab validated.'); })
+                    .then((m) => { window.__agentVocab = (m && m.Vocab) || window.GenesisCommandVocab || window.__agentVocab; if (typeof console !== 'undefined') console.log('[Genesis] Command vocab validated.'); })
                     .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Command vocab load skipped:', e && e.message); })
                     .then(() => import('./src/genesis/resource-pool.js'))
                     .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Resource pool (Central Constraint Gate) loaded.'); })
@@ -2408,6 +2416,12 @@
                                 if (typeof localStorage === 'undefined') return;
                                 let currentSaveRaw = localStorage.getItem(GENESIS_SAVE_KEY);
                                 let lastGoodRaw = localStorage.getItem(GENESIS_LAST_GOOD_KEY);
+
+                                // First visit is a valid empty state, not save corruption.
+                                if (!currentSaveRaw && !lastGoodRaw) {
+                                    if (typeof console !== 'undefined') console.log('[Genesis] No prior immortality snapshot; starting a clean world.');
+                                    return;
+                                }
                                 
                                 let r = Imm.load(currentSaveRaw ? JSON.parse(currentSaveRaw) : null, lastGoodRaw ? JSON.parse(lastGoodRaw) : null);
 
@@ -2425,9 +2439,9 @@
                                         if (typeof console !== 'undefined') console.log('[Genesis] Restored ' + self.citizens.length + ' citizen relationship selves (Surface A).');
                                       }
                                     } catch (_) {}
-                                } else if (!r.ok) {
+                                } else if (!r.ok && r.error !== 'no-save') {
                                     if (typeof console !== 'undefined') console.warn('[Genesis] Save corrupt - triggering rollback.', r.error);
-                                    window.applyGenesisRollback('Corrupt/Missing Save Data', r.error);
+                                    window.applyGenesisRollback('Corrupt Save Data', r.error);
                                 }
                             } catch (e) {
                                 if (typeof console !== 'undefined') console.warn('[Genesis] Error during restore - triggering rollback.', e);
@@ -2519,6 +2533,13 @@
             window.__GENESIS_PLAYER_CAM = true;
             if (window.__GENESIS_CITIZEN_AI === true) {
                 Promise.resolve()
+                    .then(() => import('./src/genesis/citizen-memory.js'))
+                    .then((m) => {
+                        if (m && typeof m.install === 'function') {
+                            m.install(window.Genesis);
+                            window.installEpisodicMemory = m.install;
+                        }
+                    })
                     .then(() => import('./src/genesis/citizen-ai.js'))
                     .then((m) => { if (typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] CitizenAI validated (Act VI: living FSM).'); })
                     .then(() => {
@@ -2690,8 +2711,8 @@
                 try {
                     const Imm = window.GenesisImmortality;
                     if (!Imm) {
-                        clearGenesisStorage();
-                        location.reload(); // Hard reload after clearing
+                        if (typeof console !== 'undefined') console.error('[Genesis Rollback] Immortality validator unavailable; preserving state and holding failure.');
+                        window.__GENESIS_ROLLBACK_IN_PROGRESS = false;
                         return;
                     }
 
@@ -2716,11 +2737,8 @@
                     if (currentSaveRaw && currentSaveRaw !== lastGoodRaw) { // Only try if different from lastGood
                         const currentSave = JSON.parse(currentSaveRaw);
                         if (Imm.validate(currentSave).ok) {
-                            // If current save is valid, but caused failure, maybe it's just a transient problem.
-                            // Clear it, then reload. A bit aggressive, but safer than looping on a broken state.
-                            if (typeof console !== 'undefined') console.log('[Genesis Rollback] Current save is valid but likely problematic. Clearing and reloading.');
-                            localStorage.removeItem(GENESIS_SAVE_KEY);
-                            location.reload();
+                            if (typeof console !== 'undefined') console.error('[Genesis Rollback] Current save validates; preserving it and holding failure instead of deleting user state.');
+                            window.__GENESIS_ROLLBACK_IN_PROGRESS = false;
                             return;
                         }
                     }
@@ -2737,18 +2755,15 @@
                 }
             };
 
-            // Global error handlers to trigger rollback
+            // Runtime code failures are diagnostics, not evidence of save corruption.
+            // Rollback is reserved for the explicit restore-validation path above.
             window.onerror = function (message, source, lineno, colno, error) {
-                if (window.__GENESIS_ROLLBACK_IN_PROGRESS) return;
-                if (message && message.indexOf('Genesis Boot Failure') !== -1) return; // Prevent infinite loop
-                window.applyGenesisRollback('Unhandled JavaScript Error', error || message);
-                return true; // Prevent default browser error handling
+                if (typeof console !== 'undefined') console.error('[Genesis Runtime Error]', message, source, lineno, colno, error || '');
+                return false;
             };
 
             window.onunhandledrejection = function (event) {
-                if (window.__GENESIS_ROLLBACK_IN_PROGRESS) return;
-                if (event.reason && event.reason.message && event.reason.message.indexOf('Genesis Boot Failure') !== -1) return;
-                window.applyGenesisRollback('Unhandled Promise Rejection', event.reason);
+                if (typeof console !== 'undefined') console.error('[Genesis Promise Rejection]', event && event.reason ? event.reason : event);
             };
 
 
@@ -3195,8 +3210,21 @@
         // CRITICAL manager drives the loading overlay and hides it once the world is
         // presentable. LAZY manager streams non-essential decorative props silently AFTER
         // the city is already shown. (Soul Gun: critical-path loading — fixes 4.5s blank city.)
+        const GENESIS_ASSET_ORIGIN = String(window.GENESIS_ASSET_ORIGIN || 'https://uncommonpope-png.github.io/cosmic-pyramid-library/').replace(/\/?$/, '/');
+        function resolveGenesisAssetUrl(url) {
+            const value = String(url || '');
+            if (/^(?:https?:|data:|blob:)/i.test(value)) return value;
+            if (value.startsWith('assets/') || value.startsWith('./assets/') || value.startsWith('covers/') || value.startsWith('./covers/')) {
+                return GENESIS_ASSET_ORIGIN + value.replace(/^\.\//, '');
+            }
+            return value;
+        }
+        window.GENESIS_ASSET_ORIGIN = GENESIS_ASSET_ORIGIN;
+        window.resolveGenesisAssetUrl = resolveGenesisAssetUrl;
         const criticalManager = new THREE.LoadingManager();
         const loadingManager = new THREE.LoadingManager();
+        criticalManager.setURLModifier(resolveGenesisAssetUrl);
+        loadingManager.setURLModifier(resolveGenesisAssetUrl);
         function makeGLTF(options = {}) {
             const lazy = !!options.lazy;
             const world = options.tier === 'world'; // world-tier = essential living assets, alive on boot
@@ -3349,6 +3377,7 @@
                 window.__cplReadyDispatched = true;
                 try { window.dispatchEvent(new CustomEvent('cpl:ready', { detail: { reason: reason || 'ready', at: performance.now() } })); } catch (_) {}
             }
+            try { if (typeof window.__maybeGenesisBootReady === 'function') window.__maybeGenesisBootReady('cpl-ready:' + (reason || 'ready')); } catch (_) {}
         }
         criticalManager.onStart = () => { if (!window.__cplReady) loaderOverlay.classList.remove('hidden'); };
         criticalManager.onProgress = (url, loaded, total) => { _bytes[url] = { loaded, total }; _refreshProgress();
@@ -3917,6 +3946,7 @@ bloomPass.radius = 0.7;
         const BLOOM_SCALE = 0.5; // bloom is a full-screen post pass -> half res = ~4x cheaper
         const _perfTmp = new THREE.Vector3();
         let _perfRunning = true; // pause the loop when the tab is hidden
+        let _perfRafId = 0;
         let _audioSeeded = false;
         function probeInitialTier() {
             try {
@@ -5225,23 +5255,11 @@ bloomPass.radius = 0.7;
         }
         
         // ========== LOAD AVATAR ==========
-        let avatar = null;
-        const avatarLoader = makeGLTF({ lazy: true });
-        avatarLoader.load(
-            'https://models.readyplayer.me/65893b0514f9f5f28e61d783.glb',
-            (gltf) => {
-                avatar = gltf.scene;
-                avatar.name = 'Surface ReadyPlayerMe Guardian';
-                avatar.scale.set(0.9, 0.9, 0.9);
-                avatar.position.set(-1.8, 0, 2.8);
-                avatar.rotation.y = 0.6;
-                avatar.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-                scene.add(avatar);
-                registerSurfaceLateRoot(avatar, 'surface-avatar', avatar.name);
-            },
-            undefined,
-            () => { avatar = createGuardian(); scene.add(avatar); registerSurfaceLateRoot(avatar, 'surface-avatar', 'Surface Procedural Guardian'); }
-        );
+        // ReadyPlayerMe host is no longer reliable. Use the authored procedural guardian
+        // directly rather than delaying boot on a guaranteed external network failure.
+        let avatar = createGuardian();
+        scene.add(avatar);
+        registerSurfaceLateRoot(avatar, 'surface-avatar', 'Surface Procedural Guardian');
         
         // ========== NEON SOULS ==========
         const soulCount = 40;
@@ -6001,13 +6019,6 @@ bloomPass.radius = 0.7;
         if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('city-core', cityGroup, { maxDistance: 260, autoSleep: false }); // city always near spawn; never auto-dispose
         if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('city-core', cityGroup, { priority: 5, maxDistance: 260 });
 
-        // ========== GENESIS PREMIUM SLICE — BUILD TRIGGER (Phase A) ==========
-        // cityGroup now exists. Only build the street when the slice flag is explicitly ON.
-        // When OFF (default) this line is a no-op and the live world is untouched.
-        if (window.__GENESIS_PREMIUM_SLICE === true && Genesis.PremiumSlice && typeof Genesis.PremiumSlice.build === 'function') {
-            try { Genesis.PremiumSlice.build(); } catch (e) { if (typeof console !== 'undefined') console.warn('[PremiumSlice] build failed:', e && e.message); }
-        }
-
         // ========== GENESIS POPULATION ENGINE — SPAWN TRIGGER (Phase B) ==========
         // cityGroup now exists. Only spawn the hero when the engine flag is explicitly ON.
         // Defer to __cplReady (mirrors primeNpcBodies) so GLB avatars are available;
@@ -6263,6 +6274,13 @@ bloomPass.radius = 0.7;
             tex.anisotropy = 8;
             facadeTextureCache[key] = tex;
             return tex;
+        }
+
+        // ========== GENESIS PREMIUM SLICE — BUILD TRIGGER (Phase A) ==========
+        // cityGroup and facadeTextureCache are initialized here. Triggering earlier
+        // crosses the cache's lexical dead zone and disables the default slice.
+        if (window.__GENESIS_PREMIUM_SLICE === true && Genesis.PremiumSlice && typeof Genesis.PremiumSlice.build === 'function') {
+            try { Genesis.PremiumSlice.build(); } catch (e) { if (typeof console !== 'undefined') console.warn('[PremiumSlice] build failed:', e && e.message); }
         }
         
         function makeBuilding(x, z, type) {
@@ -6605,7 +6623,7 @@ bloomPass.radius = 0.7;
         function applyBillboardVideo(plane, imageMat, vidUrl, fx) {
             if (window.__GENESIS_BILLBOARD_ALIVE === false) return; // reversible: old frozen-poster behavior
             const video = document.createElement('video');
-            video.src = vidUrl; video.loop = true; video.muted = true; video.playsInline = true;
+            video.src = resolveGenesisAssetUrl(vidUrl); video.loop = true; video.muted = true; video.playsInline = true;
             video.setAttribute('playsinline', ''); video.setAttribute('webkit-playsinline', ''); video.crossOrigin = 'anonymous';
             video.preload = 'auto'; // FIX (TRASH->alive): load immediately so canplay fires for far-spawned boards
             video.addEventListener('canplay', () => {
@@ -6906,7 +6924,7 @@ bloomPass.radius = 0.7;
                 ensure();
                 if (!listener) return;
                 const ctx = listener.context;
-                if (ctx.state === 'suspended') ctx.resume();
+                if (ctx.state === 'suspended') ctx.resume().catch((e) => console.warn('[Audio] resume failed', e));
                 if (enabled && surfaceActive && !(perf && perf.tier === 'low')) {
                     sources.forEach(s => { if (!s.sound.isPlaying) { try { s.sound.play(); } catch (e) {} } });
                 }
@@ -7099,7 +7117,7 @@ bloomPass.radius = 0.7;
             if (!YUKA || !citizens.length) return;
             try {
                 for (const c of citizens) {
-                    const e = new YUKA.Entity();
+                    const e = new YUKA.Vehicle();
                     e.position.set(c.group.position.x, 0, c.group.position.z);
                     e.maxSpeed = 2.2;
                     e.steering.add(new YUKA.WanderBehavior(6));
@@ -7131,7 +7149,7 @@ bloomPass.radius = 0.7;
         async function initQuarks() {
             if (_qkReady || (perf && perf.tier === 'low')) return;
             try {
-                const Q = await import('https://unpkg.com/three.quarks@0.17.1/dist/three.quarks.esm.js');
+                const Q = await import('https://unpkg.com/three.quarks@0.12.0/dist/three.quarks.esm.js');
                 QK = Q;
                 const tex = makeSoftCircleTexture();
                 const material = new THREE.MeshBasicMaterial({ map: tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: true });
@@ -7561,6 +7579,9 @@ bloomPass.radius = 0.7;
         }
 
         const NPC_WALKER_KINDS = ['scribe', 'merchant', 'builder', 'prophet', 'catgirl', 'lola', 'skull', 'goku'];
+        // Export ScaleEngine dependencies only after their lexical bindings initialize.
+        window.NPC_WALKER_KINDS = NPC_WALKER_KINDS;
+        window.groundCars = groundCars;
         const pendingNpcBodySwaps = [];
         let npcGlbPrimeStarted = false;
         function stampNpcTalk(root, talkData) {
@@ -8331,6 +8352,10 @@ bloomPass.radius = 0.7;
             gsk:      { body: 0x0a1430, glow: 0x66ffff, accent: 0x9effc4 }
         };
         let playerKind = 'gsk';
+        // Proof installers persist synchronously below. Initialize this binding before
+        // any of them can call saveWorldState(); `typeof` cannot escape a lexical TDZ.
+        let playerNPC = null;
+        let resumeCaptureReady = false;
 
         // Phase 2: denizen identity + realm quest loops
         const WORLD_STATE_KEY = 'cpl-world-state-v2';
@@ -8393,7 +8418,7 @@ bloomPass.radius = 0.7;
             return { x: Number(v.x), y: Number(v.y), z: Number(v.z) };
         }
         function captureResumeState() {
-            if (typeof playerNPC === 'undefined' || !playerNPC || !playerNPC.position) return null;
+            if (!resumeCaptureReady || !playerNPC || !playerNPC.position) return null;
             return {
                 at: Date.now(),
                 playerKind,
@@ -8569,7 +8594,7 @@ bloomPass.radius = 0.7;
             return g;
         }
 
-        let playerNPC = buildSubagentAvatar(playerKind);
+        playerNPC = buildSubagentAvatar(playerKind);
         playerNPC.position.set(0, 0, 12);
         scene.add(playerNPC);
         window.__playerNPC = playerNPC;
@@ -9601,7 +9626,10 @@ bloomPass.radius = 0.7;
             }
 
             _load() {
-                fetch('assets/assets.json').then(r => r.json()).then(data => {
+                fetch(resolveGenesisAssetUrl('assets/assets.json')).then(r => {
+                    if (!r.ok) throw new Error('asset catalog HTTP ' + r.status);
+                    return r.json();
+                }).then(data => {
                     const assets = data.assets || [];
                     // Hub diet: keep only the three functional portal ships plus two hero anchors.
                     const hubSpace = new Set([
@@ -14455,6 +14483,8 @@ bloomPass.radius = 0.7;
             if (inChamber) return 'chamber';
             return null;
         }
+        // All resume dependencies (player, realm flags, chamber state) now exist.
+        resumeCaptureReady = true;
         function applyResumeState(saved) {
             if (!saved || typeof saved !== 'object' || !saved.position) return false;
             try {
@@ -14535,7 +14565,7 @@ bloomPass.radius = 0.7;
         if (worldState.resume && worldState.resume.position) {
             const G = window.Genesis;
             if (G && G.bootReady && typeof G.bootReady.then === 'function') {
-                G.bootReady.then(() => { try { applyResumeState(worldState.resume); } catch (_) {} });
+                G.bootReady.then(() => { try { applyResumeState(worldState.resume); } catch (_) {} }).catch((e) => console.warn('[Resume] boot readiness failed', e));
             } else {
                 setTimeout(() => { try { applyResumeState(worldState.resume); } catch (_) {} }, 450);
             }
@@ -14675,8 +14705,9 @@ bloomPass.radius = 0.7;
         
         let _lastResumePersistAt = 0;
         function animate() {
+            _perfRafId = 0;
             if (!_perfRunning) return; // tab hidden -> stop the loop entirely
-            requestAnimationFrame(animate);
+            _perfRafId = requestAnimationFrame(animate);
             const now = performance.now();
             const dt = Math.min(0.033, (now - lastTime) / 1000);
             lastTime = now;
@@ -15154,6 +15185,8 @@ bloomPass.radius = 0.7;
         try { renderer.compile(scene, camera); } catch (e) { console.warn('[PERF] precompile skipped', e); }
 
         genesisRenderSchedule.init();
+        window.__genesisMainEvaluationComplete = true;
+        try { if (window.__maybeGenesisBootReady) window.__maybeGenesisBootReady('main-evaluation-complete'); } catch (_) {}
         animate();
 
         // ========== RESIZE ==========
@@ -15169,8 +15202,15 @@ bloomPass.radius = 0.7;
 
         // ========== PERF: pause rendering when tab hidden (no GPU/CPU waste) ==========
         document.addEventListener('visibilitychange', () => {
-            if (document.hidden) { _perfRunning = false; }
-            else if (!_perfRunning) { _perfRunning = true; lastTime = performance.now(); requestAnimationFrame(animate); }
+            if (document.hidden) {
+                _perfRunning = false;
+                if (_perfRafId) { cancelAnimationFrame(_perfRafId); _perfRafId = 0; }
+            }
+            else if (!_perfRunning) {
+                _perfRunning = true;
+                lastTime = performance.now();
+                if (!_perfRafId) _perfRafId = requestAnimationFrame(animate);
+            }
         });
         
         console.log('Mystical Library: click books to read PLT content, click souls for whispers, drag objects');

@@ -9,6 +9,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const INDEX = path.join(ROOT, 'index.html');
+const SERVICE_WORKER = path.join(ROOT, 'service-worker.js');
 
 let passed = 0;
 function check(label, fn) { fn(); passed++; console.log('  ✅ ' + label); }
@@ -93,6 +94,41 @@ check('moduleReady helper exists before collectDetail uses it', () => {
   assert.ok(helper < use, 'moduleReady helper appears after use');
 });
 
+check('resume capture cannot cross player or realm lexical dead zones', () => {
+  const playerDecl = mainModule.indexOf('let playerNPC = null;');
+  const proofInstall = mainModule.indexOf('installNPCScalePass(window.Genesis');
+  const captureGuard = mainModule.indexOf('if (!resumeCaptureReady || !playerNPC || !playerNPC.position) return null;');
+  const realmFn = mainModule.indexOf('function currentRealm()');
+  const captureReady = mainModule.indexOf('resumeCaptureReady = true;');
+  assert.ok(playerDecl >= 0 && playerDecl < proofInstall, 'playerNPC must initialize before synchronous proof installers');
+  assert.ok(captureGuard >= 0, 'captureResumeState readiness guard missing');
+  assert.ok(realmFn >= 0 && captureReady > realmFn, 'resume capture enabled before realm/chamber state is initialized');
+  assert.strictEqual((mainModule.match(/let playerNPC/g) || []).length, 1, 'playerNPC must have one lexical declaration');
+});
+
+check('premium slice build runs after facade cache initialization', () => {
+  const cache = mainModule.indexOf('const facadeTextureCache = {};');
+  const trigger = mainModule.indexOf('Genesis.PremiumSlice.build();');
+  assert.ok(cache >= 0 && trigger > cache, 'PremiumSlice.build crosses facadeTextureCache TDZ');
+});
+
+check('boot readiness requires completed evaluation and a visible frame', () => {
+  assert.ok(mainModule.includes('detail.runtime.mainEvaluationComplete && detail.runtime.firstFrameSeen && detail.runtime.cplReady'), 'boot contract lacks visible runtime gate');
+  assert.ok(mainModule.includes('window.__genesisMainEvaluationComplete = true;'), 'main evaluation completion marker missing');
+  assert.ok(!mainModule.includes("window.applyGenesisRollback('Boot Ready Timeout'"), 'boot timeout must not trigger destructive rollback');
+});
+
+check('fresh profile and runtime errors do not trigger destructive rollback', () => {
+  assert.ok(mainModule.includes('if (!currentSaveRaw && !lastGoodRaw)'), 'fresh-profile no-save guard missing');
+  assert.ok(!mainModule.includes("window.applyGenesisRollback('Unhandled JavaScript Error'"), 'generic JavaScript errors still trigger rollback');
+  assert.ok(!mainModule.includes("window.applyGenesisRollback('Unhandled Promise Rejection'"), 'generic promise errors still trigger rollback');
+  assert.ok(mainModule.includes('Current save validates; preserving it'), 'valid current save is not explicitly preserved');
+});
+
+check('pending loader release flushes on first visible frame', () => {
+  assert.ok(html.includes('if (window.__genesisPendingLoaderReleaseReason && !window.__genesisBackstopReleased)'), 'first-frame pending release still depends on stale cplReady state');
+});
+
 check('cpl ready state dispatches cpl:ready event through helper', () => {
   assert.ok(mainModule.includes('function markCplReady(reason)'), 'markCplReady helper missing');
   assert.ok(mainModule.includes("markCplReady('critical-manager:onLoad')"), 'critical manager does not call markCplReady');
@@ -104,6 +140,23 @@ check('cpl ready state dispatches cpl:ready event through helper', () => {
 check('missing local NPC rig GLBs are not requested by default', () => {
   assert.ok(mainModule.includes("window.__GENESIS_NPC_RIG = (typeof window.__GENESIS_NPC_RIG === 'boolean') ? window.__GENESIS_NPC_RIG : false"), 'NPC rig flag does not default false');
   assert.ok(mainModule.includes('if (window.__GENESIS_NPC_RIG === true)'), 'NPC rig GLBs not gated by explicit true');
+});
+
+check('code-only publish routes media to the production asset origin', () => {
+  assert.ok(mainModule.includes("https://uncommonpope-png.github.io/cosmic-pyramid-library/"), 'production asset origin missing');
+  assert.ok(mainModule.includes('criticalManager.setURLModifier(resolveGenesisAssetUrl)'), 'critical assets do not use asset resolver');
+  assert.ok(mainModule.includes('loadingManager.setURLModifier(resolveGenesisAssetUrl)'), 'lazy assets do not use asset resolver');
+  assert.ok(mainModule.includes("fetch(resolveGenesisAssetUrl('assets/assets.json'))"), 'asset catalog bypasses asset resolver');
+  assert.ok(mainModule.includes('video.src = resolveGenesisAssetUrl(vidUrl)'), 'billboard videos bypass asset resolver');
+});
+
+check('service worker never returns undefined or caches cross-origin soul traffic', () => {
+  const sw = fs.readFileSync(SERVICE_WORKER, 'utf8');
+  syntaxCheckModuleSource(sw, 'service-worker.js');
+  assert.ok(sw.includes('url.origin !== self.location.origin'), 'service worker does not bypass cross-origin requests');
+  assert.ok(sw.includes("url.pathname.includes('/gsk/mcp/')"), 'service worker does not bypass prefixed GSK API routes');
+  assert.ok(sw.includes("new Response('Offline', { status: 503"), 'offline cache miss can resolve without a Response');
+  assert.ok(sw.includes("const CACHE = 'cpl-v17'"), 'service-worker cache version was not rotated');
 });
 
 check('rollback reload loop has attempt cap', () => {

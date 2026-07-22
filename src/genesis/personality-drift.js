@@ -48,7 +48,7 @@ export function install(Genesis, worldState, saveWorldState) {
   }
   window.addEventListener('genesis:trust:delta', (ev) => handleTrustDelta(ev && ev.detail ? ev.detail : {}));
   if (Genesis.EventBridge && typeof Genesis.EventBridge.on === 'function') {
-    try { Genesis.EventBridge.on('trust:change', handleTrustDelta); } catch (_) {}
+    try { Genesis.EventBridge.on('trust:change', (ev) => handleTrustDelta(ev && ev.payload ? ev.payload : ev)); } catch (_) {}
   }
 
   const api = { ensure, drift, tone, summary: () => ({ profiles: Object.keys(worldState.personalityProfiles || {}).length }) };

@@ -45,6 +45,8 @@
         createdAt: spec.createdAt || now(),
         updatedAt: spec.updatedAt || now(),
         receiptId: spec.receiptId || null,
+        pos: spec.pos ? { x: Number(spec.pos.x) || 0, y: Number(spec.pos.y) || 0, z: Number(spec.pos.z) || 0 } : null,
+        exitPos: spec.exitPos ? { x: Number(spec.exitPos.x) || 0, y: Number(spec.exitPos.y) || 0, z: Number(spec.exitPos.z) || 0 } : null,
         meta: Object.assign({}, spec.meta || {})
       };
     }

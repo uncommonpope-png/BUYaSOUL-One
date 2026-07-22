@@ -31,12 +31,12 @@
       if (typeof window.installEpisodicMemory === 'function') {
           window.installEpisodicMemory(Genesis);
       }
-      if (Genesis.EpisodicMemory === undefined) {
-          console.warn('[CitizenAI] EpisodicMemory not available. Citizen memory will be disabled.');
-          // Provide a dummy class to prevent errors
-          Genesis.EpisodicMemory = class { constructor() { this.chronos = []; } addEpisode() {} snapshot() { return {}; } load() {} };
-      }
+      if (Genesis.EpisodicMemory === undefined) console.warn('[CitizenAI] EpisodicMemory not available yet; temporary local memory will be used.');
     }
+
+    // Never publish a dummy under the canonical Genesis.EpisodicMemory name: doing so
+    // prevents the real memory installer from replacing it later in boot.
+    const MemoryClass = Genesis.EpisodicMemory || class { constructor() { this.chronos = []; } addEpisode() {} snapshot() { return {}; } load() {} };
 
 
     const STATE = { WANDER: 'wander', PATROL: 'patrol', PURSUE: 'pursue', IDLE: 'idle', FOLLOW: 'follow' };
@@ -171,7 +171,7 @@
             legIndex: 0,
             waitT: Math.random() * 4,
             speed: 2.2,
-            memory: new Genesis.EpisodicMemory(r.id)
+            memory: new MemoryClass(r.id)
           };
           if (r.meta && r.meta.memory) {
             rec.memory.load(r.meta.memory);

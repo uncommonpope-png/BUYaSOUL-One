@@ -148,16 +148,21 @@
             return { ok:true, op:'spawn', id };
           }
           if (cmd.op === 'move') {
+            const rec = Registry.get ? Registry.get(cmd.id) : null;
             const o = Registry.resolve && Registry.resolve(cmd.id);
-            if (!o) return { ok:false, error:'no-entity:' + cmd.id };
-            if (o.owner && o.owner !== SCHEME) return { ok:false, error:'cascade-denied:not-' + SCHEME };
+            if (!rec && !o) return { ok:false, error:'no-entity:' + cmd.id };
+            const owner = rec ? rec.owner : o.owner;
+            if (owner && owner !== SCHEME) return { ok:false, error:'cascade-denied:not-' + SCHEME };
+            if (!o) return { ok:false, error:'no-world-object:' + cmd.id };
             if (o.position && cmd.pos) o.position.set(cmd.pos.x||0, cmd.pos.y||0, cmd.pos.z||0);
             return { ok:true, op:'move', id: cmd.id };
           }
           if (cmd.op === 'delete') {
+            const rec = Registry.get ? Registry.get(cmd.id) : null;
             const o = Registry.resolve && Registry.resolve(cmd.id);
-            if (!o) return { ok:false, error:'no-entity:' + cmd.id };
-            if (o.owner && o.owner !== SCHEME) return { ok:false, error:'cascade-denied:not-' + SCHEME };
+            if (!rec && !o) return { ok:false, error:'no-entity:' + cmd.id };
+            const owner = rec ? rec.owner : o.owner;
+            if (owner && owner !== SCHEME) return { ok:false, error:'cascade-denied:not-' + SCHEME };
             const ok = (typeof Registry.unregister === 'function') ? Registry.unregister(cmd.id) : false;
             return { ok, op:'delete', id: cmd.id };
           }

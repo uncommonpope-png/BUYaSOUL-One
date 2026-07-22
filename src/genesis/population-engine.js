@@ -22,7 +22,7 @@ import * as THREE from 'three';
 // recast-navigation-js ESM CDN + fallback. Top-level dynamic import is wrapped in
 // try/catch by the caller; this helper returns null on any failure so the engine
 // degrades to straight-line steering instead of throwing.
-const NAV_CDN_PRIMARY = 'https://cdn.jsdelivr.net/npm/recast-navigation-js@0.33.0/+esm';
+const NAV_CDN_PRIMARY = 'https://cdn.jsdelivr.net/npm/recast-navigation@0.33.0/+esm';
 const NAV_CDN_FALLBACK = 'https://cdn.jsdelivr.net/npm/@recast-navigation/wasm@0.33.0/+esm';
 
 export function install(Genesis, THREE, camera, scene, cityGroup) {
@@ -71,7 +71,7 @@ export function install(Genesis, THREE, camera, scene, cityGroup) {
     for (const url of [NAV_CDN_PRIMARY, NAV_CDN_FALLBACK]) {
       try {
         navMod = await import(/* @vite-ignore */ url);
-        if (navMod && (navMod.Recast, navMod.NavMesh, navMod.generateTilingNavMesh || navMod.createNavMesh)) break;
+        if (navMod && (navMod.Recast || navMod.NavMesh || navMod.generateTilingNavMesh || navMod.createNavMesh)) break;
       } catch (_) { navMod = null; }
     }
     if (!navMod) {

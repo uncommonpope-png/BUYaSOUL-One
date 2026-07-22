@@ -309,7 +309,7 @@
     }
 
     if (Genesis.EventBridge && typeof Genesis.EventBridge.on === 'function') {
-      try { Genesis.EventBridge.on('trust:betrayal', onTrustBetrayal); } catch (_) {}
+      try { Genesis.EventBridge.on('trust:betrayal', function (ev) { onTrustBetrayal(ev && ev.payload ? ev.payload : ev); }); } catch (_) {}
     }
     // Also listen on window event
     if (typeof window !== 'undefined') {
