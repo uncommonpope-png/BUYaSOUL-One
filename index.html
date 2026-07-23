@@ -8688,13 +8688,20 @@ bloomPass.radius = 0.7;
             const orbitBtn = document.getElementById('orbit-mode-btn');
             const npcBtn = document.getElementById('npc-mode-btn');
             if (orbitBtn) orbitBtn.classList.toggle('active', mode === 'orbit');
-            if (npcBtn) orbitBtn.classList.toggle('active', mode === 'npc');
-            // OrbitControls always enabled - mouse wheel zoom, WASD pan work in both modes
-            controls.enabled = true;
+            if (npcBtn) npcBtn.classList.toggle('active', mode === 'npc');
+            if (mode === 'orbit') {
+                controls.enabled = true;
+                if (playerNPC) {
+                    const eye = playerNPC.position.clone().add(new THREE.Vector3(0, 1.6, 0));
+                    controls.target.copy(eye);
+                }
+            } else {
+                controls.enabled = false;
+            }
             const h = document.getElementById('controls-hint');
             if (h) h.textContent = mode === 'npc'
-                ? 'WASD move · Shift run · Space up/jump · Q down · F fly · scroll zoom · drag look · click · ESC orbit'
-                : 'Drag objects | Click books | Click souls | PLAY to walk';
+                ? 'WASD move · Shift run · Space up/jump · Q down · F fly · drag mouse to look · click to interact · ESC orbit · SCROLL zoom'
+                : 'Drag objects | Click books | Click souls | PLAY to walk · SCROLL zoom';
         }
         function toggleCameraMode() { setCameraMode(cameraMode === 'npc' ? 'orbit' : 'npc'); }
         document.getElementById('orbit-mode-btn').addEventListener('click', () => setCameraMode('orbit'));
@@ -8735,6 +8742,11 @@ bloomPass.radius = 0.7;
             playerYaw -= e.movementX * 0.005;
             playerPitch = Math.max(-0.5, Math.min(1.2, playerPitch - e.movementY * 0.004));
         });
+        renderer.domElement.addEventListener('wheel', (e) => {
+            if (cameraMode === 'npc') {
+                camDist = Math.max(2, Math.min(40, camDist + e.deltaY * 0.01));
+            }
+        }, { passive: true });
 
         function getActiveStratum() {
             return Genesis.VerticalStackManager && Genesis.VerticalStackManager.getActive ? (Genesis.VerticalStackManager.getActive() || 'surface') : 'surface';
