@@ -14728,7 +14728,7 @@ bloomPass.radius = 0.7;
                 playerFlying = !!saved.flying;
                 playerGrounded = !!saved.grounded;
                 playerVelY = 0;
-                if (saved.cameraMode) setCameraMode(saved.cameraMode);
+                setCameraMode('orbit');
                 if (saved.activeStratum === 'heaven' && typeof transitionPlayerStratum === 'function' && getActiveStratum() !== 'heaven') {
                     transitionPlayerStratum('heaven').catch(() => {});
                 }
@@ -15373,8 +15373,8 @@ bloomPass.radius = 0.7;
             }
             
                         updatePlayerNPC(dt);
-            controls.enabled = (cameraMode === 'orbit');
-            controls.update();
+             controls.enabled = true;
+             controls.update();
             perf.beginGpu();
             // Cinematic Renderer: sync tier only when it actually changes (cheap
             // compare; re-applies look so bloom.enabled reflects the new tier).

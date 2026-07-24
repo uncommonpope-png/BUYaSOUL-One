@@ -50,6 +50,18 @@ export class SoulMultiverseVisualizer {
   async init() {
     if (!this.scene) { if (typeof console !== 'undefined') console.warn('[SoulMultiverse] No scene'); return; }
     this.scene.add(this.root);
+    
+    // EXACTLY match the Lost World Bible camera setup
+    if (this.camera && window.controls) {
+      window.controls.enabled = true;
+      window.controls.minDistance = 5;
+      window.controls.maxDistance = 80;
+      window.controls.maxPolarAngle = Math.PI / 2.1;
+      window.controls.enableDamping = true;
+      window.controls.dampingFactor = 0.05;
+      this.camera.position.set(0, 25, 40);
+    }
+    
     this._buildFractalField();
     this._buildQuantumCloud();
     this._buildSpectrumRings();
