@@ -246,6 +246,15 @@ export function buildSoulForgeNexus(ctx = {}) {
   return api;
 }
 
+export function buildSoulForgeNexusAtPosition(x, z, ctx) {
+  const nexus = buildSoulForgeNexus(ctx);
+  if (nexus && nexus.root) {
+    nexus.root.position.set(x, 0, z);
+    nexus.root.name = 'soul-forge-nexus-' + Math.round(x) + '-' + Math.round(z);
+  }
+  return nexus;
+}
+
 export function install(Genesis, THREE) {
   if (!Genesis) return null;
   if (Genesis.SoulForgeNexus) return Genesis.SoulForgeNexus;

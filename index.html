@@ -994,8 +994,8 @@
         // === MULTIVERSE EXPANSION (Lost World mechanics + soul-multiverse modules) ===
         import { install as installWeaveBridge } from './src/genesis/weave-bridge.js';
         import { install as installRealmGenerator } from './src/genesis/realm-generator.js';
-        import { install as installMultiverseHub } from './src/genesis/multiverse-hub.js';
-        import { install as installSoulForgeNexus } from './src/genesis/soul-forge-nexus.js';
+        import { install as installMultiverseWorld } from './src/genesis/multiverse-world.js';
+        import { install as installSoulForgeNexus, buildSoulForgeNexusAtPosition } from './src/genesis/soul-forge-nexus.js';
 
         // ========== GENESIS TIER 0: telemetry + survival + registry ==========
         const Genesis = window.Genesis || (window.Genesis = {});
@@ -8519,90 +8519,54 @@ bloomPass.radius = 0.7;
         if (window.__GENESIS_AMBIENT_DRIFT_CAM !== false) installAmbientDriftCam(window.Genesis, worldState, saveWorldState, { amp: 0.08, ampY: 0.035, saveEveryMs: 15000 });
         if (window.__GENESIS_POPULATION_AUDIT !== false) installPopulationAudit(window.Genesis, worldState, saveWorldState, { max: 24 });
 
-        // ========== MULTIVERSE EXPANSION (Lost World mechanics + soul-multiverse) ==========
-        // Fills the void beyond the sky with a navigable field of realm orbs.
-        // The CPL Surface becomes one node; new realities (Soul Forge Nexus, etc.)
-        // are generated from seeds and connected by the Weave.
+        // ========== MULTIVERSE WORLD — continuous space, 10 realms, ~200 units apart ==========
+        // One scene. One renderer. Realms are physical locations you fly between.
+        // Click a realm marker → camera smoothly flies to it.
+        // Realm content wakes via SectorManager when camera is near.
         window.__GENESIS_WEAVE_BRIDGE = (typeof window.__GENESIS_WEAVE_BRIDGE === 'boolean') ? window.__GENESIS_WEAVE_BRIDGE : true;
         window.__GENESIS_REALM_GENERATOR = (typeof window.__GENESIS_REALM_GENERATOR === 'boolean') ? window.__GENESIS_REALM_GENERATOR : true;
-        window.__GENESIS_MULTIVERSE_HUB = (typeof window.__GENESIS_MULTIVERSE_HUB === 'boolean') ? window.__GENESIS_MULTIVERSE_HUB : true;
+        window.__GENESIS_MULTIVERSE_WORLD = (typeof window.__GENESIS_MULTIVERSE_WORLD === 'boolean') ? window.__GENESIS_MULTIVERSE_WORLD : true;
         window.__GENESIS_SOUL_FORGE_NEXUS = (typeof window.__GENESIS_SOUL_FORGE_NEXUS === 'boolean') ? window.__GENESIS_SOUL_FORGE_NEXUS : true;
 
         if (window.__GENESIS_WEAVE_BRIDGE !== false) installWeaveBridge(window.Genesis);
         if (window.__GENESIS_REALM_GENERATOR !== false) installRealmGenerator(window.Genesis);
-        if (window.__GENESIS_SOUL_FORGE_NEXUS !== false) installSoulForgeNexus(window.Genesis, THREE);
-        if (window.__GENESIS_MULTIVERSE_HUB !== false) {
-          const hub = installMultiverseHub(window.Genesis, THREE, camera, scene);
-          if (hub) {
-            // Generate the multiverse: CPL + Soul Forge Nexus + seeded realms
-            const realmList = [];
-            // 1. CPL Surface (this world) — registered as a hub node
+        if (window.__GENESIS_MULTIVERSE_WORLD !== false) {
+          const mworld = installMultiverseWorld(window.Genesis, THREE, camera, scene, controls);
+          if (mworld) {
+            // Generate realm configs
+            const realmConfigs = [];
             if (window.Genesis.RealmGenerator) {
-              const cplRealm = window.Genesis.RealmGenerator.generateRealm('cpl-surface-nexus', 0);
-              cplRealm.id = 'cpl-surface';
-              cplRealm.name = 'Genesis Surface';
-              cplRealm.type = 'districts';
-              cplRealm.themeName = 'Cyberpunk Citadel';
-              cplRealm.palette = { primary: 0x00ffcc, secondary: 0xaaffee, fog: 0x001a14, name: 'Teal Citadel' };
-              cplRealm.orb = { color: 0x00ffcc, glow: 0xaaffee, size: 8, pulseSpeed: 0.4 };
-              realmList.push(cplRealm);
-              // 2. Soul Forge Nexus (first new reality — Lost World mechanics)
-              const nexusRealm = window.Genesis.RealmGenerator.generateRealm('soul-forge-nexus', 1);
-              nexusRealm.id = 'soul-forge-nexus';
-              nexusRealm.name = 'Soul Forge Nexus';
-              nexusRealm.type = 'building';
-              nexusRealm.themeName = 'Crimson Forge';
-              nexusRealm.palette = { primary: 0xffaa00, secondary: 0xffeeaa, fog: 0x1a1000, name: 'Amber Forum' };
-              nexusRealm.orb = { color: 0xffaa00, glow: 0xffeeaa, size: 7, pulseSpeed: 0.6 };
-              nexusRealm.nexusApi = window.Genesis.SoulForgeNexus;
-              realmList.push(nexusRealm);
-              // 3. Seeded scatter realms (from soul-multiverse modules)
-              const seeded = window.Genesis.RealmGenerator.generateMultiverse(6, 'genesis-scatter');
-              realmList.push(...seeded);
+              // 1. CPL Surface (marker only — city already exists at origin)
+              const cpl = window.Genesis.RealmGenerator.generateRealm('cpl-surface', 0);
+              cpl.id = 'cpl-surface'; cpl.name = 'Genesis Surface'; cpl.type = 'districts';
+              cpl.orb = { color: 0x00ffcc, glow: 0xaaffee, size: 8, pulseSpeed: 0.4 };
+              realmConfigs.push(cpl);
+              // 2. Soul Forge Nexus — built at its world position
+              const nexusCfg = window.Genesis.RealmGenerator.generateRealm('soul-forge-nexus', 1);
+              nexusCfg.id = 'soul-forge-nexus'; nexusCfg.name = 'Soul Forge Nexus'; nexusCfg.type = 'building';
+              nexusCfg.orb = { color: 0xffaa00, glow: 0xffeeaa, size: 7, pulseSpeed: 0.6 };
+              realmConfigs.push(nexusCfg);
+              // 3-10. Seeded realms (markers + configs)
+              const seeded = window.Genesis.RealmGenerator.generateMultiverse(8, 'genesis-scatter');
+              realmConfigs.push(...seeded);
             }
-            // Build hub with spherical scatter positions
-            const built = hub.build(realmList, window.Genesis.RealmGenerator ? window.Genesis.RealmGenerator.hubPosition : null);
-            // Register Soul Forge Nexus root as a stratum (so transitionTo works)
-            if (window.Genesis.SoulForgeNexus && window.Genesis.VerticalStackManager) {
-              if (scene) scene.add(window.Genesis.SoulForgeNexus.root);
-              window.Genesis.VerticalStackManager.registerStratum('soul-forge-nexus', window.Genesis.SoulForgeNexus.root, { state: 'UNLOADED', role: 'Soul Forge Nexus' });
-              // CPL surface already registered as 'surface'
+            // Build markers for all 10 realms
+            for (let i = 0; i < Math.min(realmConfigs.length, mworld.REALM_COUNT); i++) {
+              mworld.buildRealm(realmConfigs[i], i);
             }
-            window.__multiverseHub = hub;
-            window.__multiverseRealms = realmList;
-            if (typeof console !== 'undefined') console.log('[Multiverse] Built hub with', built, 'realm orbs');
-
-            // Click → enter realm
-            const onHubClick = (e) => {
-              if (!hub.isActive()) return;
-              const realm = hub.handleClick(e.clientX, e.clientY);
-              if (realm) {
-                if (typeof console !== 'undefined') console.log('[Multiverse] Entering realm:', realm.name);
-                if (window.Genesis.VerticalStackManager) {
-                  if (realm.id === 'soul-forge-nexus' && window.Genesis.SoulForgeNexus) {
-                    window.Genesis.VerticalStackManager.transitionTo('soul-forge-nexus', { prepare: () => {}, ready: () => true });
-                    // Fly camera into the nexus vantage point
-                    camera.position.set(0, 25, 60);
-                    if (typeof controls !== 'undefined' && controls && controls.target) { controls.target.set(0, 0, 0); controls.update(); }
-                    hub.setActive(false);
-                  } else if (realm.id.indexOf('cpl-surface') === 0) {
-                    // Return to the CPL Surface realm
-                    window.Genesis.VerticalStackManager.transitionTo('surface', { prepare: () => {}, ready: () => true });
-                    camera.position.set(0, 25, 60);
-                    if (typeof controls !== 'undefined' && controls && controls.target) { controls.target.set(0, 0, 0); controls.update(); }
-                    hub.setActive(false);
-                  } else {
-                    // Seeded realm — log entry (content generated on demand in future phase)
-                    if (typeof console !== 'undefined') console.log('[Multiverse] Seeded realm entered:', realm.name, '- content streams on demand');
-                    hub.setActive(false);
-                  }
-                }
-              }
-            };
-            const onHubHover = (e) => { if (hub.isActive()) hub.handleHover(e.clientX, e.clientY); };
-            window.addEventListener('click', onHubClick);
-            window.addEventListener('pointermove', onHubHover);
-            window.__multiverseClick = onHubClick;
+            // Build the Soul Forge Nexus content at its assigned position
+            const nexusEntry = mworld.getRealm('soul-forge-nexus');
+            if (nexusEntry) {
+              const nexusApi = buildSoulForgeNexusAtPosition(nexusEntry.position.x, nexusEntry.position.z, { THREE, Genesis: window.Genesis });
+              nexusEntry.realmApi = nexusApi;
+              nexusEntry.root.add(nexusApi.root);
+              if (typeof console !== 'undefined') console.log('[Multiverse] Soul Forge Nexus built at', nexusEntry.position.x, nexusEntry.position.z);
+            }
+            // Click → fly to realm
+            window.addEventListener('click', (e) => { mworld.handleClick(e.clientX, e.clientY); });
+            window.addEventListener('pointermove', (e) => { mworld.handleHover(e.clientX, e.clientY); });
+            window.__multiverseWorld = mworld;
+            if (typeof console !== 'undefined') console.log('[Multiverse] 10 realms in continuous space ready');
           }
         }
 
@@ -15013,19 +14977,10 @@ bloomPass.radius = 0.7;
             const prototypeHeavenActive = hubActive && Genesis.isSimulationActive(heavenStratumRoot);
             genesisRenderSchedule.update(now);
             if (window.__GENESIS_VERTICAL_STACK !== false && Genesis.VerticalStackManager && Genesis.VerticalStackManager.tick) Genesis.VerticalStackManager.tick({ exteriorVisible: !isInside });
-            // === MULTIVERSE HUB: void beyond sky becomes navigable ===
-            // Trigger on camera DISTANCE from origin (zoom-out) so "scroll out past
-            // the pink sky" reveals the hub — matching the multiverse navigation model.
-            if (window.__GENESIS_MULTIVERSE_HUB !== false && window.__multiverseHub) {
-              const _camDist = Math.sqrt(camera.position.x*camera.position.x + camera.position.y*camera.position.y + camera.position.z*camera.position.z);
-              const _inHubZone = _camDist > window.__multiverseHub.HUB_RADIUS * 0.65; // ~780 units out
-              if (window.__multiverseHub.isActive()) {
-                if (!_inHubZone) window.__multiverseHub.setActive(false);
-                else window.__multiverseHub.update(dt, camera.position);
-              } else if (_inHubZone && hubActive) {
-                window.__multiverseHub.setActive(true);
-                if (typeof console !== 'undefined') console.log('[Multiverse] Entered hub — void beyond sky is now navigable');
-              }
+            // === MULTIVERSE WORLD — 10 realms in continuous space ===
+            // Realm markers animate, camera flies to clicked nodes, content wakes via SectorManager.
+            if (window.__GENESIS_MULTIVERSE_WORLD !== false && window.__multiverseWorld) {
+              window.__multiverseWorld.update(dt);
             }
             if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager && Genesis.SectorManager.tick) Genesis.SectorManager.tick();
             if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility && Genesis.Visibility.tick) Genesis.Visibility.tick();
