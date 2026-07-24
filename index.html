@@ -15372,8 +15372,9 @@ bloomPass.radius = 0.7;
                 _hintCache = hintText;
             }
             
-            updatePlayerNPC(dt);
-            if (cameraMode === 'orbit') controls.update();
+                        updatePlayerNPC(dt);
+            controls.enabled = (cameraMode === 'orbit');
+            controls.update();
             perf.beginGpu();
             // Cinematic Renderer: sync tier only when it actually changes (cheap
             // compare; re-applies look so bloom.enabled reflects the new tier).
