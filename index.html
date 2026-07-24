@@ -7067,7 +7067,7 @@ bloomPass.radius = 0.7;
                 playerYaw = Math.PI;
                 playerPitch = 0.25;
                 playerFlying = false; playerGrounded = true; playerFloorY = 0;
-                setCameraMode('npc');
+                setCameraMode('orbit');
             }
             function init() {
                 el = document.getElementById('scroll-loader');
@@ -8765,7 +8765,7 @@ bloomPass.radius = 0.7;
         document.querySelectorAll('.avatar-btn').forEach(b => {
             b.addEventListener('click', () => setPlayerAvatar(b.dataset.kind));
         });
-        setCameraMode('npc');
+        setCameraMode('orbit');
 
         function isTypingTarget(e) {
             const tag = (e.target && e.target.tagName || '').toLowerCase();

@@ -65,26 +65,34 @@ export function createMultiverseWorld(ctx = {}) {
     const color = realmConfig.orb?.color || 0xaaaaaa;
     const glow = realmConfig.orb?.glow || 0xffffff;
 
-    // Marker orb (clickable)
-    const geo = new THREE.SphereGeometry(realmConfig.orb?.size || 5, 32, 32);
-    const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.5, metalness: 0.3, roughness: 0.4 });
+    // Marker orb (clickable) — LARGE so visible from the city
+    const orbSize = (realmConfig.orb?.size || 5) * 2.5;
+    const geo = new THREE.SphereGeometry(orbSize, 32, 32);
+    const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.8, metalness: 0.3, roughness: 0.4 });
     const marker = new THREE.Mesh(geo, mat);
-    marker.position.set(pos.x, pos.y + (realmConfig.orb?.size || 5) + 2, pos.z);
+    marker.position.set(pos.x, pos.y + orbSize + 2, pos.z);
     marker.userData.realmId = id;
     marker.userData.isRealmMarker = true;
     scene.add(marker);
 
     // Halo ring
-    const ringGeo = new THREE.TorusGeometry((realmConfig.orb?.size || 5) * 1.5, 0.3, 8, 48);
-    const ringMat = new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.4 });
+    const ringGeo = new THREE.TorusGeometry(orbSize * 1.6, 0.5, 8, 48);
+    const ringMat = new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.5 });
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.rotation.x = Math.PI / 2;
     ring.position.copy(marker.position);
     scene.add(ring);
 
+    // Sky beacon — tall vertical beam so marker is visible from anywhere
+    const beamGeo = new THREE.CylinderGeometry(0.8, 2.5, 120, 8, 1, true);
+    const beamMat = new THREE.MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.08, side: THREE.DoubleSide });
+    const beam = new THREE.Mesh(beamGeo, beamMat);
+    beam.position.set(pos.x, pos.y + 60, pos.z);
+    scene.add(beam);
+
     // Label
     const label = makeLabel(name, glow);
-    label.position.set(pos.x, pos.y + (realmConfig.orb?.size || 5) + 14, pos.z);
+    label.position.set(pos.x, pos.y + orbSize + 18, pos.z);
     scene.add(label);
 
     // Realm content root (holds all 3D objects for this realm)
@@ -101,7 +109,7 @@ export function createMultiverseWorld(ctx = {}) {
 
     const entry = {
       id, name, type: realmConfig.type || 'standard',
-      position: pos, root, marker, ring, label,
+      position: pos, root, marker, ring, beam, label,
       realmApi: realmConfig.nexusApi || null,
       active: false, index
     };
@@ -167,8 +175,12 @@ export function createMultiverseWorld(ctx = {}) {
       const pulse = 1 + Math.sin(t * 1.5 + r.index) * 0.05;
       r.marker.scale.setScalar((r.hovered ? 1.3 : 1) * pulse);
       r.ring.rotation.z += dt * 0.2;
-      r.ring.material.opacity = 0.3 + (Math.sin(t * 2 + r.index) * 0.5 + 0.5) * 0.15;
-      r.label.position.set(r.position.x, r.position.y + (r.marker.geometry?.parameters?.radius || 5) + 14, r.position.z);
+      r.ring.material.opacity = 0.4 + (Math.sin(t * 2 + r.index) * 0.5 + 0.5) * 0.2;
+      if (r.beam) {
+        r.beam.material.opacity = 0.05 + (Math.sin(t * 1.2 + r.index) * 0.5 + 0.5) * 0.06;
+        r.beam.rotation.y += dt * 0.1;
+      }
+      r.label.position.set(r.position.x, r.position.y + (r.marker.geometry?.parameters?.radius || 12) + 20, r.position.z);
     }
 
     // Camera fly
