@@ -994,8 +994,7 @@
         // === MULTIVERSE EXPANSION (Lost World mechanics + soul-multiverse modules) ===
         import { install as installWeaveBridge } from './src/genesis/weave-bridge.js';
         import { install as installRealmGenerator } from './src/genesis/realm-generator.js';
-        import { install as installMultiverseWorld } from './src/genesis/multiverse-world.js';
-        import { install as installSoulForgeNexus, buildSoulForgeNexusAtPosition } from './src/genesis/soul-forge-nexus.js';
+        import { install as installSoulMultiverse } from './src/genesis/soul-multiverse-visualizer.js';
 
         // ========== GENESIS TIER 0: telemetry + survival + registry ==========
         const Genesis = window.Genesis || (window.Genesis = {});
@@ -8358,7 +8357,7 @@ bloomPass.radius = 0.7;
 
         // ========== PLAYABLE NPC MODE ==========
         const keyState = {};
-        let cameraMode = 'npc';
+        let cameraMode = 'orbit';
         let playerYaw = Math.PI;
         let playerPitch = 0.25;
         let playerVelY = 0;
@@ -8525,49 +8524,18 @@ bloomPass.radius = 0.7;
         // Realm content wakes via SectorManager when camera is near.
         window.__GENESIS_WEAVE_BRIDGE = (typeof window.__GENESIS_WEAVE_BRIDGE === 'boolean') ? window.__GENESIS_WEAVE_BRIDGE : true;
         window.__GENESIS_REALM_GENERATOR = (typeof window.__GENESIS_REALM_GENERATOR === 'boolean') ? window.__GENESIS_REALM_GENERATOR : true;
-        window.__GENESIS_MULTIVERSE_WORLD = (typeof window.__GENESIS_MULTIVERSE_WORLD === 'boolean') ? window.__GENESIS_MULTIVERSE_WORLD : true;
-        window.__GENESIS_SOUL_FORGE_NEXUS = (typeof window.__GENESIS_SOUL_FORGE_NEXUS === 'boolean') ? window.__GENESIS_SOUL_FORGE_NEXUS : true;
+        window.__GENESIS_SOUL_MULTIVERSE = (typeof window.__GENESIS_SOUL_MULTIVERSE === 'boolean') ? window.__GENESIS_SOUL_MULTIVERSE : true;
 
         if (window.__GENESIS_WEAVE_BRIDGE !== false) installWeaveBridge(window.Genesis);
         if (window.__GENESIS_REALM_GENERATOR !== false) installRealmGenerator(window.Genesis);
-        if (window.__GENESIS_MULTIVERSE_WORLD !== false) {
-          const mworld = installMultiverseWorld(window.Genesis, THREE, camera, scene, controls);
-          if (mworld) {
-            // Generate realm configs
-            const realmConfigs = [];
-            if (window.Genesis.RealmGenerator) {
-              // 1. CPL Surface (marker only — city already exists at origin)
-              const cpl = window.Genesis.RealmGenerator.generateRealm('cpl-surface', 0);
-              cpl.id = 'cpl-surface'; cpl.name = 'Genesis Surface'; cpl.type = 'districts';
-              cpl.orb = { color: 0x00ffcc, glow: 0xaaffee, size: 8, pulseSpeed: 0.4 };
-              realmConfigs.push(cpl);
-              // 2. Soul Forge Nexus — built at its world position
-              const nexusCfg = window.Genesis.RealmGenerator.generateRealm('soul-forge-nexus', 1);
-              nexusCfg.id = 'soul-forge-nexus'; nexusCfg.name = 'Soul Forge Nexus'; nexusCfg.type = 'building';
-              nexusCfg.orb = { color: 0xffaa00, glow: 0xffeeaa, size: 7, pulseSpeed: 0.6 };
-              realmConfigs.push(nexusCfg);
-              // 3-10. Seeded realms (markers + configs)
-              const seeded = window.Genesis.RealmGenerator.generateMultiverse(8, 'genesis-scatter');
-              realmConfigs.push(...seeded);
-            }
-            // Build markers for all 10 realms
-            for (let i = 0; i < Math.min(realmConfigs.length, mworld.REALM_COUNT); i++) {
-              mworld.buildRealm(realmConfigs[i], i);
-            }
-            // Build the Soul Forge Nexus content at its assigned position
-            const nexusEntry = mworld.getRealm('soul-forge-nexus');
-            if (nexusEntry) {
-              const nexusApi = buildSoulForgeNexusAtPosition(nexusEntry.position.x, nexusEntry.position.z, { THREE, Genesis: window.Genesis });
-              nexusEntry.realmApi = nexusApi;
-              nexusEntry.root.add(nexusApi.root);
-              if (typeof console !== 'undefined') console.log('[Multiverse] Soul Forge Nexus built at', nexusEntry.position.x, nexusEntry.position.z);
-            }
-            // Click → fly to realm
-            window.addEventListener('click', (e) => { mworld.handleClick(e.clientX, e.clientY); });
-            window.addEventListener('pointermove', (e) => { mworld.handleHover(e.clientX, e.clientY); });
-            window.__multiverseWorld = mworld;
-            if (typeof console !== 'undefined') console.log('[Multiverse] 10 realms in continuous space ready');
-          }
+
+        // === SOUL MULTIVERSE VISUALIZER ===
+        // The existing CPL city is the Prime Universe.
+        // Around it: fractal self-similar copies, quantum souls, spectrum rings,
+        // nested universe bubbles, timeline branches, dimension overlays.
+        // All visible simultaneously. Camera freely orbits/pans/zooms.
+        if (window.__GENESIS_SOUL_MULTIVERSE !== false) {
+          installSoulMultiverse(window.Genesis, { THREE, scene, camera, seed: 'Craig-Prime' });
         }
 
         // ========== P138/P183: PLT LEDGER (per-action Profit + Love - Tax audit trail) ==========
@@ -8869,7 +8837,7 @@ bloomPass.radius = 0.7;
             playerGrounded = !!saved.grounded;
             playerVelY = 0;
             _surfaceReturnSnapshot = null;
-            setCameraMode(saved.cameraMode || 'npc');
+            setCameraMode('orbit');
             return true;
         }
 
@@ -14977,10 +14945,9 @@ bloomPass.radius = 0.7;
             const prototypeHeavenActive = hubActive && Genesis.isSimulationActive(heavenStratumRoot);
             genesisRenderSchedule.update(now);
             if (window.__GENESIS_VERTICAL_STACK !== false && Genesis.VerticalStackManager && Genesis.VerticalStackManager.tick) Genesis.VerticalStackManager.tick({ exteriorVisible: !isInside });
-            // === MULTIVERSE WORLD — 10 realms in continuous space ===
-            // Realm markers animate, camera flies to clicked nodes, content wakes via SectorManager.
-            if (window.__GENESIS_MULTIVERSE_WORLD !== false && window.__multiverseWorld) {
-              window.__multiverseWorld.update(dt);
+            // === SOUL MULTIVERSE — fractal multiverse visualization ===
+            if (window.__GENESIS_SOUL_MULTIVERSE !== false && Genesis.SoulMultiverseVisualizer) {
+              Genesis.SoulMultiverseVisualizer.update(dt);
             }
             if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager && Genesis.SectorManager.tick) Genesis.SectorManager.tick();
             if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility && Genesis.Visibility.tick) Genesis.Visibility.tick();
