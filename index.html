@@ -1180,7 +1180,7 @@
             }
             function _sleepCost(root) { let mode = 'distance'; root.traverse((o) => { if (o.userData && o.userData.cost && o.userData.cost.sleep) mode = o.userData.cost.sleep; }); return mode; }
             Genesis.SectorManager = {
-                register(id, root, opts) { sectors.set(id, { root, maxDistance: (opts && opts.maxDistance) || 220, autoSleep: !opts || opts.autoSleep !== false, state: 'active', lastAwakeAt: performance.now(), asleepFor: 0, disposed: false, sleepReason: null, verticalSnapshot: null }); },
+                register(id, root, opts) { sectors.set(id, { root, maxDistance: (opts && opts.maxDistance) || 99999, autoSleep: false, state: 'active', lastAwakeAt: performance.now(), asleepFor: 0, disposed: false, sleepReason: null, verticalSnapshot: null }); },
                 sleep(id, reason = 'distance') { const s = sectors.get(id); if (!s) return false; s.root.visible = false; s.state = 'asleep'; s.sleepReason = reason; s.lastAsleepAt = performance.now(); return true; },
                 wake(id) {
                     const s = sectors.get(id);
@@ -1272,7 +1272,7 @@
                 }
             }
             Genesis.Visibility = {
-                register(id, root, opts) { entries.set(id, { root, priority: (opts && opts.priority != null) ? opts.priority : 5, maxDistance: (opts && opts.maxDistance) || 260, stateOwned: !!(opts && opts.stateOwned), owner: (opts && opts.owner) || null, managedExternally: !!(opts && opts.stateOwned), visible: true, inRange: true, inFrustum: true, metricKind: (opts && opts.stateOwned) ? 'root-origin-point' : 'bounds-sphere' }); },
+                register(id, root, opts) { entries.set(id, { root, priority: (opts && opts.priority != null) ? opts.priority : 5, maxDistance: (opts && opts.maxDistance) || 99999, stateOwned: !!(opts && opts.stateOwned), owner: (opts && opts.owner) || null, managedExternally: !!(opts && opts.stateOwned), visible: true, inRange: true, inFrustum: true, metricKind: (opts && opts.stateOwned) ? 'root-origin-point' : 'bounds-sphere' }); },
                 isVisible(id) { const e = entries.get(id); return !!e && e.visible; },
                 wakeOrder() { return [...entries.entries()].sort((a, b) => b[1].priority - a[1].priority).map(([id]) => id); },
                 tick() {
@@ -1374,11 +1374,11 @@
                 if (!root) return true;
                 if (Genesis.isSimulationActive && !Genesis.isSimulationActive(root)) return false;
                 if (Genesis.lifecycle && typeof Genesis.lifecycle.isSectorActive === 'function') {
-                    if (!Genesis.lifecycle.isSectorActive(root, { root: root, maxDistance: maxDistance || 180, sleepWhenFar: true, allowWhenHidden: !!critical })) return false;
+                    if (!Genesis.lifecycle.isSectorActive(root, { root: root, maxDistance: maxDistance || 99999, sleepWhenFar: false, allowWhenHidden: !!critical })) return false;
                 } else if (camera && root.parent) {
                     root.updateWorldMatrix(true, false);
                     _animationPosition.setFromMatrixPosition(root.matrixWorld);
-                    if (camera.position.distanceToSquared(_animationPosition) > (maxDistance || 180) * (maxDistance || 180)) return false;
+                    if (camera.position.distanceToSquared(_animationPosition) > (maxDistance || 99999) * (maxDistance || 99999)) return false;
                 }
                 return true;
             }
@@ -1386,7 +1386,7 @@
                 registerMixer(mixer, meta) {
                     if (!mixer) return mixer;
                     const previous = _mixers.get(mixer) || {};
-                    _mixers.set(mixer, Object.assign(previous, { root: (meta && meta.root) || previous.root || (mixer.getRoot ? mixer.getRoot() : null), maxDistance: (meta && meta.maxDistance) || previous.maxDistance || 180, owner: (meta && meta.owner) || previous.owner || 'unknown', critical: meta && meta.critical != null ? !!meta.critical : !!previous.critical, optional: meta && meta.optional != null ? !!meta.optional : !!previous.optional, tickState: previous.tickState || 'registered' }));
+                    _mixers.set(mixer, Object.assign(previous, { root: (meta && meta.root) || previous.root || (mixer.getRoot ? mixer.getRoot() : null), maxDistance: (meta && meta.maxDistance) || previous.maxDistance || 99999, owner: (meta && meta.owner) || previous.owner || 'unknown', critical: meta && meta.critical != null ? !!meta.critical : !!previous.critical, optional: meta && meta.optional != null ? !!meta.optional : !!previous.optional, tickState: previous.tickState || 'registered' }));
                     return mixer;
                 },
                 deregisterMixer(mixer) { return _mixers.delete(mixer); },
@@ -1873,8 +1873,8 @@
                 root.userData.premiumSlice = 'street';
                 cityGroup.add(root);
                 let regSector = false, regVis = false;
-                if (Genesis.SectorManager && typeof Genesis.SectorManager.register === 'function') { Genesis.SectorManager.register('premium-street', root, { maxDistance: 200, autoSleep: true }); regSector = true; }
-                if (Genesis.Visibility && typeof Genesis.Visibility.register === 'function') { Genesis.Visibility.register('premium-street', root, { priority: 6, maxDistance: 200 }); regVis = true; }
+if (Genesis.SectorManager && typeof Genesis.SectorManager.register === 'function') { Genesis.SectorManager.register('premium-street', root, { maxDistance: 99999, autoSleep: false }); regSector = true; }
+            if (Genesis.Visibility && typeof Genesis.Visibility.register === 'function') { Genesis.Visibility.register('premium-street', root, { priority: 6, maxDistance: 99999 }); regVis = true; }
                 _built = { root, registeredWithSector: regSector, registeredWithVisibility: regVis };
                 if (typeof console !== 'undefined') console.log('[PremiumSlice] street sector built (childCount=' + root.children.length + ')');
                 return _built;
@@ -3134,7 +3134,7 @@
                 if (prev && prev.root && prev.root !== meta.root) unlinkMixerRoot(mixer, prev.root);
                 const next = Object.assign({
                     critical: false,
-                    maxDistance: 220,
+                    maxDistance: 99999,
                     allowWhenHidden: false,
                     sleepWhenFar: true,
                     sleepWhenDetached: true,
@@ -3163,7 +3163,7 @@
                 if (!meta.sleepWhenFar || !camera) return true;
                 root.updateWorldMatrix(true, false);
                 _sectorPos.setFromMatrixPosition(root.matrixWorld);
-                const maxDistance = meta.maxDistance || 220;
+                const maxDistance = meta.maxDistance || 99999;
                 return camera.position.distanceToSquared(_sectorPos) <= maxDistance * maxDistance;
             }
             function updateMixer(mixer, dt, metaOverride = null) {
@@ -3321,7 +3321,7 @@
                     Genesis.lifecycle.registerMixer(mixer, {
                         owner: 'realm-asset:' + key,
                         root: wrap,
-                        maxDistance: 180,
+                        maxDistance: 99999,
                         sleepWhenFar: true
                     });
                     (realm._assetMixers = realm._assetMixers || []).push(mixer);
@@ -4344,11 +4344,11 @@ bloomPass.radius = 0.7;
         controls.rotateSpeed = 0.6;
         controls.panSpeed = 1.4;
         controls.screenSpacePanning = false; // keep horizon level while panning
-        controls.minDistance = 3;
-        controls.maxDistance = 2200; // unlocked: see the whole expanded world
+        controls.minDistance = 0.5;
+        controls.maxDistance = 100000; // unlimited: fly anywhere, see everything
         controls.target.set(0, 2, 0);
         // Far plane opened so distant districts + endless grid stay rendered.
-        camera.far = 6000;
+        camera.far = 100000;
         camera.updateProjectionMatrix();
         
         // ========== HEMISPHERE + NEON LIGHTING ==========
@@ -6020,8 +6020,8 @@ bloomPass.radius = 0.7;
         const cityGroup = new THREE.Group();
         cityGroup.name = 'Surface Stratum Root';
         scene.add(cityGroup);
-        if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('city-core', cityGroup, { maxDistance: 260, autoSleep: false }); // city always near spawn; never auto-dispose
-        if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('city-core', cityGroup, { priority: 5, maxDistance: 260 });
+        if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('city-core', cityGroup, { maxDistance: 99999, autoSleep: false }); // unlimited world
+        if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('city-core', cityGroup, { priority: 5, maxDistance: 99999 });
 
         // ========== GENESIS POPULATION ENGINE — SPAWN TRIGGER (Phase B) ==========
         // cityGroup now exists. Only spawn the hero when the engine flag is explicitly ON.
@@ -6177,8 +6177,8 @@ bloomPass.radius = 0.7;
         darkCityUndersideRoot.add(catwalkLines);
 
         if (window.__GENESIS_COST_CONTRACT !== false) Genesis.declareCost(darkCityUndersideRoot, { cpu: 0, gpu: 8, memory: 2, updateFreq: 0, priority: 4, sector: 'dark-city-underside', sleep: 'manual' });
-        if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('dark-city-underside', darkCityUndersideRoot, { maxDistance: 520, autoSleep: false });
-        if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('dark-city-underside', darkCityUndersideRoot, { priority: 4, maxDistance: 520, owner: 'surface-stratum' });
+        if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('dark-city-underside', darkCityUndersideRoot, { maxDistance: 99999, autoSleep: false });
+        if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('dark-city-underside', darkCityUndersideRoot, { priority: 4, maxDistance: 99999, owner: 'surface-stratum' });
         window.__darkCityUndersideRoot = darkCityUndersideRoot;
         
         // Roads
@@ -6475,11 +6475,11 @@ bloomPass.radius = 0.7;
                 }
             }
 
-            if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) {
-                Genesis.SectorManager.register('city-outer', outerCity, { maxDistance: 400, autoSleep: true });
-            }
-            if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) {
-                Genesis.Visibility.register('city-outer', outerCity, { priority: 2, maxDistance: 400 });
+if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) {
+                 Genesis.SectorManager.register('city-outer', outerCity, { maxDistance: 99999, autoSleep: false });
+             }
+             if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) {
+                 Genesis.Visibility.register('city-outer', outerCity, { priority: 2, maxDistance: 99999 });
             }
             console.log('[P7] outer-ring districts spawned (' + outerCity.children.length + ' groups)');
         }
@@ -8274,8 +8274,8 @@ bloomPass.radius = 0.7;
         ];
         // Craig (2026-07-16): rigged OUR OWN characters in Blender headless (npc_bruno / npc_sudo)
         // and drop them into the walker pool so the city populates with animated NPCs we made.
-        // Gated by __GENESIS_NPC_RIG (default OFF) so the live world is unchanged until flipped.
-        window.__GENESIS_NPC_RIG = (typeof window.__GENESIS_NPC_RIG === 'boolean') ? window.__GENESIS_NPC_RIG : false;
+        // NPC RIG enabled by default — the city comes alive, NPCs walk and animate.
+        window.__GENESIS_NPC_RIG = (typeof window.__GENESIS_NPC_RIG === 'boolean') ? window.__GENESIS_NPC_RIG : true;
         if (window.__GENESIS_NPC_RIG === true) {
             walkerRigUrls.push('assets/npc-rigs/npc_bruno.glb', 'assets/npc-rigs/npc_sudo.glb');
         }
@@ -8712,7 +8712,7 @@ bloomPass.radius = 0.7;
             const orbitBtn = document.getElementById('orbit-mode-btn');
             const npcBtn = document.getElementById('npc-mode-btn');
             if (orbitBtn) orbitBtn.classList.toggle('active', mode === 'orbit');
-            if (npcBtn) npcBtn.classList.toggle('active', mode === 'npc');
+            if (npcBtn) npcBtn.classList.toggle('active', mode === 'npc' || mode === 'free');
             if (mode === 'orbit') {
                 controls.enabled = true;
                 if (playerNPC) {
@@ -8722,10 +8722,12 @@ bloomPass.radius = 0.7;
             } else {
                 controls.enabled = false;
             }
-            const h = document.getElementById('controls-hint');
-            if (h) h.textContent = mode === 'npc'
-                ? 'WASD move · Shift run · Space up/jump · Q down · F fly · drag mouse to look · click to interact · ESC orbit · SCROLL zoom'
-                : 'Drag objects | Click books | Click souls | PLAY to walk · SCROLL zoom';
+const h = document.getElementById('controls-hint');
+             if (h) h.textContent = mode === 'npc'
+                 ? 'WASD move · Shift run · Space up/jump · Q down · F fly · drag mouse to look · click to interact · ESC orbit · SCROLL zoom'
+                 : mode === 'free'
+                 ? 'FREE FLIGHT · WASD move · Shift run · Space up · Q down · mouse look · SCROLL zoom · G toggle free-flight · R reset · ESC return'
+                 : 'Drag objects | Click books | Click souls | PLAY to walk · SCROLL zoom';
         }
         function toggleCameraMode() { setCameraMode(cameraMode === 'npc' ? 'orbit' : 'npc'); }
         document.getElementById('orbit-mode-btn').addEventListener('click', () => setCameraMode('orbit'));
@@ -8745,9 +8747,10 @@ bloomPass.radius = 0.7;
         }
         document.addEventListener('keydown', (e) => {
             if (isTypingTarget(e) || isHubWindowInputLockActive()) return;
-            keyState[e.code] = true;
+keyState[e.code] = true;
             if (e.code === 'KeyC') { setCameraMode(cameraMode === 'npc' ? 'orbit' : 'npc'); return; }
-            if (cameraMode !== 'npc') return;
+            if (e.code === 'KeyG' && (cameraMode === 'npc' || cameraMode === 'free')) { if (window.Genesis && Genesis.PlayerCam && Genesis.PlayerCam.isFreeFlight !== undefined) { Genesis.PlayerCam.setFreeFlight(!Genesis.PlayerCam.isFreeFlight()); } return; }
+            if (cameraMode !== 'npc' && cameraMode !== 'free') return;
             if (e.code === 'Escape') { setCameraMode('orbit'); return; }
             if (e.code === 'KeyF') {
                 playerFlying = !playerFlying; playerVelY = 0;
@@ -8775,7 +8778,7 @@ bloomPass.radius = 0.7;
                 const zoomDir = e.deltaY > 0 ? 1.08 : 1 / 1.08;
                 const offset = camera.position.clone().sub(controls.target);
                 const newDist = offset.length() * zoomDir;
-                if (newDist >= controls.minDistance && newDist <= controls.maxDistance) {
+                if (newDist >= 0.5 && newDist <= 100000) {
                     offset.multiplyScalar(zoomDir);
                     camera.position.copy(controls.target).add(offset);
                 }
@@ -9173,7 +9176,7 @@ bloomPass.radius = 0.7;
             if (gltf.animations && gltf.animations.length) {
                 paimonMixer = new THREE.AnimationMixer(model);
                 gltf.animations.forEach((clip) => paimonMixer.clipAction(clip).reset().play());
-                Genesis.lifecycle.registerMixer(paimonMixer, { owner: 'paimon', root: wrap, maxDistance: 160, sleepWhenFar: true });
+                Genesis.lifecycle.registerMixer(paimonMixer, { owner: 'paimon', root: wrap, maxDistance: 99999, sleepWhenFar: false });
             } else { console.log('[Paimon] no embedded animations in GLB'); }
             wrap.userData = { name: 'Paimon', isNPC: true };
             wrap.position.copy(paimonHome);
@@ -9659,10 +9662,10 @@ bloomPass.radius = 0.7;
             ready: ({ destination }) => !!(destination && destination.root && destination.root.parent && destination.root.visible),
             transfer: ({ to }) => applyVerticalPlayerArrival(to)
         });
-        if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('heaven-prototype', heavenStratumRoot, { maxDistance: 1600, autoSleep: false });
-        if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('underworld-cavern', underworldStratumRoot, { maxDistance: 1600, autoSleep: false });
-        if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('heaven-prototype', heavenStratumRoot, { priority: 9, maxDistance: 1600, stateOwned: true, owner: 'vertical-stack' });
-        if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('underworld-cavern', underworldStratumRoot, { priority: 9, maxDistance: 1600, stateOwned: true, owner: 'vertical-stack' });
+        if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('heaven-prototype', heavenStratumRoot, { maxDistance: 99999, autoSleep: false });
+        if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('underworld-cavern', underworldStratumRoot, { maxDistance: 99999, autoSleep: false });
+        if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('heaven-prototype', heavenStratumRoot, { priority: 9, maxDistance: 99999, stateOwned: true, owner: 'vertical-stack' });
+        if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('underworld-cavern', underworldStratumRoot, { priority: 9, maxDistance: 99999, stateOwned: true, owner: 'vertical-stack' });
         Genesis.VerticalStackManager.tick({ exteriorVisible: true });
 
         const verticalStackDebugEnabled = new URLSearchParams(location.search).get('genesisDebug') === '1' || new URLSearchParams(location.search).get('genesisTest') === '1';
@@ -9938,7 +9941,7 @@ bloomPass.radius = 0.7;
                     Genesis.lifecycle.registerMixer(mixer, {
                         owner: 'recent-city-extension',
                         root: wrap,
-                        maxDistance: zone === 'space' ? 520 : 280,
+                        maxDistance: 99999,
                         sleepWhenFar: true
                     });
                     this.mixers.push(mixer);
@@ -14992,9 +14995,9 @@ bloomPass.radius = 0.7;
             if (updateBillboardVideoPlayback(hubSurfaceActive) && hubSurfaceActive) surfaceSystemTicks.videos++;
             const _slow = (_frameCount++ & 1) === 0; // half-rate for cosmetic-only systems (Gun H)
             // ========== GENESIS TIER 1 / SHARD B: world sector sleeping foundation ==========
-            const hubCityActive = hubSurfaceActive && Genesis.lifecycle.isSectorActive(cityGroup, { root: cityGroup, maxDistance: 260, sleepWhenFar: true });
-            const skySectorActive = hubSurfaceActive && Genesis.lifecycle.isSectorActive(skyLayer, { root: skyLayer, maxDistance: 560, sleepWhenFar: true });
-            const heavenSectorActive = hubSurfaceActive && Genesis.lifecycle.isSectorActive(heaven, { root: heaven, maxDistance: 420, sleepWhenFar: true });
+            const hubCityActive = hubSurfaceActive && Genesis.lifecycle.isSectorActive(cityGroup, { root: cityGroup, maxDistance: 99999, sleepWhenFar: false });
+            const skySectorActive = hubSurfaceActive && Genesis.lifecycle.isSectorActive(skyLayer, { root: skyLayer, maxDistance: 99999, sleepWhenFar: false });
+            const heavenSectorActive = hubSurfaceActive && Genesis.lifecycle.isSectorActive(heaven, { root: heaven, maxDistance: 99999, sleepWhenFar: false });
             perf.sample(dt);
             if (window.__GENESIS_PERFORMANCE_GOVERNOR !== false && Genesis.PerformanceGovernor && Genesis.PerformanceGovernor.sample) {
                 const _ri = (renderer && renderer.info) ? renderer.info : null;
