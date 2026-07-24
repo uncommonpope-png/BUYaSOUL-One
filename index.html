@@ -8766,9 +8766,19 @@ bloomPass.radius = 0.7;
             playerYaw -= e.movementX * 0.005;
             playerPitch = Math.max(-0.5, Math.min(1.2, playerPitch - e.movementY * 0.004));
         });
-        renderer.domElement.addEventListener('wheel', (e) => {
+        document.addEventListener('wheel', (e) => {
+            if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT')) return;
             if (cameraMode === 'npc') {
-                camDist = Math.max(2, Math.min(40, camDist + e.deltaY * 0.01));
+                const sensitivity = 0.02 + camDist * 0.00025;
+                camDist = Math.max(2, Math.min(300, camDist + e.deltaY * sensitivity));
+            } else if (cameraMode === 'orbit' && controls && controls.enabled) {
+                const zoomDir = e.deltaY > 0 ? 1.08 : 1 / 1.08;
+                const offset = camera.position.clone().sub(controls.target);
+                const newDist = offset.length() * zoomDir;
+                if (newDist >= controls.minDistance && newDist <= controls.maxDistance) {
+                    offset.multiplyScalar(zoomDir);
+                    camera.position.copy(controls.target).add(offset);
+                }
             }
         }, { passive: true });
 
@@ -8957,7 +8967,8 @@ bloomPass.radius = 0.7;
             const eye = playerNPC.position.clone().add(new THREE.Vector3(0, 1.6, 0));
             const look = new THREE.Vector3(Math.sin(playerYaw) * Math.cos(playerPitch), Math.sin(playerPitch), Math.cos(playerYaw) * Math.cos(playerPitch));
             const camPos = eye.clone().addScaledVector(look, -camDist);
-            camPos.y = Math.max(camPos.y, playerFloorY + 0.6);
+            const minAbove = camDist > 20 ? (camDist - 20) * 0.5 : 0;
+            camPos.y = Math.max(camPos.y, eye.y + minAbove, playerFloorY + 0.6);
             if (window.__GENESIS_AMBIENT_DRIFT_CAM !== false && Genesis.AmbientDriftCam && Genesis.AmbientDriftCam.offset) {
                 const drift = Genesis.AmbientDriftCam.offset(dt, { idle: !moveZ && !moveX && !_dragLook && !playerFlying && !_commandCenter, mode: cameraMode });
                 if (drift) { camPos.x += drift.x; camPos.y += drift.y; camPos.z += drift.z; }
