@@ -529,13 +529,15 @@ export function install(Genesis) {
       group.add(Object.assign(new T.Mesh(new T.BoxGeometry(280, 0.08, 3.5), roadMat), { position: new T.Vector3(0, 0.6, i) }));
       group.add(Object.assign(new T.Mesh(new T.BoxGeometry(3.5, 0.08, 280), roadMat), { position: new T.Vector3(i, 0.6, 0) }));
     }
-    const districts = [
+    const districtsArr = [
       { name: 'work', zone: { x: [-130, -10], z: [-130, -10] }, count: 35, minH: 10, maxH: 50, color: 0x00ffff, eColor: 0x0088aa },
       { name: 'home', zone: { x: [10, 130], z: [-130, -10] }, count: 40, minH: 5, maxH: 25, color: 0xff66aa, eColor: 0xaa3366 },
       { name: 'social', zone: { x: [-130, -10], z: [10, 130] }, count: 28, minH: 4, maxH: 18, color: 0xffaa00, eColor: 0xaa7700 },
       { name: 'learn', zone: { x: [10, 130], z: [10, 130] }, count: 25, minH: 8, maxH: 35, color: 0x00ff88, eColor: 0x00aa55 }
     ];
-    for (const d of districts) {
+    const districts = {};
+    for (const d of districtsArr) districts[d.name] = d;
+    for (const d of districtsArr) {
       for (let i = 0; i < d.count; i++) {
         const x = d.zone.x[0] + rng() * (d.zone.x[1] - d.zone.x[0]);
         const z = d.zone.z[0] + rng() * (d.zone.z[1] - d.zone.z[0]);
