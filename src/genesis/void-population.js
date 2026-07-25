@@ -1,39 +1,31 @@
 // src/genesis/void-population.js
-// VOID POPULATION — randomized multiverse objects in the void beyond the city.
-// Spawns Lost-World-mechanic structures (realms, monoliths, beacons, fractals)
-// scattered across the void at distances 400-2000 from city center.
-// Seeded so each world gets a unique void layout.
+// VOID POPULATION — Lost Worlds scattered in the void beyond the city.
+// Spawns 10 complete Realm instances, each a self-contained Lost World
+// with: districts, buildings, agent AI, weather, day/night, soul forge,
+// gacha, combat, PLT economy. SectorManager LOD wakes/sleeps by distance.
 // Flag-gated by window.__GENESIS_VOID_POPULATION (default ON).
 
 import * as THREE from 'three';
 
+const WORLD_COUNT = 10;
 const VOID_MIN_DIST = 400;
 const VOID_MAX_DIST = 2000;
-const VOID_DENSITY = 60;      // total objects to attempt spawning
-const VOID_SEED_KEY = 'cpl-void-seed';
+const WAKE_RADIUS = 180;    // Realm wakes when camera is within this distance
+const SLEEP_RADIUS = 250;   // Realm sleeps when camera exceeds this distance
 
-// Lost World mechanic pools (from realm-generator.js + camera-portal.js)
-const REALM_PREFIXES = ['Neon','Shadow','Crystal','Void','Ember','Frost','Storm','Soul','Cosmic','Phantom','Aether','Obsidian'];
-const REALM_SUFFIXES = ['Nexus','Arena','Spire','Vault','Citadel','Sanctum','Forge','Bastion','Archives','Colosseum','Garden','Rift'];
-const MECHANICS_POOL = ['combat','breeding','districts','conversation','building','trading','exploration','crafting','governance','economy'];
-const PLT_BASE = { profit: 1.0, love: 1.0, tax: 1.0 };
+const PREFIXES = ['Neon','Shadow','Crystal','Void','Ember','Frost','Storm','Soul','Cosmic','Phantom','Aether','Obsidian'];
+const SUFFIXES = ['City','Arena','Realm','Empire','Hub','Forge','Wilds','Nexus','Citadel','Sanctum','Garden','Spire'];
+const SEEDS = ['primal','genesis','weave','echo','flux','drift','spark','pulse','rift','nova'];
 
 function seededRandom(seed) {
-  let s = seed;
-  return function () {
-    s = (s * 16807 + 0) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
+  let s = 0;
+  for (let i = 0; i < seed.length; i++) s = ((s << 5) - s + seed.charCodeAt(i)) | 0;
+  const next = () => { s = (s * 16807 + 0) % 2147483647; return (s & 0x7fffffff) / 2147483647; };
+  return next;
 }
 
 function pickRandom(arr, rng) {
   return arr[Math.floor(rng() * arr.length)];
-}
-
-function hashString(str) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) { h = ((h << 5) - h + str.charCodeAt(i)) | 0; }
-  return Math.abs(h);
 }
 
 export function install(Genesis) {
@@ -43,296 +35,250 @@ export function install(Genesis) {
   const T = window.THREE;
   if (!T) return null;
 
-  let root = null;
-  let camera = null;
   let scene = null;
-  let controls = null;
-  const realms = [];
+  let camera = null;
+  const worlds = [];        // { realm, config, position, active }
+  const worldRoot = new T.Group();
+  worldRoot.name = 'void-population';
 
   function flagOn() {
     return typeof window !== 'undefined' && window.__GENESIS_VOID_POPULATION !== false;
   }
 
-  function getSeed() {
-    try {
-      const saved = localStorage.getItem(VOID_SEED_KEY);
-      if (saved) return Number(saved);
-    } catch (_) {}
-    const seed = Math.floor(Math.random() * 999999) + 1;
-    try { localStorage.setItem(VOID_SEED_KEY, String(seed)); } catch (_) {}
-    return seed;
-  }
+  function generateWorldConfig(index) {
+    const seedSeed = SEEDS[index % SEEDS.length] + '-void-' + index;
+    const rng = seededRandom(seedSeed);
+    const prefix = pickRandom(PREFIXES, rng);
+    const suffix = pickRandom(SUFFIXES, rng);
+    const name = prefix + ' ' + suffix;
+    const dominant = ['combat','breeding','districts','conversation','building','trading','exploration','crafting','governance','economy'][Math.floor(rng() * 10)];
+    const seed = seedSeed + '-' + Math.random().toString(36).substring(2, 8);
 
-  function generateRealmConfig(name, rng) {
-    const mechanicsCount = 3 + Math.floor(rng() * 4);
-    const mechanics = [];
-    for (let i = 0; i < mechanicsCount; i++) {
-      const m = pickRandom(MECHANICS_POOL, rng);
-      if (!mechanics.includes(m)) mechanics.push(m);
-    }
-    const boost = Math.floor(rng() * 100);
     return {
+      id: 'void-realm-' + index + '-' + prefix.toLowerCase(),
+      seed,
       name,
-      mechanics,
+      index,
+      type: dominant,
       plt: {
-        profit: PLT_BASE.profit + (boost % 30) / 50,
-        love: PLT_BASE.love + ((boost + 17) % 40) / 50,
-        tax: PLT_BASE.tax + ((boost + 31) % 20) / 50
+        profit: Math.floor(rng() * 60) + 20,
+        love: Math.floor(rng() * 60) + 20,
+        tax: Math.floor(rng() * 40) + 10
       },
-      soulSpectrum: Math.floor(rng() * 7) + 3,
-      gravity: 9.8 + (rng() * 10),
-      timeScale: 0.8 + rng() * 0.4
+      cameraSpawn: [0, 25, 60],
+      cameraLookAt: [0, 2, 0]
     };
   }
 
-  function makeVoidBuilding(x, z, rng) {
-    const isTower = rng() > 0.6;
-    const w = isTower ? 6 + rng() * 10 : 12 + rng() * 14;
-    const d = isTower ? 6 + rng() * 10 : 12 + rng() * 14;
-    const h = isTower ? 30 + rng() * 120 : 8 + rng() * 30;
-    const hue = Math.floor(rng() * 0x333344);
-    const color = 0x0a0a1e + hue;
-    const emissive = 0x06061a + Math.floor(hue * 0.6);
-    const geo = new T.BoxGeometry(w, h, d);
-    const mat = new T.MeshStandardMaterial({ color, roughness: 0.9, metalness: 0.1, emissive, emissiveIntensity: 0.3 });
-    const mesh = new T.Mesh(geo, mat);
-    mesh.position.set(x, h / 2, z);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    return mesh;
-  }
-
-  function makeVoidMonolith(x, z, rng) {
-    const height = 20 + rng() * 80;
-    const radius = 2 + rng() * 4;
-    const geo = new T.CylinderGeometry(radius * 0.3, radius, height, 6);
-    const colorHex = [0x66ffff, 0xff66ff, 0xffaa44, 0x44ff88, 0xaa88ff][Math.floor(rng() * 5)];
-    const mat = new T.MeshStandardMaterial({ color: colorHex, emissive: colorHex, emissiveIntensity: 0.8, roughness: 0.2, metalness: 0.6, transparent: true, opacity: 0.7 });
-    const mesh = new T.Mesh(geo, mat);
-    mesh.position.set(x, height / 2, z);
-    return mesh;
-  }
-
-  function makeVoidBeacon(x, z, rng) {
-    const height = 40 + rng() * 100;
-    const group = new T.Group();
-    // Pillar
-    const pillarGeo = new T.CylinderGeometry(0.5, 0.8, height, 8);
-    const pillarMat = new T.MeshStandardMaterial({ color: 0x222244, emissive: 0x111133, roughness: 0.5, metalness: 0.3 });
-    const pillar = new T.Mesh(pillarGeo, pillarMat);
-    pillar.position.y = height / 2;
-    group.add(pillar);
-    // Orb at top
-    const orbGeo = new T.SphereGeometry(2 + rng() * 3, 12, 8);
-    const orbColor = [0x66ffff, 0xff66ff, 0xffd700, 0x44ff88][Math.floor(rng() * 4)];
-    const orbMat = new T.MeshStandardMaterial({ color: orbColor, emissive: orbColor, emissiveIntensity: 1.5, transparent: true, opacity: 0.8 });
-    const orb = new T.Mesh(orbGeo, orbMat);
-    orb.position.y = height + 2;
-    group.add(orb);
-    // Point light
-    const light = new T.PointLight(orbColor, 0.6, 30);
-    light.position.y = height + 2;
-    group.add(light);
-    group.position.set(x, 0, z);
-    return group;
-  }
-
-  function makeVoidFractalNode(x, z, rng) {
-    const scale = 3 + rng() * 8;
-    const detail = Math.floor(rng() * 3);
-    const geoType = Math.floor(rng() * 3);
-    let geo;
-    if (geoType === 0) geo = new T.IcosahedronGeometry(scale, detail);
-    else if (geoType === 1) geo = new T.OctahedronGeometry(scale, detail);
-    else geo = new T.DodecahedronGeometry(scale, detail);
-    const hue = rng();
-    const color = new T.Color().setHSL(hue, 0.7, 0.5);
-    const mat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.5, wireframe: rng() > 0.5, roughness: 0.3, metalness: 0.4 });
-    const mesh = new T.Mesh(geo, mat);
-    const y = 10 + rng() * 60;
-    mesh.position.set(x, y, z);
-    mesh.rotation.set(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI);
-    return mesh;
-  }
-
-  function makeVoidRealmMarker(x, z, config, rng) {
-    const group = new T.Group();
-    // Floating ring
-    const ringGeo = new T.TorusGeometry(8, 0.6, 8, 32);
-    const ringColor = [0x66ffff, 0xff66ff, 0xffd700, 0x44ff88, 0xaa88ff][Math.floor(rng() * 5)];
-    const ringMat = new T.MeshStandardMaterial({ color: ringColor, emissive: ringColor, emissiveIntensity: 1.0, transparent: true, opacity: 0.6 });
-    const ring = new T.Mesh(ringGeo, ringMat);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.y = 25;
-    group.add(ring);
-    // Core sphere
-    const coreGeo = new T.SphereGeometry(3, 12, 8);
-    const coreMat = new T.MeshStandardMaterial({ color: ringColor, emissive: ringColor, emissiveIntensity: 1.2 });
-    const core = new T.Mesh(coreGeo, coreMat);
-    core.position.y = 25;
-    group.add(core);
-    // Beacon beam
-    const beamGeo = new T.CylinderGeometry(0.3, 0.3, 80, 4);
-    const beamMat = new T.MeshBasicMaterial({ color: ringColor, transparent: true, opacity: 0.25 });
-    const beam = new T.Mesh(beamGeo, beamMat);
-    beam.position.y = 40;
-    group.add(beam);
-    // Label
-    const canvas = document.createElement('canvas');
-    canvas.width = 512; canvas.height = 128;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.fillRect(0, 0, 512, 128);
-    ctx.fillStyle = '#' + ringColor.toString(16).padStart(6, '0');
-    ctx.font = 'bold 32px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(config.name, 256, 50);
-    ctx.font = '20px sans-serif';
-    ctx.fillStyle = '#aaaacc';
-    ctx.fillText(config.mechanics.join(' · '), 256, 90);
-    const tex = new T.CanvasTexture(canvas);
-    const label = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-    label.scale.set(30, 8, 1);
-    label.position.y = 40;
-    group.add(label);
-    // Light
-    const light = new T.PointLight(ringColor, 0.8, 40);
-    light.position.y = 25;
-    group.add(light);
-    group.position.set(x, 0, z);
-    return group;
-  }
-
-  function makeVoidStarCluster(x, z, rng) {
-    const group = new T.Group();
-    const count = 8 + Math.floor(rng() * 15);
-    for (let i = 0; i < count; i++) {
-      const sx = (rng() - 0.5) * 30;
-      const sy = rng() * 40;
-      const sz = (rng() - 0.5) * 30;
-      const size = 0.3 + rng() * 1.2;
-      const geo = new T.SphereGeometry(size, 6, 4);
-      const color = new T.Color().setHSL(rng(), 0.5, 0.7);
-      const mat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 + rng() * 0.4 });
-      const star = new T.Mesh(geo, mat);
-      star.position.set(sx, sy, sz);
-      group.add(star);
-    }
-    group.position.set(x, 0, z);
-    return group;
+  function positionWorld(index) {
+    // Scatter worlds in a spiral pattern across the void
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5)); // ~137.5 degrees
+    const angle = index * goldenAngle;
+    const t = (index + 1) / WORLD_COUNT;
+    const dist = VOID_MIN_DIST + t * (VOID_MAX_DIST - VOID_MIN_DIST);
+    // Add some vertical variation for visual interest
+    const y = (Math.sin(index * 1.7) * 0.5) * 5;
+    return {
+      x: Math.cos(angle) * dist,
+      y,
+      z: Math.sin(angle) * dist
+    };
   }
 
   function populate(opts) {
     opts = opts || {};
     scene = opts.scene || null;
     camera = opts.camera || null;
-    controls = opts.controls || null;
     if (!flagOn()) return { built: false, reason: 'flag-off' };
     if (!T || !scene) return { built: false, reason: 'no-THREE/scene' };
 
     // Clean previous
-    if (root && root.parent) root.parent.remove(root);
-    root = new T.Group();
-    root.name = 'genesis-void-population';
+    if (worldRoot.parent) worldRoot.parent.remove(worldRoot);
+    worlds.length = 0;
 
-    const seed = getSeed();
-    const rng = seededRandom(seed);
-    let placed = 0;
-
-    // Generate positions scattered in the void ring
-    for (let i = 0; i < VOID_DENSITY; i++) {
-      const angle = rng() * Math.PI * 2;
-      const dist = VOID_MIN_DIST + rng() * (VOID_MAX_DIST - VOID_MIN_DIST);
-      const x = Math.cos(angle) * dist;
-      const z = Math.sin(angle) * dist;
-
-      // Don't overlap with existing multiverse-world nodes (radius 300)
-      if (dist < 340) continue;
-
-      const roll = rng();
-      let obj;
-
-      if (roll < 0.25) {
-        // Void buildings (25%)
-        obj = makeVoidBuilding(x, z, rng);
-      } else if (roll < 0.40) {
-        // Monoliths (15%)
-        obj = makeVoidMonolith(x, z, rng);
-      } else if (roll < 0.55) {
-        // Beacons (15%)
-        obj = makeVoidBeacon(x, z, rng);
-      } else if (roll < 0.70) {
-        // Fractal nodes (15%)
-        obj = makeVoidFractalNode(x, z, rng);
-      } else if (roll < 0.85) {
-        // Realm markers with Lost World config (15%)
-        const prefix = pickRandom(REALM_PREFIXES, rng);
-        const suffix = pickRandom(REALM_SUFFIXES, rng);
-        const config = generateRealmConfig(prefix + ' ' + suffix, rng);
-        obj = makeVoidRealmMarker(x, z, config, rng);
-        realms.push({ x, z, config, obj });
-      } else {
-        // Star clusters (15%)
-        obj = makeVoidStarCluster(x, z, rng);
-      }
-
-      if (obj) {
-        root.add(obj);
-        placed++;
-      }
+    // Import Realm class
+    const RealmWorld = Genesis.RealmWorld;
+    if (!RealmWorld || !RealmWorld.Realm) {
+      console.warn('[VoidPopulation] RealmWorld not available — falling back to marker-only mode');
+      return populateFallback(opts);
     }
 
-    // Add a distant void fog plane (subtle gradient)
-    const fogGeo = new T.PlaneGeometry(5000, 5000);
-    const fogMat = new T.MeshBasicMaterial({ color: 0x020208, transparent: true, opacity: 0.4, side: T.DoubleSide });
-    const fogPlane = new T.Mesh(fogGeo, fogMat);
-    fogPlane.rotation.x = -Math.PI / 2;
-    fogPlane.position.y = -2;
-    fogPlane.name = 'void-fog-plane';
-    root.add(fogPlane);
+    for (let i = 0; i < WORLD_COUNT; i++) {
+      const config = generateWorldConfig(i);
+      const pos = positionWorld(i);
 
-    scene.add(root);
+      // Create the realm instance
+      const realm = new RealmWorld.Realm({
+        id: config.id,
+        config,
+        THREE: T,
+        scene: worldRoot
+      });
 
-    // Register with SectorManager if available
+      // Initialize the realm (builds city, agents, weather, day/night, UI)
+      realm.init().then(() => {
+        // Position the realm's root group in the void
+        realm.root.position.set(pos.x, pos.y, pos.z);
+
+        // Add a floating beacon beam above the realm so it's visible from far away
+        const beamHeight = 60;
+        const beamGeo = new T.CylinderGeometry(0.4, 0.4, beamHeight, 4);
+        const themeColors = {
+          combat: 0xff3355, breeding: 0xff66cc, districts: 0x00ffcc,
+          conversation: 0xffaa00, building: 0x4488ff, trading: 0xffdd00,
+          exploration: 0xaa66ff, crafting: 0x66ff88, governance: 0xff8844,
+          economy: 0x00ffaa
+        };
+        const beamColor = themeColors[config.type] || 0x66ffff;
+        const beamMat = new T.MeshBasicMaterial({ color: beamColor, transparent: true, opacity: 0.2 });
+        const beam = new T.Mesh(beamGeo, beamMat);
+        beam.position.y = beamHeight / 2 + 5;
+        realm.root.add(beam);
+
+        // Orb marker at top of beam
+        const orbGeo = new T.SphereGeometry(2.5, 12, 8);
+        const orbMat = new T.MeshStandardMaterial({ color: beamColor, emissive: beamColor, emissiveIntensity: 1.2, transparent: true, opacity: 0.8 });
+        const orb = new T.Mesh(orbGeo, orbMat);
+        orb.position.y = beamHeight + 5;
+        realm.root.add(orb);
+
+        // Point light
+        const light = new T.PointLight(beamColor, 0.8, 50);
+        light.position.y = beamHeight + 5;
+        realm.root.add(light);
+
+        // Name label
+        const canvas = document.createElement('canvas');
+        canvas.width = 512; canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'rgba(0,0,0,0.75)';
+        ctx.fillRect(0, 0, 512, 128);
+        ctx.fillStyle = '#' + beamColor.toString(16).padStart(6, '0');
+        ctx.font = 'bold 32px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(config.name, 256, 40);
+        ctx.font = '18px sans-serif';
+        ctx.fillStyle = '#aaaacc';
+        ctx.fillText(config.type.toUpperCase() + ' · PLT ' + config.plt.profit + '/' + config.plt.love + '/' + config.plt.tax, 256, 80);
+        const tex = new T.CanvasTexture(canvas);
+        const label = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+        label.scale.set(40, 10, 1);
+        label.position.y = beamHeight + 12;
+        realm.root.add(label);
+
+        // Start in sleep mode — SectorManager will wake when camera approaches
+        realm.exit();
+      });
+
+      worlds.push({ realm, config, position: pos, active: false });
+    }
+
+    // Add all realm roots to the void group
+    scene.add(worldRoot);
+
+    // Register with SectorManager
     if (Genesis.SectorManager && typeof Genesis.SectorManager.register === 'function') {
-      Genesis.SectorManager.register('void-population', root, { maxDistance: VOID_MAX_DIST + 200, autoSleep: false });
+      Genesis.SectorManager.register('void-population', worldRoot, { maxDistance: VOID_MAX_DIST + 200, autoSleep: false });
     }
     if (Genesis.Visibility && typeof Genesis.Visibility.register === 'function') {
-      Genesis.Visibility.register('void-population', root, { priority: 1, maxDistance: VOID_MAX_DIST + 200 });
+      Genesis.Visibility.register('void-population', worldRoot, { priority: 1, maxDistance: VOID_MAX_DIST + 200 });
     }
 
-    console.log('[VoidPopulation] Spawned', placed, 'void objects across', VOID_MIN_DIST, '-', VOID_MAX_DIST, 'units. Seed:', seed);
-    return { built: true, placed, seed, realms: realms.length };
+    console.log('[VoidPopulation] Spawning', WORLD_COUNT, 'Lost Worlds across', VOID_MIN_DIST, '-', VOID_MAX_DIST, 'units');
+    return { built: true, worlds: worlds.length };
+  }
+
+  function populateFallback(opts) {
+    // If Realm class isn't available, spawn simple markers
+    for (let i = 0; i < WORLD_COUNT; i++) {
+      const config = generateWorldConfig(i);
+      const pos = positionWorld(i);
+      const group = new T.Group();
+      group.position.set(pos.x, pos.y, pos.z);
+
+      const beamGeo = new T.CylinderGeometry(0.5, 0.5, 80, 4);
+      const beamMat = new T.MeshBasicMaterial({ color: 0x66ffff, transparent: true, opacity: 0.25 });
+      const beam = new T.Mesh(beamGeo, beamMat);
+      beam.position.y = 40;
+      group.add(beam);
+
+      const orbGeo = new T.SphereGeometry(3, 12, 8);
+      const orbMat = new T.MeshStandardMaterial({ color: 0x66ffff, emissive: 0x66ffff, emissiveIntensity: 1.0 });
+      const orb = new T.Mesh(orbGeo, orbMat);
+      orb.position.y = 85;
+      group.add(orb);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 512; canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(0,0,0,0.75)';
+      ctx.fillRect(0, 0, 512, 128);
+      ctx.fillStyle = '#66ffff';
+      ctx.font = 'bold 32px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(config.name, 256, 50);
+      ctx.font = '18px sans-serif';
+      ctx.fillStyle = '#aaaacc';
+      ctx.fillText(config.type + ' · PLT ' + config.plt.profit + '/' + config.plt.love + '/' + config.plt.tax, 256, 90);
+      const tex = new T.CanvasTexture(canvas);
+      const label = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+      label.scale.set(30, 8, 1);
+      label.position.y = 95;
+      group.add(label);
+
+      worldRoot.add(group);
+      worlds.push({ realm: null, config, position: pos, active: false });
+    }
+
+    scene.add(worldRoot);
+    return { built: true, worlds: worlds.length, fallback: true };
   }
 
   function tick(dt) {
-    if (!root || !camera) return;
-    // Gentle rotation on fractal nodes for life
-    const time = Date.now() * 0.001;
-    root.children.forEach((child, i) => {
-      if (child.name && child.name.includes('fractal')) {
-        child.rotation.y = time * 0.1 + i;
+    if (!camera) return;
+    const camPos = camera.position;
+
+    for (const w of worlds) {
+      if (!w.realm) continue;
+      const dx = camPos.x - w.position.x;
+      const dy = camPos.y - w.position.y;
+      const dz = camPos.z - w.position.z;
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+      if (!w.active && dist < WAKE_RADIUS) {
+        w.realm.enter();
+        w.active = true;
+        console.log('[VoidPopulation] Woke:', w.config.name, 'at distance', Math.round(dist));
+      } else if (w.active && dist > SLEEP_RADIUS) {
+        w.realm.exit();
+        w.active = false;
+        console.log('[VoidPopulation] Sleeping:', w.config.name);
       }
-    });
+
+      if (w.active) {
+        w.realm.update(dt);
+      }
+    }
   }
 
   function dispose() {
-    if (root && root.parent) root.parent.remove(root);
-    root = null;
-    realms.length = 0;
+    for (const w of worlds) {
+      if (w.realm) w.realm.exit();
+    }
+    if (worldRoot.parent) worldRoot.parent.remove(worldRoot);
+    worlds.length = 0;
   }
 
   const api = {
     populate,
     tick,
     dispose,
-    realms: () => realms,
+    worlds: () => worlds.map(w => ({ name: w.config.name, type: w.config.type, plt: w.config.plt, position: w.position, active: w.active })),
     summary: () => ({
       enabled: flagOn(),
-      placed: root ? root.children.length : 0,
-      seed: localStorage.getItem(VOID_SEED_KEY),
-      realmCount: realms.length
+      worldCount: worlds.length,
+      activeWorlds: worlds.filter(w => w.active).length
     })
   };
 

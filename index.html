@@ -995,6 +995,7 @@
         import { install as installWeaveBridge } from './src/genesis/weave-bridge.js';
         import { install as installRealmGenerator } from './src/genesis/realm-generator.js';
         import { install as installSoulMultiverse } from './src/genesis/soul-multiverse-visualizer.js';
+        import { install as installRealmWorld } from './src/genesis/realm-world.js';
         import { install as installVoidPopulation } from './src/genesis/void-population.js';
 
         // ========== GENESIS TIER 0: telemetry + survival + registry ==========
@@ -8540,7 +8541,11 @@ if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) {
           installSoulMultiverse(window.Genesis, { THREE, scene, camera, seed: 'Craig-Prime' });
         }
 
-        // ========== VOID POPULATION — randomized multiverse objects beyond the city ==========
+        // ========== VOID POPULATION — Lost Worlds scattered in the void ==========
+        window.__GENESIS_REALM_WORLD = (typeof window.__GENESIS_REALM_WORLD === 'boolean') ? window.__GENESIS_REALM_WORLD : true;
+        if (window.__GENESIS_REALM_WORLD !== false) {
+          installRealmWorld(window.Genesis);
+        }
         window.__GENESIS_VOID_POPULATION = (typeof window.__GENESIS_VOID_POPULATION === 'boolean') ? window.__GENESIS_VOID_POPULATION : true;
         if (window.__GENESIS_VOID_POPULATION !== false) {
           installVoidPopulation(window.Genesis);
