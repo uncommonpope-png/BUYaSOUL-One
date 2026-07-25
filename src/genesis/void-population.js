@@ -1,6 +1,6 @@
 // src/genesis/void-population.js
 // VOID POPULATION — Lost Worlds scattered ALL AROUND the city in every direction.
-// Each world has: planet, sun, moons, orbiting mechanics, beacons, cities, agents.
+// Each world is a complete Realm with districts, buildings, agents, weather.
 // Beacons are created SYNCHRONOUSLY so they're always visible.
 // Flag-gated by window.__GENESIS_VOID_POPULATION (default ON).
 
@@ -65,13 +65,15 @@ export function install(Genesis) {
   const worlds = [];
   const worldRoot = new T.Group();
   worldRoot.name = 'void-population';
+
+  // Portal connections between worlds
   const PORTALS = [];
-  const orbiters = []; // planets, moons, suns for animation
 
   function flagOn() {
     return typeof window !== 'undefined' && window.__GENESIS_VOID_POPULATION !== false;
   }
 
+  // Distribute points uniformly in a circle around origin
   function randomPosition(index, rng) {
     const angle = (index / WORLD_COUNT) * Math.PI * 2 + (rng() - 0.5) * 0.8;
     const dist = MIN_DIST + rng() * (MAX_DIST - MIN_DIST);
@@ -79,251 +81,67 @@ export function install(Genesis) {
     return new T.Vector3(Math.cos(angle) * dist, y, Math.sin(angle) * dist);
   }
 
-  // ==================== PLANET SYSTEM ====================
-
-  function createPlanetSystem(color, rng) {
-    const group = new T.Group();
-
-    // Planet radius 12-20 (big, visible from far)
-    const planetR = 12 + rng() * 8;
-    const planetGeo = new T.SphereGeometry(planetR, 48, 48);
-    const planetMat = new T.MeshStandardMaterial({
-      color, emissive: color, emissiveIntensity: 0.6,
-      roughness: 0.3, metalness: 0.3
-    });
-    const planet = new T.Mesh(planetGeo, planetMat);
-    planet.position.y = 180 + rng() * 40;
-    planet.castShadow = true;
-    group.add(planet);
-
-    // Aura glow (2x radius)
-    const auraGeo = new T.SphereGeometry(planetR * 2, 24, 24);
-    const auraMat = new T.MeshBasicMaterial({
-      color, transparent: true, opacity: 0.12,
-      blending: THREE.AdditiveBlending, depthWrite: false
-    });
-    const aura = new T.Mesh(auraGeo, auraMat);
-    aura.position.copy(planet.position);
-    group.add(aura);
-
-    // Atmosphere ring (1.7x radius)
-    const ringR = planetR * 1.7;
-    const ringGeo = new T.TorusGeometry(ringR, planetR * 0.08, 16, 100);
-    const ringMat = new T.MeshBasicMaterial({
-      color, transparent: true, opacity: 0.4,
-      blending: THREE.AdditiveBlending, depthWrite: false,
-      side: T.DoubleSide
-    });
-    const ring = new T.Mesh(ringGeo, ringMat);
-    ring.rotation.x = Math.PI / 2.3;
-    ring.position.copy(planet.position);
-    group.add(ring);
-
-    // Second ring (1.4x radius, tilted differently)
-    const ring2Geo = new T.TorusGeometry(planetR * 1.4, planetR * 0.04, 12, 80);
-    const ring2Mat = new T.MeshBasicMaterial({
-      color, transparent: true, opacity: 0.2,
-      blending: THREE.AdditiveBlending, depthWrite: false,
-      side: T.DoubleSide
-    });
-    const ring2 = new T.Mesh(ring2Geo, ring2Mat);
-    ring2.rotation.x = Math.PI / 1.8;
-    ring2.rotation.z = 0.3;
-    ring2.position.copy(planet.position);
-    group.add(ring2);
-
-    // Store orbital data
-    const orbitData = {
-      mesh: planet,
-      aura,
-      ring,
-      ring2,
-      radius: planetR,
-      baseY: planet.position.y,
-      spin: 0.003 + rng() * 0.005,
-      orbitSpeed: 0.002 + rng() * 0.004,
-      bobAmp: 3 + rng() * 5,
-      bobSpeed: 0.3 + rng() * 0.5,
-      baseAng: rng() * Math.PI * 2
-    };
-    orbiters.push(orbitData);
-
-    return { group, planet, aura, ring, ring2, orbitData };
-  }
-
-  // ==================== SUN SYSTEM ====================
-
-  function createSun(color, pos) {
-    const group = new T.Group();
-    group.position.copy(pos);
-
-    // Sun core (radius 6)
-    const sunGeo = new T.SphereGeometry(6, 32, 32);
-    const sunMat = new T.MeshBasicMaterial({ color });
-    const sun = new T.Mesh(sunGeo, sunMat);
-    sun.position.y = 250;
-    group.add(sun);
-
-    // Sun glow (3x radius, additive)
-    const glowGeo = new T.SphereGeometry(18, 32, 32);
-    const glowMat = new T.MeshBasicMaterial({
-      color, transparent: true, opacity: 0.15,
-      blending: THREE.AdditiveBlending, depthWrite: false,
-      side: THREE.BackSide
-    });
-    const glow = new T.Mesh(glowGeo, glowMat);
-    glow.position.y = 250;
-    group.add(glow);
-
-    // Sun corona (5x radius, very faint)
-    const coronaGeo = new T.SphereGeometry(30, 32, 32);
-    const coronaMat = new T.MeshBasicMaterial({
-      color, transparent: true, opacity: 0.04,
-      blending: THREE.AdditiveBlending, depthWrite: false,
-      side: THREE.BackSide
-    });
-    const corona = new T.Mesh(coronaGeo, coronaMat);
-    corona.position.y = 250;
-    group.add(corona);
-
-    // PointLight (intensity 4, range 800)
-    const light = new T.PointLight(color, 4, 800, 2);
-    light.position.y = 250;
-    group.add(light);
-
-    // Store for animation
-    orbiters.push({
-      mesh: sun,
-      glow,
-      corona,
-      light,
-      isSun: true,
-      pulseSpeed: 0.8 + Math.random() * 0.5,
-      pulseAmp: 0.1
-    });
-
-    return { group, sun, glow, corona, light };
-  }
-
-  // ==================== MOON SYSTEM ====================
-
-  function createMoonSystem(planetPos, planetR, color, rng) {
-    const group = new T.Group();
-    const moons = [];
-
-    const moonCount = 2 + Math.floor(rng() * 2); // 2-3 moons
-    for (let i = 0; i < moonCount; i++) {
-      const moonR = 1.5 + rng() * 2.5;
-      const orbitR = planetR * 1.8 + i * 3 + rng() * 2;
-      const moonGeo = new T.SphereGeometry(moonR, 16, 16);
-      const moonMat = new T.MeshStandardMaterial({
-        color, emissive: color, emissiveIntensity: 0.3,
-        roughness: 0.5, metalness: 0.2
-      });
-      const moon = new T.Mesh(moonGeo, moonMat);
-
-      // Moon aura
-      const moonAuraGeo = new T.SphereGeometry(moonR * 1.5, 12, 12);
-      const moonAuraMat = new T.MeshBasicMaterial({
-        color, transparent: true, opacity: 0.15,
-        blending: THREE.AdditiveBlending, depthWrite: false
-      });
-      const moonAura = new T.Mesh(moonAuraGeo, moonAuraMat);
-      moon.add(moonAura);
-
-      const angle = rng() * Math.PI * 2;
-      moon.position.set(
-        planetPos.x + Math.cos(angle) * orbitR,
-        planetPos.y + (rng() - 0.5) * 10,
-        planetPos.z + Math.sin(angle) * orbitR
-      );
-
-      group.add(moon);
-      moons.push({
-        mesh: moon,
-        orbitRadius: orbitR,
-        angle,
-        speed: 0.02 + rng() * 0.04,
-        tilt: (rng() - 0.5) * 0.3,
-        bobAmp: 1 + rng() * 2,
-        bobSpeed: 0.5 + rng() * 0.8,
-        planetPos: planetPos.clone()
-      });
-    }
-
-    // Store for animation
-    for (const m of moons) {
-      orbiters.push({ ...m, isMoon: true });
-    }
-
-    return { group, moons };
-  }
-
-  // ==================== BEACON ====================
-
   function createBeacon(name, type, plt, pos) {
     const color = TYPE_COLORS[type] || 0x66ffff;
     const group = new T.Group();
     group.position.copy(pos);
 
-    // Ground platform (100 radius, bigger)
-    const platGeo = new T.CylinderGeometry(100, 110, 3, 32);
-    const platMat = new T.MeshStandardMaterial({
-      color: 0x0a0a1a, emissive: color, emissiveIntensity: 0.1,
-      metalness: 0.8, roughness: 0.4
-    });
+    // Ground platform — disc showing the world's footprint
+    const platGeo = new T.CylinderGeometry(80, 90, 2, 24);
+    const platMat = new T.MeshStandardMaterial({ color: 0x0a0a1a, emissive: color, emissiveIntensity: 0.08, metalness: 0.8, roughness: 0.4 });
     const plat = new T.Mesh(platGeo, platMat);
     plat.position.y = -1;
     plat.receiveShadow = true;
     group.add(plat);
 
-    // Ground glow rings (3 rings, bigger)
-    [100, 110, 120].forEach((r, i) => {
-      const rGeo = new T.TorusGeometry(r, 0.8 - i * 0.2, 8, 64);
-      const rMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.5 - i * 0.12 });
-      const rMesh = new T.Mesh(rGeo, rMat);
-      rMesh.rotation.x = -Math.PI / 2;
-      rMesh.position.y = 0.5;
-      group.add(rMesh);
-    });
+    // Ground glow ring
+    const ringGeo = new T.TorusGeometry(85, 0.8, 8, 48);
+    const ringMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.4 });
+    const ring = new T.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.5;
+    group.add(ring);
 
-    // Beacon beam (500 units tall, taller)
-    const beamH = 500;
-    const beamGeo = new T.CylinderGeometry(2, 2, beamH, 6);
-    const beamMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.35 });
+    // Second glow ring
+    const ring2Geo = new T.TorusGeometry(95, 0.4, 8, 48);
+    const ring2Mat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.2 });
+    const ring2 = new T.Mesh(ring2Geo, ring2Mat);
+    ring2.rotation.x = -Math.PI / 2;
+    ring2.position.y = 0.5;
+    group.add(ring2);
+
+    // Towering beacon beam
+    const beamH = 400;
+    const beamGeo = new T.CylinderGeometry(1.5, 1.5, beamH, 6);
+    const beamMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.3 });
     const beam = new T.Mesh(beamGeo, beamMat);
     beam.position.y = beamH / 2;
     group.add(beam);
 
-    // Second beam (thinner, brighter)
-    const beam2Geo = new T.CylinderGeometry(0.8, 0.8, beamH, 6);
-    const beam2Mat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 });
-    const beam2 = new T.Mesh(beam2Geo, beam2Mat);
-    beam2.position.y = beamH / 2;
-    group.add(beam2);
-
-    // Top orb (radius 10, bigger)
-    const orbGeo = new T.SphereGeometry(10, 20, 16);
-    const orbMat = new T.MeshStandardMaterial({
-      color, emissive: color, emissiveIntensity: 2.5,
-      transparent: true, opacity: 0.9
-    });
+    // Top orb
+    const orbGeo = new T.SphereGeometry(8, 16, 12);
+    const orbMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2.0, transparent: true, opacity: 0.9 });
     const orb = new T.Mesh(orbGeo, orbMat);
-    orb.position.y = beamH + 12;
+    orb.position.y = beamH + 10;
     group.add(orb);
 
-    // Halo rings (3 halos, bigger)
-    [16, 22, 28].forEach((r, i) => {
-      const hGeo = new T.TorusGeometry(r, 0.6 - i * 0.15, 8, 32);
-      const hMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.7 - i * 0.2 });
-      const hMesh = new T.Mesh(hGeo, hMat);
-      hMesh.position.y = beamH + 12;
-      group.add(hMesh);
-    });
+    // Halo ring
+    const haloGeo = new T.TorusGeometry(14, 0.5, 8, 32);
+    const haloMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 });
+    const halo = new T.Mesh(haloGeo, haloMat);
+    halo.position.y = beamH + 10;
+    group.add(halo);
 
-    // Point light (intensity 5, range 300)
-    const light = new T.PointLight(color, 5, 300);
-    light.position.y = beamH + 12;
+    // Second halo
+    const halo2Geo = new T.TorusGeometry(20, 0.3, 8, 32);
+    const halo2Mat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.3 });
+    const halo2 = new T.Mesh(halo2Geo, halo2Mat);
+    halo2.position.y = beamH + 10;
+    group.add(halo2);
+
+    // Point light — visible from far
+    const light = new T.PointLight(color, 3.0, 200);
+    light.position.y = beamH + 10;
     group.add(light);
 
     // Name label sprite
@@ -333,31 +151,31 @@ export function install(Genesis) {
     ctx.fillStyle = 'rgba(0,0,0,0.85)';
     ctx.fillRect(0, 0, 1024, 256);
     ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
-    ctx.font = 'bold 80px sans-serif';
+    ctx.font = 'bold 72px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(name, 512, 95);
-    ctx.font = '40px sans-serif';
+    ctx.fillText(name, 512, 90);
+    ctx.font = '36px sans-serif';
     ctx.fillStyle = '#aaaacc';
-    ctx.fillText(type.toUpperCase() + '  ·  PLT ' + plt.profit + '/' + plt.love + '/' + plt.tax, 512, 180);
+    ctx.fillText(type.toUpperCase() + '  ·  PLT ' + plt.profit + '/' + plt.love + '/' + plt.tax, 512, 170);
     const tex = new T.CanvasTexture(canvas);
     const label = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-    label.scale.set(120, 30, 1);
-    label.position.y = beamH + 55;
+    label.scale.set(100, 25, 1);
+    label.position.y = beamH + 40;
     group.add(label);
 
     return group;
   }
 
-  // ==================== CITY SKELETON ====================
-
   function createCitySkeleton(pos, type, rng) {
+    // Detailed city silhouette — buildings, roads, grid — always visible
     const group = new T.Group();
     group.position.copy(pos);
+
     const color = TYPE_COLORS[type] || 0x66ffff;
 
-    // Ground (500x500, much bigger)
+    // Ground
     const ground = new T.Mesh(
-      new T.PlaneGeometry(500, 500),
+      new T.PlaneGeometry(400, 400),
       new T.MeshStandardMaterial({ color: 0x080818, roughness: 0.9 })
     );
     ground.rotation.x = -Math.PI / 2;
@@ -365,28 +183,32 @@ export function install(Genesis) {
     ground.receiveShadow = true;
     group.add(ground);
 
-    // Grid (400x400)
-    const grid = new T.GridHelper(400, 40, color, 0x110022);
+    // Grid
+    const grid = new T.GridHelper(300, 30, color, 0x110022);
     grid.position.y = 0.6;
-    grid.material.opacity = 0.15;
+    grid.material.opacity = 0.12;
     grid.material.transparent = true;
     group.add(grid);
 
-    // Roads (wider, more)
+    // Roads — wider, more detailed
     const roadMat = new T.MeshStandardMaterial({ color: 0x111122, roughness: 0.8 });
-    for (let i = -140; i <= 140; i += 18) {
-      const r1 = new T.Mesh(new T.BoxGeometry(280, 0.08, 3.5), roadMat);
-      r1.position.set(0, 0.6, i); r1.receiveShadow = true; group.add(r1);
-      const r2 = new T.Mesh(new T.BoxGeometry(3.5, 0.08, 280), roadMat);
-      r2.position.set(i, 0.6, 0); r2.receiveShadow = true; group.add(r2);
+    for (let i = -100; i <= 100; i += 16) {
+      const r1 = new T.Mesh(new T.BoxGeometry(200, 0.06, 3), roadMat);
+      r1.position.set(0, 0.6, i);
+      r1.receiveShadow = true;
+      group.add(r1);
+      const r2 = new T.Mesh(new T.BoxGeometry(3, 0.06, 200), roadMat);
+      r2.position.set(i, 0.6, 0);
+      r2.receiveShadow = true;
+      group.add(r2);
     }
 
-    // 4 districts (bigger, more buildings)
+    // Buildings — 4 districts with varying styles
     const districts = [
-      { name: 'work', zone: { x: [-130, -10], z: [-130, -10] }, count: 35, minH: 10, maxH: 50, color: 0x00ffff, eColor: 0x0088aa },
-      { name: 'home', zone: { x: [10, 130], z: [-130, -10] }, count: 40, minH: 5, maxH: 25, color: 0xff66aa, eColor: 0xaa3366 },
-      { name: 'social', zone: { x: [-130, -10], z: [10, 130] }, count: 28, minH: 4, maxH: 18, color: 0xffaa00, eColor: 0xaa7700 },
-      { name: 'learn', zone: { x: [10, 130], z: [10, 130] }, count: 25, minH: 8, maxH: 35, color: 0x00ff88, eColor: 0x00aa55 }
+      { name: 'work', zone: { x: [-90, -10], z: [-90, -10] }, count: 25, minH: 8, maxH: 35, color: 0x00ffff, eColor: 0x0088aa },
+      { name: 'home', zone: { x: [10, 90], z: [-90, -10] }, count: 30, minH: 4, maxH: 18, color: 0xff66aa, eColor: 0xaa3366 },
+      { name: 'social', zone: { x: [-90, -10], z: [10, 90] }, count: 20, minH: 3, maxH: 12, color: 0xffaa00, eColor: 0xaa7700 },
+      { name: 'learn', zone: { x: [10, 90], z: [10, 90] }, count: 18, minH: 6, maxH: 25, color: 0x00ff88, eColor: 0x00aa55 }
     ];
 
     for (const d of districts) {
@@ -394,45 +216,46 @@ export function install(Genesis) {
         const x = d.zone.x[0] + rng() * (d.zone.x[1] - d.zone.x[0]);
         const z = d.zone.z[0] + rng() * (d.zone.z[1] - d.zone.z[0]);
         const h = d.minH + rng() * (d.maxH - d.minH);
-        const w = 3 + rng() * 6;
-        const d2 = 3 + rng() * 6;
+        const w = 2 + rng() * 5;
+        const d2 = 2 + rng() * 5;
         const bColor = rng() > 0.6 ? d.color : 0x222244;
         const geo = new T.BoxGeometry(w, h, d2);
         const mat = new T.MeshStandardMaterial({
-          color: bColor, emissive: d.eColor, emissiveIntensity: 0.1,
+          color: bColor, emissive: d.eColor, emissiveIntensity: 0.08,
           metalness: 0.7, roughness: 0.3
         });
         const mesh = new T.Mesh(geo, mat);
         mesh.position.set(x, h / 2, z);
-        mesh.castShadow = true; mesh.receiveShadow = true;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
         group.add(mesh);
 
-        // Windows (more rows)
+        // Windows on buildings
         if (h > 6) {
-          for (let wy = 2; wy < h - 1; wy += 2) {
-            const wGeo = new T.BoxGeometry(w * 0.7, 0.4, 0.06);
-            const wMat = new T.MeshStandardMaterial({ color: d.color, emissive: d.color, emissiveIntensity: 0.5 });
+          for (let wy = 2; wy < h - 1; wy += 2.5) {
+            const wGeo = new T.BoxGeometry(w * 0.7, 0.3, 0.05);
+            const wMat = new T.MeshStandardMaterial({ color: d.color, emissive: d.color, emissiveIntensity: 0.4 });
             const win = new T.Mesh(wGeo, wMat);
             win.position.set(x, wy, z + d2 / 2 + 0.03);
             group.add(win);
           }
         }
 
-        // Cap
-        if (h > 15 && rng() > 0.4) {
-          const cGeo = new T.BoxGeometry(w + 0.4, 0.4, d2 + 0.4);
-          const cMat = new T.MeshStandardMaterial({ color: d.color, emissive: d.color, emissiveIntensity: 0.6 });
+        // Cap on tall buildings
+        if (h > 15 && rng() > 0.5) {
+          const cGeo = new T.BoxGeometry(w + 0.3, 0.3, d2 + 0.3);
+          const cMat = new T.MeshStandardMaterial({ color: d.color, emissive: d.color, emissiveIntensity: 0.5 });
           const cap = new T.Mesh(cGeo, cMat);
-          cap.position.set(x, h + 0.2, z);
+          cap.position.set(x, h + 0.15, z);
           group.add(cap);
         }
 
-        // Antenna spire
-        if (h > 25 && rng() > 0.3) {
-          const spireH = 4 + rng() * 10;
+        // Antenna spire on very tall buildings
+        if (h > 25 && rng() > 0.4) {
+          const spireH = 3 + rng() * 8;
           const spire = new T.Mesh(
-            new T.CylinderGeometry(0.1, 0.4, spireH, 4),
-            new T.MeshStandardMaterial({ color: d.color, emissive: d.color, emissiveIntensity: 0.7 })
+            new T.CylinderGeometry(0.1, 0.3, spireH, 4),
+            new T.MeshStandardMaterial({ color: d.color, emissive: d.color, emissiveIntensity: 0.6 })
           );
           spire.position.set(x, h + spireH / 2, z);
           group.add(spire);
@@ -448,23 +271,19 @@ export function install(Genesis) {
       lctx.fillStyle = 'rgba(0,0,0,0.7)';
       lctx.fillRect(0, 0, 256, 64);
       lctx.fillStyle = '#' + d.color.toString(16).padStart(6, '0');
-      lctx.font = 'bold 32px sans-serif';
+      lctx.font = 'bold 28px sans-serif';
       lctx.textAlign = 'center';
-      lctx.fillText(d.name.toUpperCase(), 128, 44);
+      lctx.fillText(d.name.toUpperCase(), 128, 42);
       const lTex = new T.CanvasTexture(lCanvas);
-      const lLabel = new T.Mesh(new T.PlaneGeometry(14, 3.5), new T.MeshBasicMaterial({ map: lTex, transparent: true }));
-      lLabel.position.set(cx, 40, cz);
+      const lLabel = new T.Mesh(new T.PlaneGeometry(10, 2.5), new T.MeshBasicMaterial({ map: lTex, transparent: true }));
+      lLabel.position.set(cx, 30, cz);
       lLabel.rotation.x = -Math.PI / 4;
       group.add(lLabel);
     }
 
-    // Outer ring buildings (bigger, more rings)
-    const ringMat = new T.MeshStandardMaterial({ color: 0x222244, emissive: 0x110022, emissiveIntensity: 0.12, metalness: 0.6, roughness: 0.4 });
-    const ringCounts = [
-      { r: 140, count: 24, skip: 0.35 },
-      { r: 180, count: 32, skip: 0.45 },
-      { r: 220, count: 40, skip: 0.55 }
-    ];
+    // Outer ring buildings
+    const ringMat = new T.MeshStandardMaterial({ color: 0x222244, emissive: 0x110022, emissiveIntensity: 0.1, metalness: 0.6, roughness: 0.4 });
+    const ringCounts = [{ r: 120, count: 20, skip: 0.4 }, { r: 160, count: 28, skip: 0.5 }, { r: 200, count: 35, skip: 0.6 }];
     for (const rc of ringCounts) {
       for (let i = 0; i < rc.count; i++) {
         if (rng() < rc.skip) continue;
@@ -472,60 +291,75 @@ export function install(Genesis) {
         const rr = rc.r + rng() * 15 - 7;
         const x = Math.cos(angle) * rr;
         const z = Math.sin(angle) * rr;
-        const h = 5 + rng() * 22;
-        const w = 2 + rng() * 6;
-        const d2 = 2 + rng() * 6;
+        const h = 4 + rng() * 18;
+        const w = 2 + rng() * 5;
+        const d2 = 2 + rng() * 5;
         const mesh = new T.Mesh(new T.BoxGeometry(w, h, d2), ringMat);
         mesh.position.set(x, h / 2, z);
-        mesh.castShadow = true; mesh.receiveShadow = true;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
         group.add(mesh);
       }
     }
 
-    // POI chevron (bigger, higher)
+    // POI marker — glowing chevron above the city
     const poiGroup = new T.Group();
-    poiGroup.position.set(0, 80, 0);
+    poiGroup.position.set(0, 60, 0);
+
+    // Chevron
     const chevGeo = new T.BufferGeometry();
     const chevVerts = new Float32Array([
-      -3, 0, 0,  0, 3, 0,  0, 0, 0,
-      0, 0, 0,  0, 3, 0,  3, 0, 0
+      -2, 0, 0,  0, 2, 0,  0, 0, 0,
+      0, 0, 0,  0, 2, 0,  2, 0, 0
     ]);
     chevGeo.setAttribute('position', new T.BufferAttribute(chevVerts, 3));
-    const chevMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.8, side: T.DoubleSide });
+    const chevMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.7, side: T.DoubleSide });
     const chevron = new T.Mesh(chevGeo, chevMat);
     chevGeo.computeVertexNormals();
     poiGroup.add(chevron);
-    const poiRingGeo = new T.TorusGeometry(4, 0.25, 8, 20);
-    const poiRingMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.5 });
+
+    // Glow ring
+    const poiRingGeo = new T.TorusGeometry(3, 0.2, 8, 16);
+    const poiRingMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.4 });
     const poiRing = new T.Mesh(poiRingGeo, poiRingMat);
     poiRing.rotation.x = -Math.PI / 2;
     poiGroup.add(poiRing);
-    const poiLight = new T.PointLight(color, 1.5, 40);
+
+    // Point light
+    const poiLight = new T.PointLight(color, 1.0, 30);
     poiGroup.add(poiLight);
+
     group.add(poiGroup);
 
-    // Atmosphere dome (bigger, more visible)
-    const domeGeo = new T.SphereGeometry(350, 16, 12);
+    // Per-world atmosphere dome
+    const domeGeo = new T.SphereGeometry(250, 16, 12);
     const domeMat = new T.MeshBasicMaterial({
-      color, transparent: true, opacity: 0.04,
-      side: T.BackSide, depthWrite: false
+      color: color,
+      transparent: true,
+      opacity: 0.03,
+      side: T.BackSide,
+      depthWrite: false
     });
     const dome = new T.Mesh(domeGeo, domeMat);
-    dome.position.y = 60;
+    dome.position.y = 50;
     group.add(dome);
 
-    // Ambient particles (more)
-    const particleCount = 400;
+    // Ambient particles
+    const particleCount = 200;
     const particleGeo = new T.BufferGeometry();
     const particlePos = new Float32Array(particleCount * 3);
     for (let i = 0; i < particleCount * 3; i += 3) {
-      particlePos[i] = (rng() - 0.5) * 400;
-      particlePos[i + 1] = rng() * 120;
-      particlePos[i + 2] = (rng() - 0.5) * 400;
+      particlePos[i] = (rng() - 0.5) * 300;
+      particlePos[i + 1] = rng() * 80;
+      particlePos[i + 2] = (rng() - 0.5) * 300;
     }
     particleGeo.setAttribute('position', new T.BufferAttribute(particlePos, 3));
     const particleMat = new T.PointsMaterial({
-      color, size: 0.6, transparent: true, opacity: 0.7, depthWrite: false
+      color: color,
+      size: 0.5,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false
     });
     const particles = new T.Points(particleGeo, particleMat);
     particles.userData.isAmbientParticles = true;
@@ -534,82 +368,76 @@ export function install(Genesis) {
     return group;
   }
 
-  // ==================== PORTAL ====================
-
   function createPortal(fromWorld, toWorld, rng) {
     const color = 0x66ffff;
     const group = new T.Group();
 
-    const frameGeo = new T.TorusGeometry(8, 0.6, 8, 32);
-    const frameMat = new T.MeshStandardMaterial({
-      color, emissive: color, emissiveIntensity: 0.6,
-      metalness: 0.8, roughness: 0.2
-    });
+    // Portal frame — torus
+    const frameGeo = new T.TorusGeometry(6, 0.5, 8, 32);
+    const frameMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.5, metalness: 0.8, roughness: 0.2 });
     const frame = new T.Mesh(frameGeo, frameMat);
     frame.rotation.y = Math.PI / 2;
     group.add(frame);
 
-    const innerGeo = new T.CircleGeometry(7.5, 32);
-    const innerMat = new T.MeshBasicMaterial({
-      color, transparent: true, opacity: 0.25, side: T.DoubleSide
-    });
+    // Inner glow
+    const innerGeo = new T.CircleGeometry(5.5, 32);
+    const innerMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.2, side: T.DoubleSide });
     const inner = new T.Mesh(innerGeo, innerMat);
     inner.rotation.y = Math.PI / 2;
     group.add(inner);
 
+    // Label
     const canvas = document.createElement('canvas');
     canvas.width = 512; canvas.height = 128;
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = 'rgba(0,0,0,0.85)';
     ctx.fillRect(0, 0, 512, 128);
     ctx.fillStyle = '#66ffff';
-    ctx.font = 'bold 40px sans-serif';
+    ctx.font = 'bold 36px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('→ ' + toWorld.name, 256, 55);
-    ctx.font = '28px sans-serif';
+    ctx.fillText('→ ' + toWorld.name, 256, 50);
+    ctx.font = '24px sans-serif';
     ctx.fillStyle = '#aaaacc';
-    ctx.fillText('PORTAL', 256, 100);
+    ctx.fillText('PORTAL', 256, 90);
     const tex = new T.CanvasTexture(canvas);
     const label = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-    label.scale.set(14, 3.5, 1);
-    label.position.y = 10;
+    label.scale.set(12, 3, 1);
+    label.position.y = 8;
     group.add(label);
 
-    const light = new T.PointLight(color, 2, 50);
+    // Point light
+    const light = new T.PointLight(color, 1.5, 40);
     group.add(light);
 
     return group;
   }
 
-  // ==================== QUEST BEACON ====================
-
   function createQuestBeacon(world, rng) {
     const color = TYPE_COLORS[world.type] || 0x66ffff;
     const group = new T.Group();
 
-    // Floating diamond (bigger)
-    const diamondGeo = new T.OctahedronGeometry(3, 0);
-    const diamondMat = new T.MeshStandardMaterial({
-      color, emissive: color, emissiveIntensity: 1.2,
-      metalness: 0.8, roughness: 0.2
-    });
+    // Quest marker — floating diamond
+    const diamondGeo = new T.OctahedronGeometry(2, 0);
+    const diamondMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.0, metalness: 0.8, roughness: 0.2 });
     const diamond = new T.Mesh(diamondGeo, diamondMat);
-    diamond.position.y = 25;
+    diamond.position.y = 20;
     diamond.rotation.y = Math.PI / 4;
     group.add(diamond);
 
-    const ringGeo = new T.TorusGeometry(4, 0.2, 8, 16);
-    const ringMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 });
+    // Glow ring
+    const ringGeo = new T.TorusGeometry(3, 0.15, 8, 16);
+    const ringMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.5 });
     const ring = new T.Mesh(ringGeo, ringMat);
     ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 25;
+    ring.position.y = 20;
     group.add(ring);
 
-    const light = new T.PointLight(color, 1.2, 30);
-    light.position.y = 25;
+    // Point light
+    const light = new T.PointLight(color, 0.8, 20);
+    light.position.y = 20;
     group.add(light);
 
-    // Quest text
+    // Quest text sprite
     const questText = TYPE_QUESTS[world.type] || 'Explore this world';
     const canvas = document.createElement('canvas');
     canvas.width = 512; canvas.height = 128;
@@ -617,89 +445,112 @@ export function install(Genesis) {
     ctx.fillStyle = 'rgba(0,0,0,0.85)';
     ctx.fillRect(0, 0, 512, 128);
     ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
-    ctx.font = 'bold 28px sans-serif';
+    ctx.font = 'bold 24px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('QUEST: ' + world.type.toUpperCase(), 256, 45);
-    ctx.font = '20px sans-serif';
+    ctx.fillText('QUEST: ' + world.type.toUpperCase(), 256, 40);
+    ctx.font = '18px sans-serif';
     ctx.fillStyle = '#ffffff';
+    // Word wrap quest text
     const words = questText.split(' ');
-    let line = '', y = 75;
+    let line = '';
+    let y = 70;
     for (const word of words) {
       const test = line + word + ' ';
-      if (ctx.measureText(test).width > 480) { ctx.fillText(line.trim(), 256, y); line = word + ' '; y += 24; }
-      else line = test;
+      if (ctx.measureText(test).width > 480) {
+        ctx.fillText(line.trim(), 256, y);
+        line = word + ' ';
+        y += 22;
+      } else {
+        line = test;
+      }
     }
     ctx.fillText(line.trim(), 256, y);
     const tex = new T.CanvasTexture(canvas);
     const label = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-    label.scale.set(18, 4.5, 1);
-    label.position.y = 35;
+    label.scale.set(15, 3.75, 1);
+    label.position.y = 28;
     group.add(label);
 
     return group;
   }
-
-  // ==================== DENIZENS ====================
 
   function createDenizens(pos, type, rng) {
     const group = new T.Group();
     const color = TYPE_COLORS[type] || 0x66ffff;
     const names = TYPE_DENIZEN_NAMES[type] || ['Citizen'];
 
-    for (let i = 0; i < 8; i++) { // 8 denizens per world
+    for (let i = 0; i < 5; i++) {
       const name = names[i % names.length];
-      const dx = (rng() - 0.5) * 80;
-      const dz = (rng() - 0.5) * 80;
+      const dx = (rng() - 0.5) * 60;
+      const dz = (rng() - 0.5) * 60;
 
       const denizen = new T.Group();
       denizen.position.set(dx, 0, dz);
 
+      // Body
       const torso = new T.Mesh(
-        new T.BoxGeometry(0.6, 0.8, 0.3),
-        new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.15 })
+        new T.BoxGeometry(0.5, 0.7, 0.25),
+        new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.1 })
       );
-      torso.position.y = 1.2; torso.castShadow = true; denizen.add(torso);
+      torso.position.y = 1.0;
+      torso.castShadow = true;
+      denizen.add(torso);
 
+      // Head
       const head = new T.Mesh(
-        new T.SphereGeometry(0.22, 8, 8),
+        new T.SphereGeometry(0.18, 8, 8),
         new T.MeshStandardMaterial({ color: 0xffddcc })
       );
-      head.position.y = 1.75; head.castShadow = true; denizen.add(head);
+      head.position.y = 1.55;
+      head.castShadow = true;
+      denizen.add(head);
 
-      [-0.07, 0.07].forEach(xo => {
-        const eye = new T.Mesh(new T.SphereGeometry(0.04, 6, 6), new T.MeshStandardMaterial({ color: 0x222222 }));
-        eye.position.set(xo, 1.78, 0.18); denizen.add(eye);
-      });
-
-      [-0.42, 0.42].forEach(xo => {
-        const arm = new T.Mesh(
-          new T.BoxGeometry(0.14, 0.55, 0.14),
-          new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.08 })
+      // Eyes
+      [-0.06, 0.06].forEach(xo => {
+        const eye = new T.Mesh(
+          new T.SphereGeometry(0.03, 6, 6),
+          new T.MeshStandardMaterial({ color: 0x222222 })
         );
-        arm.position.set(xo, 1.0, 0); arm.castShadow = true; denizen.add(arm);
+        eye.position.set(xo, 1.58, 0.15);
+        denizen.add(eye);
       });
 
-      [-0.13, 0.13].forEach(xo => {
+      // Arms
+      [-0.38, 0.38].forEach(xo => {
+        const arm = new T.Mesh(
+          new T.BoxGeometry(0.12, 0.5, 0.12),
+          new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.05 })
+        );
+        arm.position.set(xo, 0.9, 0);
+        arm.castShadow = true;
+        denizen.add(arm);
+      });
+
+      // Legs
+      [-0.12, 0.12].forEach(xo => {
         const leg = new T.Mesh(
-          new T.BoxGeometry(0.16, 0.65, 0.16),
+          new T.BoxGeometry(0.14, 0.6, 0.14),
           new T.MeshStandardMaterial({ color: 0x333366 })
         );
-        leg.position.set(xo, 0.32, 0); leg.castShadow = true; denizen.add(leg);
+        leg.position.set(xo, 0.3, 0);
+        leg.castShadow = true;
+        denizen.add(leg);
       });
 
+      // Name label
       const nCanvas = document.createElement('canvas');
       nCanvas.width = 256; nCanvas.height = 64;
       const nctx = nCanvas.getContext('2d');
       nctx.fillStyle = 'rgba(0,0,0,0.7)';
       nctx.fillRect(0, 0, 256, 64);
       nctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
-      nctx.font = 'bold 22px sans-serif';
+      nctx.font = 'bold 20px sans-serif';
       nctx.textAlign = 'center';
-      nctx.fillText(name, 128, 42);
+      nctx.fillText(name, 128, 40);
       const nTex = new T.CanvasTexture(nCanvas);
       const nSprite = new T.Sprite(new T.SpriteMaterial({ map: nTex, transparent: true }));
-      nSprite.position.y = 2.2;
-      nSprite.scale.set(2.2, 0.55, 1);
+      nSprite.position.y = 2.0;
+      nSprite.scale.set(2, 0.5, 1);
       denizen.add(nSprite);
 
       group.add(denizen);
@@ -709,8 +560,6 @@ export function install(Genesis) {
     return group;
   }
 
-  // ==================== POPULATE ====================
-
   function populate(opts) {
     opts = opts || {};
     scene = opts.scene || null;
@@ -718,56 +567,37 @@ export function install(Genesis) {
     if (!flagOn()) return { built: false, reason: 'flag-off' };
     if (!T || !scene) return { built: false, reason: 'no-THREE/scene' };
 
+    // Clean previous
     if (worldRoot.parent) worldRoot.parent.remove(worldRoot);
     worlds.length = 0;
     PORTALS.length = 0;
-    orbiters.length = 0;
 
-    const rng = seededRandom('void-population-genesis-v2');
+    const rng = seededRandom('void-population-genesis');
 
     for (let i = 0; i < WORLD_COUNT; i++) {
       const name = NAMES[i];
       const type = TYPES[i];
       const plt = { profit: 20 + Math.floor(rng() * 60), love: 20 + Math.floor(rng() * 60), tax: 10 + Math.floor(rng() * 40) };
       const pos = randomPosition(i, rng);
-      const color = TYPE_COLORS[type] || 0x66ffff;
 
-      // Planet system (orbiting above)
-      const planetSystem = createPlanetSystem(color, rng);
-      planetSystem.group.position.copy(pos);
-      worldRoot.add(planetSystem.group);
-
-      // Sun (light source for this world)
-      const sun = createSun(color, pos);
-      worldRoot.add(sun.group);
-
-      // Moons orbiting the planet
-      const moonSystem = createMoonSystem(
-        planetSystem.planet.position.clone().add(pos),
-        planetSystem.orbitData.radius,
-        color, rng
-      );
-      moonSystem.group.position.copy(pos);
-      worldRoot.add(moonSystem.group);
-
-      // Beacon (ALWAYS visible)
+      // Create beacon — ALWAYS visible
       const beacon = createBeacon(name, type, plt, pos);
       worldRoot.add(beacon);
 
-      // City skeleton (detailed, ALWAYS visible)
+      // Create city skeleton — detailed buildings visible from far
       const city = createCitySkeleton(pos, type, rng);
       worldRoot.add(city);
 
-      // Quest beacon
+      // Create quest beacon
       const questBeacon = createQuestBeacon({ type }, rng);
       questBeacon.position.copy(pos);
       worldRoot.add(questBeacon);
 
-      // Denizens (8 per world)
+      // Create denizens
       const denizens = createDenizens(pos, type, rng);
       worldRoot.add(denizens);
 
-      // Full Realm (async, hidden until close)
+      // Try to create full Realm if available
       let realm = null;
       const RealmWorld = Genesis.RealmWorld;
       if (RealmWorld && RealmWorld.Realm) {
@@ -789,75 +619,35 @@ export function install(Genesis) {
         }
       }
 
-      worlds.push({
-        realm, beacon, city, questBeacon, denizens,
-        planetSystem, sun, moonSystem,
-        name, type, plt, position: pos, active: false
-      });
+      worlds.push({ realm, beacon, city, questBeacon, denizens, name, type, plt, position: pos, active: false });
     }
 
-    // Portal connections
+    // Create portal connections — each world connects to 2 others
     for (let i = 0; i < WORLD_COUNT; i++) {
       const from = worlds[i];
-      const to = worlds[(i + 1) % WORLD_COUNT];
+      const toIndex = (i + 1) % WORLD_COUNT;
+      const to = worlds[toIndex];
       const portal = createPortal(from, to, rng);
+      // Position portal at edge of from world
       const dir = new T.Vector3().subVectors(to.position, from.position).normalize();
-      portal.position.copy(from.position).add(dir.multiplyScalar(120));
+      portal.position.copy(from.position).add(dir.multiplyScalar(100));
       portal.lookAt(to.position);
       worldRoot.add(portal);
-      PORTALS.push({ from: i, to: (i + 1) % WORLD_COUNT, mesh: portal });
+      PORTALS.push({ from: i, to: toIndex, mesh: portal });
     }
 
     scene.add(worldRoot);
+
+    // Build travel panel for easy navigation
     buildTravelPanel();
 
-    console.log('[VoidPopulation] Spawned', WORLD_COUNT, 'Lost Worlds with planets, suns, moons at distances', MIN_DIST, '-', MAX_DIST, 'units');
+    console.log('[VoidPopulation] Spawned', WORLD_COUNT, 'Lost Worlds at distances', MIN_DIST, '-', MAX_DIST, 'units');
     return { built: true, worlds: worlds.length };
   }
-
-  // ==================== TICK ====================
 
   function tick(dt) {
     if (!camera) return;
     const camPos = camera.position;
-    const time = performance.now() * 0.001;
-
-    // Animate orbiters (planets, moons, suns)
-    for (const o of orbiters) {
-      if (o.isSun) {
-        // Sun pulse
-        if (o.glow) {
-          const pulse = 1 + Math.sin(time * o.pulseSpeed) * o.pulseAmp;
-          o.glow.scale.setScalar(pulse);
-        }
-        if (o.corona) {
-          const pulse = 1 + Math.sin(time * o.pulseSpeed * 0.7) * 0.08;
-          o.corona.scale.setScalar(pulse);
-        }
-      } else if (o.isMoon) {
-        // Moon orbit
-        o.angle += o.speed * dt;
-        const px = o.planetPos.x + Math.cos(o.angle) * o.orbitRadius;
-        const pz = o.planetPos.z + Math.sin(o.angle) * o.orbitRadius;
-        const py = o.planetPos.y + Math.sin(time * o.bobSpeed) * o.bobAmp + Math.sin(o.angle) * o.tilt * o.orbitRadius;
-        o.mesh.position.set(px, py, pz);
-      } else {
-        // Planet orbit
-        o.baseAng += o.orbitSpeed * dt;
-        const bobY = Math.sin(time * o.bobSpeed) * o.bobAmp;
-        const px = Math.cos(o.baseAng) * 30;
-        const pz = Math.sin(o.baseAng) * 30;
-        o.mesh.position.x = px;
-        o.mesh.position.z = pz;
-        o.mesh.position.y = o.baseY + bobY;
-        o.mesh.rotation.y += o.spin;
-        o.mesh.rotation.x += o.spin * 0.3;
-        // Sync aura, rings
-        if (o.aura) { o.aura.position.copy(o.mesh.position); }
-        if (o.ring) { o.ring.position.copy(o.mesh.position); o.ring.rotation.z += 0.004; }
-        if (o.ring2) { o.ring2.position.copy(o.mesh.position); o.ring2.rotation.z -= 0.003; }
-      }
-    }
 
     for (const w of worlds) {
       const dx = camPos.x - w.position.x;
@@ -865,7 +655,7 @@ export function install(Genesis) {
       const dz = camPos.z - w.position.z;
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-      // Realm activation
+      // Show/hide full Realm city when close
       if (w.realm && w.realm.root) {
         if (!w.active && dist < WAKE_RADIUS) {
           w.realm.root.visible = true;
@@ -879,32 +669,32 @@ export function install(Genesis) {
         if (w.active) w.realm.update(dt);
       }
 
-      // Orb pulse
+      // Pulse the orb when close
       if (w.beacon) {
-        const orb = w.beacon.children.find(c => c.geometry && c.geometry.type === 'SphereGeometry' && c.geometry.parameters.radius === 10);
+        const orb = w.beacon.children[4]; // orb mesh
         if (orb) {
-          const pulse = 1.0 + Math.sin(time * 3 + w.position.x) * 0.15;
+          const pulse = 1.0 + Math.sin(Date.now() * 0.003 + w.position.x) * 0.15;
           orb.scale.setScalar(pulse);
         }
       }
 
-      // Quest diamond animation
+      // Animate quest beacon diamond
       if (w.questBeacon) {
-        const diamond = w.questBeacon.children[0];
+        const diamond = w.questBeacon.children[0]; // diamond mesh
         if (diamond) {
           diamond.rotation.y += dt * 0.5;
-          diamond.position.y = 25 + Math.sin(time * 2 + w.position.z) * 3;
+          diamond.position.y = 20 + Math.sin(Date.now() * 0.002 + w.position.z) * 2;
         }
       }
 
-      // Particle animation
+      // Animate ambient particles
       if (w.city) {
         w.city.children.forEach(child => {
           if (child.userData && child.userData.isAmbientParticles) {
             const positions = child.geometry.attributes.position.array;
             for (let i = 1; i < positions.length; i += 3) {
-              positions[i] += dt * 0.6;
-              if (positions[i] > 120) positions[i] = 0;
+              positions[i] += dt * 0.5;
+              if (positions[i] > 80) positions[i] = 0;
             }
             child.geometry.attributes.position.needsUpdate = true;
           }
@@ -912,10 +702,10 @@ export function install(Genesis) {
       }
     }
 
-    // Portal frame rotation
+    // Animate portal frames
     for (const p of PORTALS) {
       if (p.mesh && p.mesh.children[0]) {
-        p.mesh.children[0].rotation.z += dt * 0.3;
+        p.mesh.children[0].rotation.z += dt * 0.3; // rotate frame
       }
     }
   }
@@ -924,21 +714,23 @@ export function install(Genesis) {
     if (worldRoot.parent) worldRoot.parent.remove(worldRoot);
     worlds.length = 0;
     PORTALS.length = 0;
-    orbiters.length = 0;
   }
 
   function jumpToWorld(index) {
     const w = worlds[index];
     if (!w) return;
     const pos = w.position;
+    // Try PlayerCam first
     const PlayerCam = (typeof window !== 'undefined' && window.Genesis && window.Genesis.PlayerCam);
     if (PlayerCam && PlayerCam.teleportTo) {
       PlayerCam.teleportTo({ x: pos.x, y: pos.y + 5, z: pos.z });
       return;
     }
-    if (camera) {
-      camera.position.set(pos.x + 30, pos.y + 20, pos.z + 30);
-      camera.lookAt(pos.x, pos.y, pos.z);
+    // Fallback: move camera directly
+    const cam = camera;
+    if (cam) {
+      cam.position.set(pos.x + 30, pos.y + 20, pos.z + 30);
+      cam.lookAt(pos.x, pos.y, pos.z);
     }
   }
 
@@ -946,20 +738,21 @@ export function install(Genesis) {
     if (document.getElementById('void-travel-panel')) return;
     const panel = document.createElement('div');
     panel.id = 'void-travel-panel';
-    panel.style.cssText = 'position:fixed;top:50%;right:20px;transform:translateY(-50%);width:240px;background:rgba(5,5,20,0.92);border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:16px;z-index:35;font-family:monospace;pointer-events:auto;max-height:85vh;overflow-y:auto;';
-    let html = '<div style="font-size:11px;color:#66ffff;text-transform:uppercase;letter-spacing:2px;margin-bottom:12px;text-align:center;">⚡ Lost Worlds</div>';
+    panel.style.cssText = 'position:fixed;top:50%;right:20px;transform:translateY(-50%);width:220px;background:rgba(5,5,20,0.92);border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:14px;z-index:35;font-family:monospace;pointer-events:auto;max-height:80vh;overflow-y:auto;';
+    let html = '<div style="font-size:10px;color:#66ffff;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px;text-align:center;">⚡ Lost Worlds</div>';
     for (let i = 0; i < worlds.length; i++) {
       const w = worlds[i];
       const color = '#' + (TYPE_COLORS[w.type] || 0x66ffff).toString(16).padStart(6, '0');
       const dist = Math.round(w.position.length());
-      html += '<div onclick="window.__voidJump(' + i + ')" style="padding:7px 10px;margin-bottom:5px;background:rgba(255,255,255,0.04);border:1px solid ' + color + '33;border-radius:8px;cursor:pointer;font-size:12px;color:#fff;display:flex;justify-content:space-between;align-items:center;transition:background 0.2s;" onmouseover="this.style.background=\'rgba(255,255,255,0.12)\'" onmouseout="this.style.background=\'rgba(255,255,255,0.04)\'">';
+      html += '<div onclick="window.__voidJump(' + i + ')" style="padding:6px 8px;margin-bottom:4px;background:rgba(255,255,255,0.04);border:1px solid ' + color + '33;border-radius:6px;cursor:pointer;font-size:11px;color:#fff;display:flex;justify-content:space-between;align-items:center;transition:background 0.2s;" onmouseover="this.style.background=\'rgba(255,255,255,0.1)\'" onmouseout="this.style.background=\'rgba(255,255,255,0.04)\'">';
       html += '<span style="color:' + color + ';">' + w.name + '</span>';
       html += '<span style="font-size:9px;color:#666;">' + dist + 'u</span>';
       html += '</div>';
     }
-    html += '<div style="font-size:9px;color:#555;text-align:center;margin-top:10px;">Click world to jump · Click ground to teleport</div>';
+    html += '<div style="font-size:9px;color:#555;text-align:center;margin-top:8px;">Click world to jump · Click ground to teleport</div>';
     panel.innerHTML = html;
     document.body.appendChild(panel);
+    // Wire jump function
     if (typeof window !== 'undefined') {
       window.__voidJump = (i) => jumpToWorld(i);
     }
@@ -976,8 +769,7 @@ export function install(Genesis) {
       enabled: flagOn(),
       worldCount: worlds.length,
       activeWorlds: worlds.filter(w => w.active).length,
-      portals: PORTALS.length,
-      orbiters: orbiters.length
+      portals: PORTALS.length
     })
   };
 
