@@ -638,6 +638,9 @@ export function install(Genesis) {
 
     scene.add(worldRoot);
 
+    // Build travel panel for easy navigation
+    buildTravelPanel();
+
     console.log('[VoidPopulation] Spawned', WORLD_COUNT, 'Lost Worlds at distances', MIN_DIST, '-', MAX_DIST, 'units');
     return { built: true, worlds: worlds.length };
   }
@@ -713,10 +716,54 @@ export function install(Genesis) {
     PORTALS.length = 0;
   }
 
+  function jumpToWorld(index) {
+    const w = worlds[index];
+    if (!w) return;
+    const pos = w.position;
+    // Try PlayerCam first
+    const PlayerCam = (typeof window !== 'undefined' && window.Genesis && window.Genesis.PlayerCam);
+    if (PlayerCam && PlayerCam.teleportTo) {
+      PlayerCam.teleportTo({ x: pos.x, y: pos.y + 5, z: pos.z });
+      return;
+    }
+    // Fallback: move camera directly
+    const cam = camera;
+    if (cam) {
+      cam.position.set(pos.x + 30, pos.y + 20, pos.z + 30);
+      cam.lookAt(pos.x, pos.y, pos.z);
+    }
+  }
+
+  function buildTravelPanel() {
+    if (document.getElementById('void-travel-panel')) return;
+    const panel = document.createElement('div');
+    panel.id = 'void-travel-panel';
+    panel.style.cssText = 'position:fixed;top:50%;right:20px;transform:translateY(-50%);width:220px;background:rgba(5,5,20,0.92);border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:14px;z-index:35;font-family:monospace;pointer-events:auto;max-height:80vh;overflow-y:auto;';
+    let html = '<div style="font-size:10px;color:#66ffff;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px;text-align:center;">⚡ Lost Worlds</div>';
+    for (let i = 0; i < worlds.length; i++) {
+      const w = worlds[i];
+      const color = '#' + (TYPE_COLORS[w.type] || 0x66ffff).toString(16).padStart(6, '0');
+      const dist = Math.round(w.position.length());
+      html += '<div onclick="window.__voidJump(' + i + ')" style="padding:6px 8px;margin-bottom:4px;background:rgba(255,255,255,0.04);border:1px solid ' + color + '33;border-radius:6px;cursor:pointer;font-size:11px;color:#fff;display:flex;justify-content:space-between;align-items:center;transition:background 0.2s;" onmouseover="this.style.background=\'rgba(255,255,255,0.1)\'" onmouseout="this.style.background=\'rgba(255,255,255,0.04)\'">';
+      html += '<span style="color:' + color + ';">' + w.name + '</span>';
+      html += '<span style="font-size:9px;color:#666;">' + dist + 'u</span>';
+      html += '</div>';
+    }
+    html += '<div style="font-size:9px;color:#555;text-align:center;margin-top:8px;">Click world to jump · Click ground to teleport</div>';
+    panel.innerHTML = html;
+    document.body.appendChild(panel);
+    // Wire jump function
+    if (typeof window !== 'undefined') {
+      window.__voidJump = (i) => jumpToWorld(i);
+    }
+  }
+
   const api = {
     populate,
     tick,
     dispose,
+    jumpToWorld,
+    buildTravelPanel,
     worlds: () => worlds.map(w => ({ name: w.name, type: w.type, plt: w.plt, position: { x: w.position.x, y: w.position.y, z: w.position.z }, active: w.active })),
     summary: () => ({
       enabled: flagOn(),
