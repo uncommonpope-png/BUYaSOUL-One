@@ -8548,10 +8548,15 @@ if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) {
         }
         window.__GENESIS_VOID_POPULATION = (typeof window.__GENESIS_VOID_POPULATION === 'boolean') ? window.__GENESIS_VOID_POPULATION : true;
         if (window.__GENESIS_VOID_POPULATION !== false) {
-          installVoidPopulation(window.Genesis);
-          if (window.Genesis && window.Genesis.VoidPopulation) {
-            window.Genesis.VoidPopulation.populate({ scene, camera });
-            console.log('[Genesis] VoidPopulation ready:', window.Genesis.VoidPopulation.summary());
+          try {
+            installVoidPopulation(window.Genesis);
+            if (window.Genesis && window.Genesis.VoidPopulation) {
+              window.Genesis.VoidPopulation.populate({ scene, camera });
+              console.log('[Genesis] VoidPopulation ready:', window.Genesis.VoidPopulation.summary());
+            }
+          } catch (_vpErr) {
+            console.error('[Genesis] VoidPopulation FAILED — boot continues:', _vpErr);
+            window.__GENESIS_VOID_POPULATION = false;
           }
         }
 

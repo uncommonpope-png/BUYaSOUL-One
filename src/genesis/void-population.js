@@ -699,6 +699,7 @@ export function install(Genesis) {
 
   function tick(dt) {
     if (!camera) return;
+    try {
     const camPos = camera.position;
     const time = performance.now() * 0.001;
     const rng = seededRandom('tick-' + Math.floor(time));
@@ -761,6 +762,7 @@ export function install(Genesis) {
     for (const p of PORTALS) { if (p.mesh && p.mesh.children[0]) p.mesh.children[0].rotation.z += dt * 0.3; }
 
     updateWorldHUD();
+    } catch (_e) { /* tick error — never kill animate loop */ }
   }
 
   // ==================== WORLD HUD (live Bible stats) ====================
