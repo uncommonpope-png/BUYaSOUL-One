@@ -8,10 +8,10 @@
 import * as THREE from 'three';
 
 const WORLD_COUNT = 10;
-const VOID_MIN_DIST = 400;
-const VOID_MAX_DIST = 2000;
-const WAKE_RADIUS = 180;    // Realm wakes when camera is within this distance
-const SLEEP_RADIUS = 250;   // Realm sleeps when camera exceeds this distance
+const VOID_MIN_DIST = 500;
+const VOID_MAX_DIST = 2500;
+const WAKE_RADIUS = 350;    // Realm wakes when camera is within this distance
+const SLEEP_RADIUS = 500;   // Realm sleeps when camera exceeds this distance
 
 const PREFIXES = ['Neon','Shadow','Crystal','Void','Ember','Frost','Storm','Soul','Cosmic','Phantom','Aether','Obsidian'];
 const SUFFIXES = ['City','Arena','Realm','Empire','Hub','Forge','Wilds','Nexus','Citadel','Sanctum','Garden','Spire'];
@@ -121,7 +121,11 @@ export function install(Genesis) {
         // Position the realm's root group in the void
         realm.root.position.set(pos.x, pos.y, pos.z);
 
-        // Add a towering beacon beam — visible from 2000+ units away
+        // Beacon group — ALWAYS visible, never hidden
+        const beaconGroup = new T.Group();
+        beaconGroup.name = 'beacon-' + config.id;
+
+        // Towering beacon beam
         const beamHeight = 350;
         const beamGeo = new T.CylinderGeometry(1.2, 1.2, beamHeight, 6);
         const themeColors = {
@@ -134,26 +138,26 @@ export function install(Genesis) {
         const beamMat = new T.MeshBasicMaterial({ color: beamColor, transparent: true, opacity: 0.35 });
         const beam = new T.Mesh(beamGeo, beamMat);
         beam.position.y = beamHeight / 2 + 5;
-        realm.root.add(beam);
+        beaconGroup.add(beam);
 
-        // Orb marker at top of beam — big glowing sphere
+        // Orb marker at top of beam
         const orbGeo = new T.SphereGeometry(6, 16, 12);
         const orbMat = new T.MeshStandardMaterial({ color: beamColor, emissive: beamColor, emissiveIntensity: 1.5, transparent: true, opacity: 0.9 });
         const orb = new T.Mesh(orbGeo, orbMat);
         orb.position.y = beamHeight + 10;
-        realm.root.add(orb);
+        beaconGroup.add(orb);
 
         // Halo ring around orb
         const haloGeo = new T.TorusGeometry(10, 0.4, 8, 32);
         const haloMat = new T.MeshBasicMaterial({ color: beamColor, transparent: true, opacity: 0.5 });
         const halo = new T.Mesh(haloGeo, haloMat);
         halo.position.y = beamHeight + 10;
-        realm.root.add(halo);
+        beaconGroup.add(halo);
 
         // Strong point light
         const light = new T.PointLight(beamColor, 2.0, 120);
         light.position.y = beamHeight + 10;
-        realm.root.add(light);
+        beaconGroup.add(light);
 
         // Name label — big, high up
         const canvas = document.createElement('canvas');
@@ -172,10 +176,15 @@ export function install(Genesis) {
         const label = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
         label.scale.set(80, 20, 1);
         label.position.y = beamHeight + 30;
-        realm.root.add(label);
+        beaconGroup.add(label);
 
-        // Start in sleep mode — SectorManager will wake when camera approaches
-        realm.exit();
+        // Add beacon to worldRoot IMMEDIATELY — always visible
+        worldRoot.add(beaconGroup);
+
+        // City group — only visible when player is near
+        const cityGroup = realm.root;
+        cityGroup.visible = false;
+        worldRoot.add(cityGroup);
       });
 
       worlds.push({ realm, config, position: pos, active: false });
@@ -254,11 +263,11 @@ export function install(Genesis) {
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
       if (!w.active && dist < WAKE_RADIUS) {
-        w.realm.enter();
+        w.realm.root.visible = true;
         w.active = true;
         console.log('[VoidPopulation] Woke:', w.config.name, 'at distance', Math.round(dist));
       } else if (w.active && dist > SLEEP_RADIUS) {
-        w.realm.exit();
+        w.realm.root.visible = false;
         w.active = false;
         console.log('[VoidPopulation] Sleeping:', w.config.name);
       }
@@ -271,7 +280,7 @@ export function install(Genesis) {
 
   function dispose() {
     for (const w of worlds) {
-      if (w.realm) w.realm.exit();
+      if (w.realm) w.realm.root.visible = false;
     }
     if (worldRoot.parent) worldRoot.parent.remove(worldRoot);
     worlds.length = 0;

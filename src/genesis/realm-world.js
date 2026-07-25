@@ -858,7 +858,6 @@ export class Realm {
     if (this.active) return;
     this.active = true;
     this.root.visible = true;
-    if (this.scene && this.root.parent !== this.scene) this.scene.add(this.root);
     if (this._lazyUI && !this._uiBuilt) { this._buildUI(); this._uiBuilt = true; }
     if (this._ui) this._ui.style.display = 'block';
     this._updatePLT(0, 0, 0); // refresh UI
@@ -869,7 +868,6 @@ export class Realm {
     if (!this.active) return;
     this.active = false;
     this.root.visible = false;
-    if (this.scene) this.scene.remove(this.root);
     if (this._ui) this._ui.style.display = 'none';
     if (typeof console !== 'undefined') console.log('[Realm] Exited', this.config.name);
   }
