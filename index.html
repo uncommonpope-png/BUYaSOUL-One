@@ -4335,15 +4335,16 @@ bloomPass.radius = 0.7;
         
         // ========== ORBIT CONTROLS ==========
         const controls = new OrbitControls(camera, renderer.domElement);
+        controls.keys = { LEFT: 'KeyA', UP: 'KeyW', RIGHT: 'KeyD', BOTTOM: 'KeyS' }; // WASD pan in orbit mode
         controls.enableDamping = true;
-        controls.enableZoom = true;
+        controls.enableZoom = false; // custom wheel handler manages zoom to avoid double-fire
         controls.enableRotate = true;
-        controls.enablePan = true; // WASD/edge sail across districts
-        controls.dampingFactor = 0.06;
+        controls.enablePan = true;
+        controls.dampingFactor = 0.08;
         controls.zoomSpeed = 2.0;
         controls.rotateSpeed = 0.6;
-        controls.panSpeed = 1.4;
-        controls.screenSpacePanning = false; // keep horizon level while panning
+        controls.panSpeed = 1.8;
+        controls.screenSpacePanning = true; // keep horizon level while panning
         controls.minDistance = 0.5;
         controls.maxDistance = 100000; // unlimited: fly anywhere, see everything
         controls.target.set(0, 2, 0);
@@ -8781,6 +8782,7 @@ keyState[e.code] = true;
                 if (newDist >= 0.5 && newDist <= 100000) {
                     offset.multiplyScalar(zoomDir);
                     camera.position.copy(controls.target).add(offset);
+                    controls.update(); // sync damping so orbit doesn't snap back
                 }
             }
         }, { passive: true });
