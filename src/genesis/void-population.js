@@ -650,48 +650,62 @@ export function install(Genesis) {
     const rng = seededRandom('void-population-genesis-v3');
 
     for (let i = 0; i < WORLD_COUNT; i++) {
-      const name = NAMES[i]; const type = TYPES[i];
-      const plt = { profit: 20 + Math.floor(rng() * 60), love: 20 + Math.floor(rng() * 60), tax: 10 + Math.floor(rng() * 40) };
-      const pos = randomPosition(i, rng); const color = TYPE_COLORS[type] || 0x66ffff;
+      try {
+        const name = NAMES[i]; const type = TYPES[i];
+        const plt = { profit: 20 + Math.floor(rng() * 60), love: 20 + Math.floor(rng() * 60), tax: 10 + Math.floor(rng() * 40) };
+        const pos = randomPosition(i, rng); const color = TYPE_COLORS[type] || 0x66ffff;
 
-      const planetSystem = createPlanetSystem(color, rng); planetSystem.group.position.copy(pos); worldRoot.add(planetSystem.group);
-      const sunGroup = createSun(color, pos); worldRoot.add(sunGroup);
-      const moonGroup = createMoonSystem(planetSystem.orbitData.mesh.position.clone().add(pos), planetSystem.orbitData.radius, color, rng); worldRoot.add(moonGroup);
+        let planetSystem = null;
+        try { planetSystem = createPlanetSystem(color, rng); planetSystem.group.position.copy(pos); worldRoot.add(planetSystem.group); } catch (e) { console.warn('[VoidPop] planet failed:', i, e); }
 
-      const beacon = createBeacon(name, type, plt, pos); worldRoot.add(beacon);
-      const { group: cityGroup, districts } = createCitySkeleton(pos, type, rng); worldRoot.add(cityGroup);
-      const questBeacon = createQuestBeacon({ type }, rng); questBeacon.position.copy(pos); worldRoot.add(questBeacon);
+        try { const sg = createSun(color, pos); worldRoot.add(sg); } catch (e) { console.warn('[VoidPop] sun failed:', i, e); }
 
-      // Bible state: agents, weather, day/night, PLT, souls, combat, achievements
-      const state = createWorldState({ plt }, rng);
-      spawnAgents(state, districts, rng);
-      setupWeather(state, worldRoot, rng);
-      state.agents.forEach(a => { a.mesh.group.position.add(pos); worldRoot.add(a.mesh.group); });
+        if (planetSystem) {
+          try { const mg = createMoonSystem(planetSystem.orbitData.mesh.position.clone().add(pos), planetSystem.orbitData.radius, color, rng); worldRoot.add(mg); } catch (e) { console.warn('[VoidPop] moons failed:', i, e); }
+        }
 
-      let realm = null;
-      const RealmWorld = Genesis.RealmWorld;
-      if (RealmWorld && RealmWorld.Realm) {
-        try {
-          realm = new RealmWorld.Realm({ id: 'void-' + i + '-' + name.toLowerCase().replace(/\s/g, '-'), config: { id: 'void-' + i, seed: 'void-' + i + '-' + name, name, type, plt, palette: { fog: 0x050510 } }, THREE: T, scene: worldRoot, lazyUI: true });
-          realm.init().then(() => { realm.root.position.copy(pos); realm.root.visible = false; worldRoot.add(realm.root); }).catch(() => {});
-        } catch (_) {}
+        let beacon = null;
+        try { beacon = createBeacon(name, type, plt, pos); worldRoot.add(beacon); } catch (e) { console.warn('[VoidPop] beacon failed:', i, e); }
+
+        let cityGroup = null, districts = {};
+        try { const skel = createCitySkeleton(pos, type, rng); cityGroup = skel.group; districts = skel.districts; worldRoot.add(cityGroup); } catch (e) { console.warn('[VoidPop] city failed:', i, e); }
+
+        let questBeacon = null;
+        try { questBeacon = createQuestBeacon({ type }, rng); questBeacon.position.copy(pos); worldRoot.add(questBeacon); } catch (e) { console.warn('[VoidPop] quest beacon failed:', i, e); }
+
+        const state = createWorldState({ plt }, rng);
+        try { spawnAgents(state, districts, rng); state.agents.forEach(a => { a.mesh.group.position.add(pos); worldRoot.add(a.mesh.group); }); } catch (e) { console.warn('[VoidPop] agents failed:', i, e); }
+        try { setupWeather(state, worldRoot, rng); } catch (e) {}
+
+        let realm = null;
+        const RealmWorld = Genesis.RealmWorld;
+        if (RealmWorld && RealmWorld.Realm) {
+          try {
+            realm = new RealmWorld.Realm({ id: 'void-' + i + '-' + name.toLowerCase().replace(/\s/g, '-'), config: { id: 'void-' + i, seed: 'void-' + i + '-' + name, name, type, plt, palette: { fog: 0x050510 } }, THREE: T, scene: worldRoot, lazyUI: true });
+            realm.init().then(() => { realm.root.position.copy(pos); realm.root.visible = false; worldRoot.add(realm.root); }).catch(() => {});
+          } catch (_) {}
+        }
+
+        worlds.push({ realm, beacon, cityGroup, districts, questBeacon, planetSystem, state, name, type, plt, position: pos, active: false });
+      } catch (worldErr) {
+        console.error('[VoidPop] WORLD', i, 'FATAL:', worldErr);
       }
-
-      worlds.push({ realm, beacon, cityGroup, districts, questBeacon, planetSystem, sunGroup, moonGroup, state, name, type, plt, position: pos, active: false });
     }
 
-    for (let i = 0; i < WORLD_COUNT; i++) {
-      const from = worlds[i]; const to = worlds[(i + 1) % WORLD_COUNT];
-      const portal = createPortal(from, to, rng);
-      const dir = new T.Vector3().subVectors(to.position, from.position).normalize();
-      portal.position.copy(from.position).add(dir.multiplyScalar(120)); portal.lookAt(to.position);
-      worldRoot.add(portal); PORTALS.push({ from: i, to: (i + 1) % WORLD_COUNT, mesh: portal });
+    for (let i = 0; i < worlds.length; i++) {
+      try {
+        const from = worlds[i]; const to = worlds[(i + 1) % worlds.length];
+        const portal = createPortal(from, to, rng);
+        const dir = new T.Vector3().subVectors(to.position, from.position).normalize();
+        portal.position.copy(from.position).add(dir.multiplyScalar(120)); portal.lookAt(to.position);
+        worldRoot.add(portal); PORTALS.push({ from: i, to: (i + 1) % worlds.length, mesh: portal });
+      } catch (e) { console.warn('[VoidPop] portal failed:', i, e); }
     }
 
     scene.add(worldRoot);
     buildTravelPanel();
     buildWorldHUD();
-    console.log('[VoidPopulation] Spawned', WORLD_COUNT, 'LIVING Lost Worlds — agents walking, weather changing, day/night cycling');
+    console.log('[VoidPopulation] Spawned', worlds.length, 'of', WORLD_COUNT, 'Lost Worlds');
     return { built: true, worlds: worlds.length };
   }
 
