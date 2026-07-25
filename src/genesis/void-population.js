@@ -107,12 +107,13 @@ export function install(Genesis) {
       const config = generateWorldConfig(i);
       const pos = positionWorld(i);
 
-      // Create the realm instance
+      // Create the realm instance (lazy UI — only builds HUD when player is near)
       const realm = new RealmWorld.Realm({
         id: config.id,
         config,
         THREE: T,
-        scene: worldRoot
+        scene: worldRoot,
+        lazyUI: true
       });
 
       // Initialize the realm (builds city, agents, weather, day/night, UI)

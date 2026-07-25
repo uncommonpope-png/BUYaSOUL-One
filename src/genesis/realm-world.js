@@ -72,7 +72,7 @@ class ECSWorld {
 }
 
 export class Realm {
-  constructor({ id, config, THREE, scene } = {}) {
+  constructor({ id, config, THREE, scene, lazyUI } = {}) {
     this.id = id || 'realm-unknown';
     this.config = config || {};
     this.THREE = THREE || window.THREE;
@@ -97,6 +97,8 @@ export class Realm {
     this._weatherSystem = null;
     this._dayNight = null;
     this._particles = null;
+    this._lazyUI = !!lazyUI;
+    this._uiBuilt = false;
   }
 
   _rand(a, b){ return a + this._rng() * (b - a); }
@@ -130,7 +132,7 @@ export class Realm {
     this._spawnAgents();
     this._setupWeather();
     this._setupDayNight();
-    this._buildUI();
+    if (!this._lazyUI) this._buildUI();
     return this;
   }
 
@@ -825,6 +827,7 @@ export class Realm {
     this.active = true;
     this.root.visible = true;
     if (this.scene && this.root.parent !== this.scene) this.scene.add(this.root);
+    if (this._lazyUI && !this._uiBuilt) { this._buildUI(); this._uiBuilt = true; }
     if (this._ui) this._ui.style.display = 'block';
     this._updatePLT(0, 0, 0); // refresh UI
     if (typeof console !== 'undefined') console.log('[Realm] Entered', this.config.name);
