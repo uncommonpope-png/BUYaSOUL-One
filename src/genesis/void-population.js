@@ -656,7 +656,7 @@ export function install(Genesis) {
 
       const planetSystem = createPlanetSystem(color, rng); planetSystem.group.position.copy(pos); worldRoot.add(planetSystem.group);
       const sunGroup = createSun(color, pos); worldRoot.add(sunGroup);
-      const moonGroup = createMoonSystem(planetSystem.orbitData.mesh.position.clone().add(pos), planetSystem.orbitData.radius, color, rng); moonGroup.position.copy(pos); worldRoot.add(moonGroup);
+      const moonGroup = createMoonSystem(planetSystem.orbitData.mesh.position.clone().add(pos), planetSystem.orbitData.radius, color, rng); worldRoot.add(moonGroup);
 
       const beacon = createBeacon(name, type, plt, pos); worldRoot.add(beacon);
       const { group: cityGroup, districts } = createCitySkeleton(pos, type, rng); worldRoot.add(cityGroup);
