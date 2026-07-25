@@ -8776,7 +8776,7 @@ keyState[e.code] = true;
                 const sensitivity = 0.02 + camDist * 0.00025;
                 camDist = Math.max(2, Math.min(300, camDist + e.deltaY * sensitivity));
             } else if (cameraMode === 'orbit' && controls && controls.enabled) {
-                const zoomDir = e.deltaY > 0 ? 1.08 : 1 / 1.08;
+                const zoomDir = e.deltaY > 0 ? 1.15 : 1 / 1.15;
                 const offset = camera.position.clone().sub(controls.target);
                 const newDist = offset.length() * zoomDir;
                 if (newDist >= 0.5 && newDist <= 100000) {
