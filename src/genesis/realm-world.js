@@ -110,11 +110,11 @@ export class Realm {
     const colors = { work:0x00ffff, home:0xff66aa, social:0xffaa00, learn:0x00ff88 };
     const eColors = { work:0x0088aa, home:0xaa3366, social:0xaa7700, learn:0x00aa55 };
     const zones = [
-      { x:[-40,-10], z:[-40,-10] }, { x:[10,40], z:[-40,-10] },
-      { x:[-40,-10], z:[10,40] }, { x:[10,40], z:[10,40] }
+      { x:[-85,-15], z:[-85,-15] }, { x:[15,85], z:[-85,-15] },
+      { x:[-85,-15], z:[15,85] }, { x:[15,85], z:[15,85] }
     ];
-    const counts = [15, 18, 12, 10];
-    const heights = [[8,30],[4,12],[3,8],[5,15]];
+    const counts = [22, 25, 18, 15];
+    const heights = [[12,40],[6,20],[5,14],[8,28]];
     const d = {};
     for (let i = 0; i < 4; i++) {
       d[types[i]] = {
@@ -138,13 +138,13 @@ export class Realm {
 
   _buildLighting() {
     const pal = this.config.palette || { fog: 0x050510 };
-    this.ambient = new this.THREE.AmbientLight(0x332244, 0.5);
-    this.dirLight = new this.THREE.DirectionalLight(0xffccaa, 1.0);
-    this.dirLight.position.set(30, 40, 20);
+    this.ambient = new this.THREE.AmbientLight(0x332244, 0.6);
+    this.dirLight = new this.THREE.DirectionalLight(0xffccaa, 1.2);
+    this.dirLight.position.set(60, 80, 40);
     this.dirLight.castShadow = true;
-    this.dirLight.shadow.mapSize.set(1024, 1024);
-    this.moonLight = new this.THREE.DirectionalLight(0x4466aa, 0.3);
-    this.moonLight.position.set(-20, 30, -10);
+    this.dirLight.shadow.mapSize.set(2048, 2048);
+    this.moonLight = new this.THREE.DirectionalLight(0x4466aa, 0.4);
+    this.moonLight.position.set(-40, 60, -20);
     this.root.add(this.ambient);
     this.root.add(this.dirLight);
     this.root.add(this.moonLight);
@@ -158,8 +158,8 @@ export class Realm {
         const x = this._rand(d.zone.x[0], d.zone.x[1]);
         const z = this._rand(d.zone.z[0], d.zone.z[1]);
         const h = this._rand(d.minH, d.maxH);
-        const w = this._rand(2, 4);
-        const d2 = this._rand(2, 4);
+        const w = this._rand(3, 6);
+        const d2 = this._rand(3, 6);
         const geo = new this.THREE.BoxGeometry(w, h, d2);
         const mat = new this.THREE.MeshStandardMaterial({
           color: d.color, emissive: d.eColor, emissiveIntensity: 0.05,
@@ -169,10 +169,10 @@ export class Realm {
         mesh.position.set(x, h / 2, z);
         mesh.castShadow = true; mesh.receiveShadow = true;
         this.root.add(mesh);
-        // Windows
+        // Windows — more window rows for taller buildings
         if (h > 6) {
-          for (let wy = 2; wy < h - 1; wy += 2) {
-            const wGeo = new this.THREE.BoxGeometry(w * 0.8, 0.3, 0.05);
+          for (let wy = 2; wy < h - 1; wy += 2.5) {
+            const wGeo = new this.THREE.BoxGeometry(w * 0.8, 0.4, 0.06);
             const wMat = new this.THREE.MeshStandardMaterial({ color: d.color, emissive: d.color, emissiveIntensity: 0.3 });
             const win = new this.THREE.Mesh(wGeo, wMat);
             win.position.set(x, wy, z + d2 / 2 + 0.03);
@@ -181,48 +181,78 @@ export class Realm {
         }
         // Cap
         if (this._rng() > 0.5) {
-          const cGeo = new this.THREE.BoxGeometry(w + 0.2, 0.2, d2 + 0.2);
+          const cGeo = new this.THREE.BoxGeometry(w + 0.3, 0.3, d2 + 0.3);
           const cMat = new this.THREE.MeshStandardMaterial({ color: d.color, emissive: d.color, emissiveIntensity: 0.5 });
           const cap = new this.THREE.Mesh(cGeo, cMat);
-          cap.position.set(x, h + 0.1, z);
+          cap.position.set(x, h + 0.15, z);
           this.root.add(cap);
+        }
+        // Antenna spire on tall buildings
+        if (h > 25 && this._rng() > 0.4) {
+          const spireH = this._rand(3, 8);
+          const spire = new this.THREE.Mesh(
+            new this.THREE.CylinderGeometry(0.1, 0.3, spireH, 4),
+            new this.THREE.MeshStandardMaterial({ color: d.color, emissive: d.color, emissiveIntensity: 0.6 })
+          );
+          spire.position.set(x, h + spireH / 2, z);
+          this.root.add(spire);
         }
         this.buildings.push({ mesh, district: name, x, z, height: h });
       }
     }
-    // Roads
+    // Outer ring buildings — scattered at larger radii like the cosmic library
+    const ringMat = new this.THREE.MeshStandardMaterial({ color: 0x222244, emissive: 0x110022, emissiveIntensity: 0.1, metalness: 0.6, roughness: 0.4 });
+    const ringCounts = [{ r: 100, count: 20, skip: 0.4 }, { r: 140, count: 28, skip: 0.5 }, { r: 180, count: 35, skip: 0.6 }];
+    for (const ring of ringCounts) {
+      for (let i = 0; i < ring.count; i++) {
+        if (this._rng() < ring.skip) continue;
+        const angle = (i / ring.count) * Math.PI * 2 + this._rng() * 0.3;
+        const rr = ring.r + this._rng() * 15 - 7;
+        const x = Math.cos(angle) * rr;
+        const z = Math.sin(angle) * rr;
+        const h = this._rand(4, 18);
+        const w = this._rand(2, 5);
+        const d2 = this._rand(2, 5);
+        const mesh = new this.THREE.Mesh(new this.THREE.BoxGeometry(w, h, d2), ringMat);
+        mesh.position.set(x, h / 2, z);
+        mesh.castShadow = true; mesh.receiveShadow = true;
+        this.root.add(mesh);
+        this.buildings.push({ mesh, district: 'outer', x, z, height: h });
+      }
+    }
+    // Roads — wider, longer grid
     const roadMat = new this.THREE.MeshStandardMaterial({ color: 0x111122, roughness: 0.8 });
-    for (let i = -45; i <= 45; i += 10) {
-      const r1 = new this.THREE.Mesh(new this.THREE.BoxGeometry(90, 0.05, 2), roadMat);
+    for (let i = -90; i <= 90; i += 14) {
+      const r1 = new this.THREE.Mesh(new this.THREE.BoxGeometry(180, 0.06, 3), roadMat);
       r1.position.set(0, 0.03, i); r1.receiveShadow = true; this.root.add(r1);
-      const r2 = new this.THREE.Mesh(new this.THREE.BoxGeometry(2, 0.05, 90), roadMat);
+      const r2 = new this.THREE.Mesh(new this.THREE.BoxGeometry(3, 0.06, 180), roadMat);
       r2.position.set(i, 0.03, 0); r2.receiveShadow = true; this.root.add(r2);
     }
-    // Ground
+    // Ground — large plane
     const ground = new this.THREE.Mesh(
-      new this.THREE.PlaneGeometry(200, 200),
+      new this.THREE.PlaneGeometry(500, 500),
       new this.THREE.MeshStandardMaterial({ color: 0x080818, roughness: 0.9 })
     );
     ground.rotation.x = -Math.PI / 2; ground.position.y = -0.01; ground.receiveShadow = true;
     this.root.add(ground);
-    // Grid
-    const grid = new this.THREE.GridHelper(200, 40, 0xff00aa, 0x110022);
-    grid.position.y = 0.02; grid.material.opacity = 0.15; grid.material.transparent = true;
+    // Grid — larger
+    const grid = new this.THREE.GridHelper(400, 50, 0xff00aa, 0x110022);
+    grid.position.y = 0.02; grid.material.opacity = 0.12; grid.material.transparent = true;
     this.root.add(grid);
-    // District labels
+    // District labels — bigger, higher
     for (const [name, d] of Object.entries(DISTRICTS)) {
       const cx = (d.zone.x[0] + d.zone.x[1]) / 2;
       const cz = (d.zone.z[0] + d.zone.z[1]) / 2;
       const canvas = document.createElement('canvas');
-      canvas.width = 256; canvas.height = 64;
+      canvas.width = 512; canvas.height = 128;
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, 256, 64);
+      ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, 512, 128);
       ctx.fillStyle = '#' + d.color.toString(16).padStart(6, '0');
-      ctx.font = 'bold 28px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(name.toUpperCase(), 128, 42);
+      ctx.font = 'bold 48px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(name.toUpperCase(), 256, 70);
       const tex = new this.THREE.CanvasTexture(canvas);
-      const label = new this.THREE.Mesh(new this.THREE.PlaneGeometry(8, 2), new this.THREE.MeshBasicMaterial({ map: tex, transparent: true }));
-      label.position.set(cx, 20, cz); label.rotation.x = -Math.PI / 4;
+      const label = new this.THREE.Mesh(new this.THREE.PlaneGeometry(16, 4), new this.THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+      label.position.set(cx, 35, cz); label.rotation.x = -Math.PI / 4;
       this.root.add(label);
     }
   }
@@ -277,8 +307,8 @@ export class Realm {
       const type = ['profit', 'love', 'tax'][i % 3];
       const districtKeys = Object.keys(DISTRICTS);
       const zone = DISTRICTS[districtKeys[i % 4]].zone;
-      const x = (zone.x[0] + zone.x[1]) / 2 + (this._rng() - 0.5) * 15;
-      const z = (zone.z[0] + zone.z[1]) / 2 + (this._rng() - 0.5) * 15;
+      const x = (zone.x[0] + zone.x[1]) / 2 + (this._rng() - 0.5) * 40;
+      const z = (zone.z[0] + zone.z[1]) / 2 + (this._rng() - 0.5) * 40;
       const mesh = this._createHumanoid(type, x, z, names[i]);
       const agent = {
         name: names[i], type,
@@ -310,7 +340,7 @@ export class Realm {
           const geo = new this.THREE.BufferGeometry();
           const pos = new Float32Array(s.particles * 3);
           for (let i = 0; i < s.particles * 3; i += 3) {
-            pos[i] = (this._rng() - 0.5) * 100; pos[i + 1] = this._rng() * 50; pos[i + 2] = (this._rng() - 0.5) * 100;
+            pos[i] = (this._rng() - 0.5) * 250; pos[i + 1] = this._rng() * 80; pos[i + 2] = (this._rng() - 0.5) * 250;
           }
           geo.setAttribute('position', new this.THREE.BufferAttribute(pos, 3));
           this._particles = new this.THREE.Points(geo, new this.THREE.PointsMaterial({ color: s.color, size: s.color === 0x4488ff ? 0.1 : 0.3, transparent: true, opacity: 0.8 }));
@@ -321,7 +351,7 @@ export class Realm {
         if (!this._particles) return;
         const pos = this._particles.geometry.attributes.position.array;
         const speed = this._weatherSystem.current === 'rain' ? 20 : 2;
-        for (let i = 1; i < pos.length; i += 3) { pos[i] -= speed * dt; if (pos[i] < 0) pos[i] = 50; }
+        for (let i = 1; i < pos.length; i += 3) { pos[i] -= speed * dt; if (pos[i] < 0) pos[i] = 80; }
         this._particles.geometry.attributes.position.needsUpdate = true;
       }
     };
@@ -669,13 +699,13 @@ export class Realm {
           const district = lowest === 'energy' ? 'home' : lowest === 'social' ? 'social' : lowest === 'skill' ? 'learn' : 'work';
           const d = this._districts[district];
           if (d) {
-            a.targetPos = new this.THREE.Vector3((d.zone.x[0] + d.zone.x[1]) / 2 + (this._rng() - 0.5) * 15, 0, (d.zone.z[0] + d.zone.z[1]) / 2 + (this._rng() - 0.5) * 15);
+            a.targetPos = new this.THREE.Vector3((d.zone.x[0] + d.zone.x[1]) / 2 + (this._rng() - 0.5) * 40, 0, (d.zone.z[0] + d.zone.z[1]) / 2 + (this._rng() - 0.5) * 40);
             a.state = 'WALKING';
             a.mesh.ring.material.opacity = 0.3;
           }
         }
         if (this._rng() < 0.001) {
-          const nearby = this.agents.filter(other => other !== a && other.mesh.group.position.distanceTo(a.mesh.group.position) < 8);
+          const nearby = this.agents.filter(other => other !== a && other.mesh.group.position.distanceTo(a.mesh.group.position) < 16);
           if (nearby.length > 0) { a.conversationTarget = nearby[0]; a.state = 'SOCIAL'; a.stateTimer = 0; }
         }
       } else if (a.state === 'WALKING') {
@@ -688,7 +718,7 @@ export class Realm {
           for (const k of NEED_TYPES) if (a.needs[k] < 50) a.needs[k] = Math.min(100, a.needs[k] + 30 * dt);
           continue;
         }
-        pos.x += (dx / dist) * 2.5 * dt; pos.z += (dz / dist) * 2.5 * dt;
+        pos.x += (dx / dist) * 4.0 * dt; pos.z += (dz / dist) * 4.0 * dt;
         a.mesh.group.rotation.y = Math.atan2(dx, dz);
         // Walk animation
         a.mesh.legs.forEach((l, i) => l.rotation.x = Math.sin(performance.now() * 0.005 + i * Math.PI) * 0.4);
@@ -731,26 +761,28 @@ export class Realm {
     if (!this._minimapCtx) return;
     const ctx = this._minimapCtx;
     const w = 160, h = 160;
+    const worldSize = 450; // maps -225 to +225
+    const half = worldSize / 2;
     ctx.fillStyle = '#050510'; ctx.fillRect(0, 0, w, h);
     for (const [name, d] of Object.entries(this._districts)) {
-      const x1 = ((d.zone.x[0] + 50) / 100) * w;
-      const z1 = ((d.zone.z[0] + 50) / 100) * h;
-      const x2 = ((d.zone.x[1] + 50) / 100) * w;
-      const z2 = ((d.zone.z[1] + 50) / 100) * h;
+      const x1 = ((d.zone.x[0] + half) / worldSize) * w;
+      const z1 = ((d.zone.z[0] + half) / worldSize) * h;
+      const x2 = ((d.zone.x[1] + half) / worldSize) * w;
+      const z2 = ((d.zone.z[1] + half) / worldSize) * h;
       ctx.fillStyle = '#' + d.color.toString(16).padStart(6, '0') + '33';
       ctx.fillRect(x1, z1, x2 - x1, z2 - z1);
     }
     for (const a of this.agents) {
-      const x = ((a.mesh.group.position.x + 50) / 100) * w;
-      const z = ((a.mesh.group.position.z + 50) / 100) * h;
+      const x = ((a.mesh.group.position.x + half) / worldSize) * w;
+      const z = ((a.mesh.group.position.z + half) / worldSize) * h;
       ctx.fillStyle = a.type === 'profit' ? '#ffaa00' : a.type === 'love' ? '#ff66aa' : '#00ffcc';
       ctx.beginPath(); ctx.arc(x, z, 2.5, 0, Math.PI * 2); ctx.fill();
     }
     // Camera triangle
     const cam = window.__realmActiveCamera;
     if (cam) {
-      const cx = ((cam.position.x + 50) / 100) * w;
-      const cz = ((cam.position.z + 50) / 100) * h;
+      const cx = ((cam.position.x + half) / worldSize) * w;
+      const cz = ((cam.position.z + half) / worldSize) * h;
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(cx, cz - 4); ctx.lineTo(cx + 3, cz + 2); ctx.lineTo(cx - 3, cz + 2); ctx.closePath(); ctx.stroke();
     }

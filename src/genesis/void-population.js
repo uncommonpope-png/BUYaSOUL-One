@@ -121,9 +121,9 @@ export function install(Genesis) {
         // Position the realm's root group in the void
         realm.root.position.set(pos.x, pos.y, pos.z);
 
-        // Add a floating beacon beam above the realm so it's visible from far away
-        const beamHeight = 60;
-        const beamGeo = new T.CylinderGeometry(0.4, 0.4, beamHeight, 4);
+        // Add a towering beacon beam — visible from 2000+ units away
+        const beamHeight = 350;
+        const beamGeo = new T.CylinderGeometry(1.2, 1.2, beamHeight, 6);
         const themeColors = {
           combat: 0xff3355, breeding: 0xff66cc, districts: 0x00ffcc,
           conversation: 0xffaa00, building: 0x4488ff, trading: 0xffdd00,
@@ -131,41 +131,47 @@ export function install(Genesis) {
           economy: 0x00ffaa
         };
         const beamColor = themeColors[config.type] || 0x66ffff;
-        const beamMat = new T.MeshBasicMaterial({ color: beamColor, transparent: true, opacity: 0.2 });
+        const beamMat = new T.MeshBasicMaterial({ color: beamColor, transparent: true, opacity: 0.35 });
         const beam = new T.Mesh(beamGeo, beamMat);
         beam.position.y = beamHeight / 2 + 5;
         realm.root.add(beam);
 
-        // Orb marker at top of beam
-        const orbGeo = new T.SphereGeometry(2.5, 12, 8);
-        const orbMat = new T.MeshStandardMaterial({ color: beamColor, emissive: beamColor, emissiveIntensity: 1.2, transparent: true, opacity: 0.8 });
+        // Orb marker at top of beam — big glowing sphere
+        const orbGeo = new T.SphereGeometry(6, 16, 12);
+        const orbMat = new T.MeshStandardMaterial({ color: beamColor, emissive: beamColor, emissiveIntensity: 1.5, transparent: true, opacity: 0.9 });
         const orb = new T.Mesh(orbGeo, orbMat);
-        orb.position.y = beamHeight + 5;
+        orb.position.y = beamHeight + 10;
         realm.root.add(orb);
 
-        // Point light
-        const light = new T.PointLight(beamColor, 0.8, 50);
-        light.position.y = beamHeight + 5;
+        // Halo ring around orb
+        const haloGeo = new T.TorusGeometry(10, 0.4, 8, 32);
+        const haloMat = new T.MeshBasicMaterial({ color: beamColor, transparent: true, opacity: 0.5 });
+        const halo = new T.Mesh(haloGeo, haloMat);
+        halo.position.y = beamHeight + 10;
+        realm.root.add(halo);
+
+        // Strong point light
+        const light = new T.PointLight(beamColor, 2.0, 120);
+        light.position.y = beamHeight + 10;
         realm.root.add(light);
 
-        // Name label
+        // Name label — big, high up
         const canvas = document.createElement('canvas');
-        canvas.width = 512; canvas.height = 128;
+        canvas.width = 1024; canvas.height = 256;
         const ctx = canvas.getContext('2d');
-        ctx.fillStyle = 'rgba(0,0,0,0.75)';
-        ctx.fillRect(0, 0, 512, 128);
+        ctx.fillStyle = 'rgba(0,0,0,0.8)';
+        ctx.fillRect(0, 0, 1024, 256);
         ctx.fillStyle = '#' + beamColor.toString(16).padStart(6, '0');
-        ctx.font = 'bold 32px sans-serif';
+        ctx.font = 'bold 64px sans-serif';
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(config.name, 256, 40);
-        ctx.font = '18px sans-serif';
+        ctx.fillText(config.name, 512, 80);
+        ctx.font = '32px sans-serif';
         ctx.fillStyle = '#aaaacc';
-        ctx.fillText(config.type.toUpperCase() + ' · PLT ' + config.plt.profit + '/' + config.plt.love + '/' + config.plt.tax, 256, 80);
+        ctx.fillText(config.type.toUpperCase() + ' · PLT ' + config.plt.profit + '/' + config.plt.love + '/' + config.plt.tax, 512, 160);
         const tex = new T.CanvasTexture(canvas);
         const label = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-        label.scale.set(40, 10, 1);
-        label.position.y = beamHeight + 12;
+        label.scale.set(80, 20, 1);
+        label.position.y = beamHeight + 30;
         realm.root.add(label);
 
         // Start in sleep mode — SectorManager will wake when camera approaches
@@ -191,41 +197,41 @@ export function install(Genesis) {
   }
 
   function populateFallback(opts) {
-    // If Realm class isn't available, spawn simple markers
+    // If Realm class isn't available, spawn large markers
     for (let i = 0; i < WORLD_COUNT; i++) {
       const config = generateWorldConfig(i);
       const pos = positionWorld(i);
       const group = new T.Group();
       group.position.set(pos.x, pos.y, pos.z);
 
-      const beamGeo = new T.CylinderGeometry(0.5, 0.5, 80, 4);
-      const beamMat = new T.MeshBasicMaterial({ color: 0x66ffff, transparent: true, opacity: 0.25 });
+      const beamGeo = new T.CylinderGeometry(1.5, 1.5, 300, 6);
+      const beamMat = new T.MeshBasicMaterial({ color: 0x66ffff, transparent: true, opacity: 0.3 });
       const beam = new T.Mesh(beamGeo, beamMat);
-      beam.position.y = 40;
+      beam.position.y = 150;
       group.add(beam);
 
-      const orbGeo = new T.SphereGeometry(3, 12, 8);
-      const orbMat = new T.MeshStandardMaterial({ color: 0x66ffff, emissive: 0x66ffff, emissiveIntensity: 1.0 });
+      const orbGeo = new T.SphereGeometry(8, 16, 12);
+      const orbMat = new T.MeshStandardMaterial({ color: 0x66ffff, emissive: 0x66ffff, emissiveIntensity: 1.5 });
       const orb = new T.Mesh(orbGeo, orbMat);
-      orb.position.y = 85;
+      orb.position.y = 310;
       group.add(orb);
 
       const canvas = document.createElement('canvas');
-      canvas.width = 512; canvas.height = 128;
+      canvas.width = 1024; canvas.height = 256;
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = 'rgba(0,0,0,0.75)';
-      ctx.fillRect(0, 0, 512, 128);
+      ctx.fillStyle = 'rgba(0,0,0,0.8)';
+      ctx.fillRect(0, 0, 1024, 256);
       ctx.fillStyle = '#66ffff';
-      ctx.font = 'bold 32px sans-serif';
+      ctx.font = 'bold 64px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(config.name, 256, 50);
-      ctx.font = '18px sans-serif';
+      ctx.fillText(config.name, 512, 100);
+      ctx.font = '32px sans-serif';
       ctx.fillStyle = '#aaaacc';
-      ctx.fillText(config.type + ' · PLT ' + config.plt.profit + '/' + config.plt.love + '/' + config.plt.tax, 256, 90);
+      ctx.fillText(config.type + ' · PLT ' + config.plt.profit + '/' + config.plt.love + '/' + config.plt.tax, 512, 180);
       const tex = new T.CanvasTexture(canvas);
       const label = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-      label.scale.set(30, 8, 1);
-      label.position.y = 95;
+      label.scale.set(60, 15, 1);
+      label.position.y = 340;
       group.add(label);
 
       worldRoot.add(group);
