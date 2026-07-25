@@ -79,7 +79,7 @@
     function onWheel(e) {
       if (!enabled) return;
       e.preventDefault();
-      dist = Math.max(3, Math.min(80, dist + e.deltaY * 0.02));
+      dist = Math.max(3, Math.min(2000, dist + e.deltaY * 0.02));
     }
 
     function bind(domEl, s) {

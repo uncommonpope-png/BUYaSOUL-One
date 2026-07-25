@@ -54,8 +54,8 @@ export class SoulMultiverseVisualizer {
     // EXACTLY match the Lost World Bible camera setup
     if (this.camera && window.controls) {
       window.controls.enabled = true;
-      window.controls.minDistance = 5;
-      window.controls.maxDistance = 80;
+      window.controls.minDistance = 0.5;
+      window.controls.maxDistance = 2000;
       window.controls.maxPolarAngle = Math.PI / 2.1;
       window.controls.enableDamping = true;
       window.controls.dampingFactor = 0.05;

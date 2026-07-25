@@ -995,6 +995,7 @@
         import { install as installWeaveBridge } from './src/genesis/weave-bridge.js';
         import { install as installRealmGenerator } from './src/genesis/realm-generator.js';
         import { install as installSoulMultiverse } from './src/genesis/soul-multiverse-visualizer.js';
+        import { install as installVoidPopulation } from './src/genesis/void-population.js';
 
         // ========== GENESIS TIER 0: telemetry + survival + registry ==========
         const Genesis = window.Genesis || (window.Genesis = {});
@@ -8537,6 +8538,16 @@ if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) {
         // All visible simultaneously. Camera freely orbits/pans/zooms.
         if (window.__GENESIS_SOUL_MULTIVERSE !== false) {
           installSoulMultiverse(window.Genesis, { THREE, scene, camera, seed: 'Craig-Prime' });
+        }
+
+        // ========== VOID POPULATION — randomized multiverse objects beyond the city ==========
+        window.__GENESIS_VOID_POPULATION = (typeof window.__GENESIS_VOID_POPULATION === 'boolean') ? window.__GENESIS_VOID_POPULATION : true;
+        if (window.__GENESIS_VOID_POPULATION !== false) {
+          installVoidPopulation(window.Genesis);
+          if (window.Genesis && window.Genesis.VoidPopulation) {
+            window.Genesis.VoidPopulation.populate({ scene, camera });
+            console.log('[Genesis] VoidPopulation ready:', window.Genesis.VoidPopulation.summary());
+          }
         }
 
         // ========== P138/P183: PLT LEDGER (per-action Profit + Love - Tax audit trail) ==========
