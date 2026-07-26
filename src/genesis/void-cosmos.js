@@ -19,6 +19,8 @@ const COSMOS_CONFIG = {
   skyDomeTint: 0x050510,
   cosmosGroupRadius: 300,
   orbitBaseSpeed: 0.0003,
+  pyramidBaseSize: 150,
+  pyramidPulseAmplitude: 0.25,
 };
 
 const NEBULA_PALETTES = [
@@ -27,6 +29,12 @@ const NEBULA_PALETTES = [
   { core: [40, 200, 200], outer: [20, 100, 220] },
   { core: [220, 100, 50], outer: [180, 40, 100] },
 ];
+
+// PYRAMIDION CONSTANTS
+const PYRAMIDION_COLORS = {
+  grounded: 0x44aaff,   // cyan — Work district
+  inverted: 0xffaa22,   // amber — Love/Expansion
+};
 
 function seededRandom(seed) {
   let s = 0;
@@ -331,12 +339,81 @@ export function installVoidCosmos(Genesis) {
     Genesis._voidCosmosGroup = group;
   }
 
+  function spawnPyramidion() {
+    if (!flagOn() || !Genesis._voidCosmosGroup) return null;
+    if (Genesis._pyramidionGroup) {
+      if (Genesis._pyramidionGroup.parent) Genesis._pyramidionGroup.parent.remove(Genesis._pyramidionGroup);
+      Genesis._pyramidionGroup = null;
+    }
+
+    const group = new T.Group();
+    group.name = 'bifrost-pyramidion';
+
+    const pyramidRadius = COSMOS_CONFIG.pyramidBaseSize;
+    const height = pyramidRadius * 1.618;
+
+    // Grounded pyramid at Y=0
+    const groundGeo = new T.CylinderGeometry(pyramidRadius, 0, height, 24);
+    const groundMat = new T.MeshStandardMaterial({
+      color: new T.Color(PYRAMIDION_COLORS.grounded),
+      emissive: new T.Color(PYRAMIDION_COLORS.grounded),
+      emissiveIntensity: 0.5,
+      transparent: true,
+      opacity: 0.5,
+      roughness: 0.4,
+      metalness: 0.3,
+    });
+    const groundPyramid = new T.Mesh(groundGeo, groundMat);
+    groundPyramid.position.y = height / 2;
+    group.add(groundPyramid);
+
+    // Halo ring for grounded
+    const groundRingGeo = new T.RingGeometry(pyramidRadius * 1.1, pyramidRadius * 1.2, 48);
+    const groundRingMat = new T.MeshBasicMaterial({ color: PYRAMIDION_COLORS.grounded, transparent: true, opacity: 0.3, side: T.DoubleSide });
+    const groundRing = new T.Mesh(groundRingGeo, groundRingMat);
+    groundRing.rotation.x = -Math.PI / 2;
+    groundRing.position.y = height + 10;
+    group.add(groundRing);
+
+    // Inverted pyramid at Y=200
+    const invGeo = new T.CylinderGeometry(pyramidRadius * 0.8, 0, height * 0.8, 24);
+    const invMat = new T.MeshStandardMaterial({
+      color: new T.Color(PYRAMIDION_COLORS.inverted),
+      emissive: new T.Color(PYRAMIDION_COLORS.inverted),
+      emissiveIntensity: 0.4,
+      transparent: true,
+      opacity: 0.5,
+      roughness: 0.4,
+      metalness: 0.3,
+    });
+    const invPyramid = new T.Mesh(invGeo, invMat);
+    invPyramid.position.set(0, 200 + height * 0.4, 0);
+    group.add(invPyramid);
+
+    // Halo ring for inverted
+    const invRingGeo = new T.RingGeometry(pyramidRadius * 0.9, pyramidRadius * 1.0, 48);
+    const invRingMat = new T.MeshBasicMaterial({ color: PYRAMIDION_COLORS.inverted, transparent: true, opacity: 0.3, side: T.DoubleSide });
+    const invRing = new T.Mesh(invRingGeo, invRingMat);
+    invRing.rotation.x = -Math.PI / 2;
+    invRing.position.set(0, 200, 0);
+    group.add(invRing);
+
+    Genesis._pyramidionGroup = group;
+    Genesis._voidCosmosGroup.add(group);
+    Genesis._pyramidInstances = Genesis._pyramidInstances || [];
+    Genesis._pyramidInstances = [groundPyramid, invPyramid];
+
+    console.log('[VoidCosmos] Pyramidion spawned: grounded at Y=0, inverted at Y=200');
+    return group;
+  }
+
   const api = {
     installVoidCosmos,
     populateCosmos,
     tickCosmos,
     disposeCosmos,
-    summary: () => ({ enabled: flagOn(), cosmosGroup: !!Genesis._voidCosmosGroup }),
+    spawnPyramidion,
+    summary: () => ({ enabled: flagOn(), cosmosGroup: !!Genesis._voidCosmosGroup, pyramidion: !!Genesis._pyramidionGroup }),
   };
 
   Genesis.VoidCosmos = api;
