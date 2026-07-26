@@ -5,6 +5,7 @@
 // Flag-gated by window.__GENESIS_VOID_POPULATION (default ON).
 
 import * as THREE from 'three';
+import { installVoidCosmos } from './void-cosmos.js';
 
 const WORLD_COUNT = 10;
 const MIN_DIST = 600;
@@ -62,12 +63,18 @@ export function install(Genesis) {
 
   let scene = null;
   let camera = null;
+  let voidCosmosApi = null;
   const worlds = [];
   const worldRoot = new T.Group();
   worldRoot.name = 'void-population';
 
   // Portal connections between worlds
   const PORTALS = [];
+
+  // Initialize void cosmos module if available
+  if (typeof installVoidCosmos === 'function') {
+    voidCosmosApi = installVoidCosmos(Genesis);
+  }
 
   function flagOn() {
     return typeof window !== 'undefined' && window.__GENESIS_VOID_POPULATION !== false;
@@ -638,6 +645,12 @@ export function install(Genesis) {
 
     scene.add(worldRoot);
 
+    // Populate void cosmos (starfield, nebulae, suns, planets, moons, sky dome)
+    if (voidCosmosApi && voidCosmosApi.populateCosmos) {
+      const worldPositions = worlds.map(w => w.position);
+      voidCosmosApi.populateCosmos(worldPositions, scene);
+    }
+
     // Build travel panel for easy navigation
     buildTravelPanel();
 
@@ -708,10 +721,18 @@ export function install(Genesis) {
         p.mesh.children[0].rotation.z += dt * 0.3; // rotate frame
       }
     }
+
+    // Animate void cosmos
+    if (voidCosmosApi && voidCosmosApi.tickCosmos) {
+      voidCosmosApi.tickCosmos(dt);
+    }
   }
 
   function dispose() {
     if (worldRoot.parent) worldRoot.parent.remove(worldRoot);
+    if (voidCosmosApi && voidCosmosApi.disposeCosmos) {
+      voidCosmosApi.disposeCosmos();
+    }
     worlds.length = 0;
     PORTALS.length = 0;
   }
