@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { installVoidCosmos } from './void-cosmos.js';
 
-const WORLD_COUNT = 14;
+const WORLD_COUNT = 15;
 const MIN_DIST = 360; // Lost Mechanics Ring starts here (CPL Territory ends at 360u)
 const MAX_DIST = 3000;
 const WAKE_RADIUS = 800;
@@ -35,6 +35,8 @@ const WORLD_COORDINATES = [
   { x: 1152, y: 32.5, z: -561 },   // Phantom Spire — districts
   // New City — CPL clone at (313, 0, 179) in Lost Mechanics Ring
   { x: 313, y: 0, z: 179, zone: 'lost-mechanics', cplclone: true },   // New City — LM bible randomized
+  // Grand Tower — the central tower at (-104, 0, 401)
+  { x: -104, y: 0, z: 401, zone: 'lost-mechanics' },
 ];
 
 const WORLD_CONFIG = [
@@ -55,10 +57,12 @@ const WORLD_CONFIG = [
   { name: 'Phantom Spire', type: 'districts' },
   // New City — CPL clone with LM bible randomization
   { name: 'New City', type: 'cplclone', plt: { profit: 25, love: 25, tax: 0 } },
+  // Grand Tower — the central tower
+  { name: 'Grand Tower', type: 'grandtower', plt: { profit: 50, love: 50, tax: 50 } },
 ];
 
 const NAMES = WORLD_CONFIG.map(w => w.name);
-const TYPES = ['physics', 'arena', 'soulhome', 'combat', 'crafting', 'trading', 'exploration', 'breeding', 'governance', 'economy', 'building', 'conversation', 'districts', 'cplclone'];
+const TYPES = ['physics', 'arena', 'soulhome', 'combat', 'crafting', 'trading', 'exploration', 'breeding', 'governance', 'economy', 'building', 'conversation', 'districts', 'cplclone', 'grandtower'];
 
 const TYPE_COLORS = {
   // Lost Mechanics Archetypes
@@ -69,7 +73,7 @@ const TYPE_COLORS = {
   // Original types
   combat: 0xff3355, crafting: 0x66ff88, trading: 0xffdd00, exploration: 0xaa66ff,
   breeding: 0xff66cc, governance: 0xff8844, building: 0x4488ff,
-  conversation: 0xffaa00, districts: 0x00ffcc, cplclone: 0x66ffff
+  conversation: 0xffaa00, districts: 0x00ffcc, cplclone: 0x66ffff, grandtower: 0xffcc44
 };
 const TYPE_QUESTS = {
   // Lost Mechanics Archetypes
@@ -95,7 +99,8 @@ const TYPE_QUESTS = {
   building: 'Construct a Mega-Structure — reach building level 10',
   conversation: 'Hold 10 conversations — connect every citizen',
   districts: 'Unlock all 4 districts — achieve total unity',
-  cplclone: 'Build a CPL clone city — randomized by the Lost Mechanics Bible'
+  cplclone: 'Build a CPL clone city — randomized by the Lost Mechanics Bible',
+  grandtower: 'The Grand Tower — ascend 100 floors, forge legendary souls'
 };
 const TYPE_DENIZEN_NAMES = {
   // Lost Mechanics Archetypes
@@ -121,7 +126,8 @@ const TYPE_DENIZEN_NAMES = {
   building: ['Architect','Engineer','Builder','Mason','Contractor'],
   conversation: ['Orator','Diplomat','Counselor','Mediator','Liaison'],
   districts: ['Warden','Overseer','Administrator','Coordinator','Director'],
-  cplclone: ['City Architect','Neon Weaver','Grid Keeper','District Mind','Clone Master']
+  cplclone: ['City Architect','Neon Weaver','Grid Keeper','District Mind','Clone Master'],
+  grandtower: ['Tower Guardian','Forge Master','Soul Keeper','Gate Watcher','Crown Bearer']
 };
 
 function seededRandom(seed) {
@@ -925,6 +931,297 @@ export function install(Genesis) {
     return group;
   }
 
+  // ====== GRAND TOWER — the massive central tower ======
+  function createGrandTower(pos, rng) {
+    const group = new T.Group();
+    group.position.copy(pos);
+    const color = 0xffcc44;
+
+    // ── GROUND PLATFORM (200u diameter) ──
+    const ground = new T.Mesh(
+      new T.CylinderGeometry(100, 110, 3, 32),
+      new T.MeshStandardMaterial({ color: 0x0a0a1a, emissive: color, emissiveIntensity: 0.05, metalness: 0.8, roughness: 0.4 })
+    );
+    ground.position.y = -1;
+    ground.receiveShadow = true;
+    group.add(ground);
+
+    // Ground glow ring
+    const glowRing = new T.Mesh(
+      new T.TorusGeometry(105, 0.8, 8, 48),
+      new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.4 })
+    );
+    glowRing.rotation.x = -Math.PI / 2;
+    glowRing.position.y = 0.5;
+    group.add(glowRing);
+
+    // Second glow ring
+    const glowRing2 = new T.Mesh(
+      new T.TorusGeometry(115, 0.4, 8, 48),
+      new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.2 })
+    );
+    glowRing2.rotation.x = -Math.PI / 2;
+    glowRing2.position.y = 0.5;
+    group.add(glowRing2);
+
+    // ── TOWER CORE (300u tall, 10 floors) ──
+    const towerH = 300;
+    const towerW = 18;
+    const floorH = towerH / 10;
+    for (let i = 0; i < 10; i++) {
+      const taper = 1 - i * 0.06;
+      const fw = towerW * taper;
+      const fh = floorH - 1;
+      const floorMat = new T.MeshStandardMaterial({
+        color: i % 2 === 0 ? 0x1a1a3a : 0x222255,
+        emissive: color,
+        emissiveIntensity: 0.03 + i * 0.01,
+        metalness: 0.7,
+        roughness: 0.3
+      });
+      const floor = new T.Mesh(new T.BoxGeometry(fw, fh, fw), floorMat);
+      floor.position.y = i * floorH + floorH / 2 + 2;
+      floor.castShadow = true;
+      floor.receiveShadow = true;
+      group.add(floor);
+
+      // Window strips on each floor
+      if (i > 0) {
+        for (let wy = 0; wy < 3; wy++) {
+          const wGeo = new T.BoxGeometry(fw * 0.6, 0.3, 0.05);
+          const wMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.5 });
+          const win = new T.Mesh(wGeo, wMat);
+          win.position.set(0, i * floorH + 5 + wy * 4, fw / 2 + 0.03);
+          group.add(win);
+          const win2 = new T.Mesh(wGeo, wMat);
+          win2.position.set(0, i * floorH + 5 + wy * 4, -fw / 2 - 0.03);
+          group.add(win2);
+        }
+      }
+
+      // Floor separator ring
+      if (i < 9) {
+        const sepRing = new T.Mesh(
+          new T.TorusGeometry(fw * 0.7, 0.3, 8, 16),
+          new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.3 })
+        );
+        sepRing.rotation.x = -Math.PI / 2;
+        sepRing.position.y = (i + 1) * floorH + 2;
+        group.add(sepRing);
+      }
+    }
+
+    // ── CROWN (orb + halos at top) ──
+    const crownY = towerH + 15;
+    const orbGeo = new T.SphereGeometry(10, 16, 12);
+    const orbMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2.5, transparent: true, opacity: 0.95 });
+    const orb = new T.Mesh(orbGeo, orbMat);
+    orb.position.y = crownY;
+    group.add(orb);
+
+    // Halo rings
+    const haloGeo = new T.TorusGeometry(16, 0.6, 8, 32);
+    const haloMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 });
+    const halo = new T.Mesh(haloGeo, haloMat);
+    halo.position.y = crownY;
+    group.add(halo);
+
+    const halo2Geo = new T.TorusGeometry(22, 0.3, 8, 32);
+    const halo2Mat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.3 });
+    const halo2 = new T.Mesh(halo2Geo, halo2Mat);
+    halo2.position.y = crownY;
+    group.add(halo2);
+
+    // Crown point light
+    const crownLight = new T.PointLight(color, 4.0, 300);
+    crownLight.position.y = crownY;
+    group.add(crownLight);
+
+    // ── BEAM TO SKY ──
+    const beamH = 200;
+    const beamGeo = new T.CylinderGeometry(1.5, 1.5, beamH, 6);
+    const beamMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.25 });
+    const beam = new T.Mesh(beamGeo, beamMat);
+    beam.position.y = crownY + beamH / 2;
+    group.add(beam);
+
+    // ── NAME LABEL ──
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024; canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(0, 0, 1024, 256);
+    ctx.fillStyle = '#ffcc44';
+    ctx.font = 'bold 80px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('GRAND TOWER', 512, 100);
+    ctx.font = '40px sans-serif';
+    ctx.fillStyle = '#aaaacc';
+    ctx.fillText('50 / 50 / 50 PLT', 512, 170);
+    const tex = new T.CanvasTexture(canvas);
+    const label = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+    label.scale.set(120, 30, 1);
+    label.position.y = crownY + 60;
+    group.add(label);
+
+    // ── 4 DISTRICTS around tower ──
+    const districts = [
+      { name: 'work', angle: 0, buildings: [
+        { name: 'Forge', h: 12, w: 8, d: 8, shape: 'cylinder' },
+        { name: 'Market', h: 8, w: 12, d: 8, shape: 'box' },
+        { name: 'Barracks', h: 16, w: 8, d: 6, shape: 'box' },
+        { name: 'Farm', h: 3, w: 14, d: 14, shape: 'flat' }
+      ]},
+      { name: 'home', angle: Math.PI / 2, buildings: [
+        { name: 'Town Hall', h: 20, w: 10, d: 10, shape: 'box' },
+        { name: 'Vault', h: 10, w: 10, d: 10, shape: 'thick' },
+        { name: 'Tower', h: 30, w: 6, d: 6, shape: 'spire' },
+        { name: 'Residence', h: 8, w: 8, d: 8, shape: 'box' }
+      ]},
+      { name: 'social', angle: Math.PI, buildings: [
+        { name: 'Breeding Den', h: 10, w: 10, d: 10, shape: 'dome' },
+        { name: 'Monument', h: 25, w: 5, d: 5, shape: 'obelisk' },
+        { name: 'Exchange', h: 8, w: 10, d: 10, shape: 'circle' },
+        { name: 'Pavilion', h: 6, w: 12, d: 12, shape: 'open' }
+      ]},
+      { name: 'learn', angle: Math.PI * 1.5, buildings: [
+        { name: 'Mage Tower', h: 28, w: 7, d: 7, shape: 'crystal' },
+        { name: 'Blacksmith', h: 10, w: 8, d: 8, shape: 'chimney' },
+        { name: 'Library', h: 14, w: 10, d: 8, shape: 'box' },
+        { name: 'Workshop', h: 8, w: 8, d: 8, shape: 'box' }
+      ]}
+    ];
+
+    const distColor = 0xffcc44;
+    for (const d of districts) {
+      const distRadius = 60;
+      const cx = Math.cos(d.angle) * distRadius;
+      const cz = Math.sin(d.angle) * distRadius;
+
+      for (let bi = 0; bi < d.buildings.length; bi++) {
+        const b = d.buildings[bi];
+        const bx = cx + (rng() - 0.5) * 30;
+        const bz = cz + (rng() - 0.5) * 30;
+        const mat = new T.MeshStandardMaterial({
+          color: 0x222244, emissive: distColor, emissiveIntensity: 0.06, metalness: 0.7, roughness: 0.3
+        });
+
+        let mesh;
+        if (b.shape === 'cylinder') {
+          mesh = new T.Mesh(new T.CylinderGeometry(b.w * 0.4, b.w * 0.5, b.h, 8), mat);
+        } else if (b.shape === 'dome') {
+          mesh = new T.Mesh(new T.SphereGeometry(b.w * 0.5, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat);
+        } else if (b.shape === 'spire') {
+          mesh = new T.Mesh(new T.ConeGeometry(b.w * 0.4, b.h, 6), mat);
+        } else if (b.shape === 'obelisk') {
+          mesh = new T.Mesh(new T.CylinderGeometry(b.w * 0.2, b.w * 0.4, b.h, 4), mat);
+        } else if (b.shape === 'crystal') {
+          mesh = new T.Mesh(new T.OctahedronGeometry(b.w * 0.5, 0), mat);
+          mesh.scale.y = b.h / b.w;
+        } else if (b.shape === 'flat') {
+          mesh = new T.Mesh(new T.CylinderGeometry(b.w * 0.5, b.w * 0.5, b.h, 6), mat);
+        } else if (b.shape === 'circle') {
+          mesh = new T.Mesh(new T.CylinderGeometry(b.w * 0.5, b.w * 0.5, b.h, 16), mat);
+        } else if (b.shape === 'thick') {
+          mesh = new T.Mesh(new T.BoxGeometry(b.w, b.h, b.d), new T.MeshStandardMaterial({
+            color: 0x333355, emissive: distColor, emissiveIntensity: 0.08, metalness: 0.8, roughness: 0.2
+          }));
+        } else if (b.shape === 'chimney') {
+          const chimneyGroup = new T.Group();
+          chimneyGroup.add(new T.Mesh(new T.BoxGeometry(b.w, b.h, b.d), mat));
+          const chimney = new T.Mesh(
+            new T.CylinderGeometry(1, 1.5, 6, 6),
+            new T.MeshStandardMaterial({ color: 0x444466, emissive: distColor, emissiveIntensity: 0.1 })
+          );
+          chimney.position.set(b.w * 0.3, b.h / 2 + 3, 0);
+          chimneyGroup.add(chimney);
+          mesh = chimneyGroup;
+          mesh.position.set(bx, 0, bz);
+          group.add(mesh);
+          continue;
+        } else if (b.shape === 'open') {
+          mesh = new T.Mesh(new T.BoxGeometry(b.w, b.h, b.d), mat);
+        } else {
+          mesh = new T.Mesh(new T.BoxGeometry(b.w, b.h, b.d), mat);
+        }
+
+        mesh.position.set(bx, b.h / 2 + 2, bz);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        group.add(mesh);
+
+        // Window glow on tall buildings
+        if (b.h > 8) {
+          for (let wy = 3; wy < b.h - 2; wy += 4) {
+            const wGeo = new T.BoxGeometry(b.w * 0.5, 0.25, 0.05);
+            const wMat = new T.MeshStandardMaterial({ color: distColor, emissive: distColor, emissiveIntensity: 0.5 });
+            const win = new T.Mesh(wGeo, wMat);
+            win.position.set(bx, wy, bz + (b.d || b.w) / 2 + 0.03);
+            group.add(win);
+          }
+        }
+      }
+
+      // District label
+      const lCanvas = document.createElement('canvas');
+      lCanvas.width = 256; lCanvas.height = 64;
+      const lctx = lCanvas.getContext('2d');
+      lctx.fillStyle = 'rgba(0,0,0,0.7)';
+      lctx.fillRect(0, 0, 256, 64);
+      lctx.fillStyle = '#ffcc44';
+      lctx.font = 'bold 28px sans-serif';
+      lctx.textAlign = 'center';
+      lctx.fillText(d.name.toUpperCase(), 128, 42);
+      const lTex = new T.CanvasTexture(lCanvas);
+      const lLabel = new T.Mesh(new T.PlaneGeometry(10, 2.5), new T.MeshBasicMaterial({ map: lTex, transparent: true }));
+      lLabel.position.set(cx, 35, cz);
+      lLabel.rotation.x = -Math.PI / 4;
+      group.add(lLabel);
+    }
+
+    // ── ROAD GRID ──
+    const roadMat = new T.MeshStandardMaterial({ color: 0x0a0a22, roughness: 0.8 });
+    for (let i = -80; i <= 80; i += 16) {
+      const r1 = new T.Mesh(new T.BoxGeometry(160, 0.06, 2.5), roadMat);
+      r1.position.set(0, 0.6, i);
+      r1.receiveShadow = true;
+      group.add(r1);
+      const r2 = new T.Mesh(new T.BoxGeometry(2.5, 0.06, 160), roadMat);
+      r2.position.set(i, 0.6, 0);
+      r2.receiveShadow = true;
+      group.add(r2);
+    }
+
+    // ── ATMOSPHERE ──
+    // Dome
+    const domeGeo = new T.SphereGeometry(180, 16, 12);
+    const domeMat = new T.MeshBasicMaterial({
+      color, transparent: true, opacity: 0.02, side: T.BackSide, depthWrite: false
+    });
+    const dome = new T.Mesh(domeGeo, domeMat);
+    dome.position.y = 50;
+    group.add(dome);
+
+    // Ambient particles
+    const particleCount = 400;
+    const particleGeo = new T.BufferGeometry();
+    const particlePos = new Float32Array(particleCount * 3);
+    for (let i = 0; i < particleCount * 3; i += 3) {
+      particlePos[i] = (rng() - 0.5) * 250;
+      particlePos[i + 1] = rng() * 150;
+      particlePos[i + 2] = (rng() - 0.5) * 250;
+    }
+    particleGeo.setAttribute('position', new T.BufferAttribute(particlePos, 3));
+    const particleMat = new T.PointsMaterial({
+      color, size: 0.5, transparent: true, opacity: 0.5, depthWrite: false
+    });
+    const particles = new T.Points(particleGeo, particleMat);
+    particles.userData.isAmbientParticles = true;
+    group.add(particles);
+
+    return group;
+  }
+
   function populate(opts) {
     opts = opts || {};
     scene = opts.scene || null;
@@ -952,7 +1249,7 @@ export function install(Genesis) {
       worldRoot.add(beacon);
 
       // Create city skeleton — detailed buildings visible from far
-      const city = type === 'cplclone' ? createCPLCloneCity(pos, rng) : createCitySkeleton(pos, type, rng);
+      const city = type === 'cplclone' ? createCPLCloneCity(pos, rng) : type === 'grandtower' ? createGrandTower(pos, rng) : createCitySkeleton(pos, type, rng);
       worldRoot.add(city);
 
       // Create quest beacon
