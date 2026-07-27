@@ -7,23 +7,65 @@
 import * as THREE from 'three';
 import { installVoidCosmos } from './void-cosmos.js';
 
-const WORLD_COUNT = 10;
-const MIN_DIST = 600;
+const WORLD_COUNT = 13;
+const MIN_DIST = 360; // Lost Mechanics Ring starts here (CPL Territory ends at 360u)
 const MAX_DIST = 3000;
 const WAKE_RADIUS = 800;
 const SLEEP_RADIUS = 1200;
+const NO_BUILD_ZONE = 360; // CPL Territory: 0-360u forbidden zone
 
-const NAMES = [
-  'Neon Citadel','Shadow Forge','Crystal Nexus','Void Empire','Ember Sanctum',
-  'Frost Wilds','Storm Hub','Soul Arena','Cosmic Garden','Phantom Spire'
+// Explicit world coordinates from VOID-COORDINATES.md / void-map.html
+// Zone 1: Lost Mechanics Ring (360-600u) - 3 Lost Mechanics cities
+// Zone 2: Lost Worlds Ring (600-3000u) - 10 Worlds
+const WORLD_COORDINATES = [
+  // Lost Mechanics Ring (360-600u)
+  { x: -490, y: 0, z: 59, zone: 'lost-mechanics' },    // Lost Mech I - Physics Gate
+  { x: -360, y: 0, z: -21, zone: 'lost-mechanics' },  // Lost Mech II - Arena Core  
+  { x: -218, y: 0, z: -288, zone: 'lost-mechanics' }, // Lost Mech III - Soul Home
+  // Lost Worlds Ring (600-3000u)
+  { x: 2090, y: 39.6, z: 221 },    // Neon Citadel — combat
+  { x: 2301, y: 19.1, z: 632 },    // Shadow Forge — crafting
+  { x: 400, y: 0, z: 400 },        // Crystal Nexus — trading/refactored
+  { x: -23, y: -27.3, z: 1409 },   // Void Empire — exploration
+  { x: -976, y: -22.6, z: 510 },   // Ember Sanctum — breeding
+  { x: -589, y: 0, z: -118 },      // Frost Wilds — governance/PLT Engine
+  { x: -2211, y: -14.1, z: -567 }, // Storm Hub — economy
+  { x: -1048, y: -8.8, z: -2792 }, // Soul Arena — building
+  { x: 1553, y: 17.3, z: -2135 },  // Cosmic Garden — conversation
+  { x: 1152, y: 32.5, z: -561 },   // Phantom Spire — districts
 ];
-const TYPES = ['combat','crafting','trading','exploration','breeding','governance','economy','building','conversation','districts'];
+
+const WORLD_CONFIG = [
+  // Lost Mechanics Ring (360-600u)
+  { name: 'Lost Mech I - Physics Gate', type: 'physics', plt: { profit: 15, love: 10, tax: -2 } },
+  { name: 'Lost Mech II - Arena Core', type: 'arena', plt: { profit: 13, love: 8, tax: -3 } },
+  { name: 'Lost Mech III - Soul Home', type: 'soulhome', plt: { profit: 9, love: 14, tax: -3 } },
+  // Lost Worlds Ring (600-3000u)
+  { name: 'Neon Citadel', type: 'combat' },
+  { name: 'Shadow Forge', type: 'crafting' },
+  { name: 'Crystal Nexus', type: 'trading' },
+  { name: 'Void Empire', type: 'exploration' },
+  { name: 'Ember Sanctum', type: 'breeding' },
+  { name: 'Frost Wilds', type: 'governance' },
+  { name: 'Storm Hub', type: 'economy' },
+  { name: 'Soul Arena', type: 'building' },
+  { name: 'Cosmic Garden', type: 'conversation' },
+  { name: 'Phantom Spire', type: 'districts' },
+];
+
+const NAMES = WORLD_CONFIG.map(w => w.name);
+const TYPES = ['physics', 'arena', 'soulhome', 'combat', 'crafting', 'trading', 'exploration', 'breeding', 'governance', 'economy', 'building', 'conversation', 'districts'];
+
 const TYPE_COLORS = {
+  physics: 0xaa66ff, arena: 0xff3355, soulhome: 0xffaa00,
   combat: 0xff3355, crafting: 0x66ff88, trading: 0xffdd00, exploration: 0xaa66ff,
   breeding: 0xff66cc, governance: 0xff8844, economy: 0x00ffaa, building: 0x4488ff,
   conversation: 0xffaa00, districts: 0x00ffcc
 };
 const TYPE_QUESTS = {
+  physics: 'Master Momentum — control the fundamental forces',
+  arena: 'Defeat the Arena Champion — prove your strength in the Pantheon',
+  soulhome: 'Build your SoulHome — establish personal sanctuary',
   combat: 'Defeat the Arena Champion — prove your strength in the Pantheon',
   crafting: 'Forge 3 Legendary Souls — master the Soul Forge',
   trading: 'Accumulate 1000 PLT — become the greatest merchant',
@@ -36,6 +78,9 @@ const TYPE_QUESTS = {
   districts: 'Unlock all 4 districts — achieve total unity'
 };
 const TYPE_DENIZEN_NAMES = {
+  physics: ['Vector Master','Momentum Keeper','Force Weaver','Collision Sage','Field Architect'],
+  arena: ['Pantheon Warrior','Bone Master','Gladiator','Champion','Protector'],
+  soulhome: ['Home Keeper','Nest Builder','Family Head','Host','Caretaker'],
   combat: ['Blade Master','War Chief','Arena Guard','Berserker','Paladin'],
   crafting: ['Forge Keeper','Artisan','Smith','Runecaster','Alchemist'],
   trading: ['Merchant Lord','Broker','Dealer','Banker','Auctioneer'],
@@ -80,12 +125,22 @@ export function install(Genesis) {
     return typeof window !== 'undefined' && window.__GENESIS_VOID_POPULATION !== false;
   }
 
-  // Distribute points uniformly in a circle around origin
-  function randomPosition(index, rng) {
-    const angle = (index / WORLD_COUNT) * Math.PI * 2 + (rng() - 0.5) * 0.8;
-    const dist = MIN_DIST + rng() * (MAX_DIST - MIN_DIST);
-    const y = (rng() - 0.5) * 80;
-    return new T.Vector3(Math.cos(angle) * dist, y, Math.sin(angle) * dist);
+  // Get world position from explicit coordinates
+  // Respects no-build zone (0-360u): positions < 360u are forbidden
+  function getWorldPosition(index, rng) {
+    const coords = WORLD_COORDINATES[index] || { x: 0, y: 0, z: 0 };
+    const dist = Math.sqrt(coords.x * coords.x + coords.z * coords.z);
+    
+    // Validate: Position must be outside no-build zone
+    if (dist < NO_BUILD_ZONE) {
+      console.warn('[VoidPopulation] World ' + index + ' (' + NAMES[index] + ') at distance ' + dist + 
+        'u is inside NO-BUILD ZONE (' + NO_BUILD_ZONE + 'u). Using fallback position.');
+      // Fallback: place on minimum allowed ring
+      const angle = (index / WORLD_COUNT) * Math.PI * 2;
+      return new T.Vector3(Math.cos(angle) * NO_BUILD_ZONE * 1.1, coords.y, Math.sin(angle) * NO_BUILD_ZONE * 1.1);
+    }
+    
+    return new T.Vector3(coords.x, coords.y, coords.z);
   }
 
   function createBeacon(name, type, plt, pos) {
@@ -584,8 +639,10 @@ export function install(Genesis) {
     for (let i = 0; i < WORLD_COUNT; i++) {
       const name = NAMES[i];
       const type = TYPES[i];
-      const plt = { profit: 20 + Math.floor(rng() * 60), love: 20 + Math.floor(rng() * 60), tax: 10 + Math.floor(rng() * 40) };
-      const pos = randomPosition(i, rng);
+      // Use explicit PLT from WORLD_CONFIG if defined, otherwise generate random
+      const config = WORLD_CONFIG[i] || {};
+      const plt = config.plt || { profit: 20 + Math.floor(rng() * 60), love: 20 + Math.floor(rng() * 60), tax: 10 + Math.floor(rng() * 40) };
+      const pos = getWorldPosition(i, rng);
 
       // Create beacon — ALWAYS visible
       const beacon = createBeacon(name, type, plt, pos);
