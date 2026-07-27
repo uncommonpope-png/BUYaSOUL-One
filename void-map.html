@@ -124,18 +124,23 @@ const BUILTINS = [
   { id:'pyramid',  name:'Pyramidion',       desc:'Dual pyramids (Y=0 & Y=200)',      x:0,    y:0, z:0,    color:'#ffaa22', builtin:true },
 ];
 const WORLDS = [
-  { i:0, name:'Neon Citadel', type:'combat',       x: 2090, y: 39.6, z: 221,  dist:2102, angle:6.0 },
-  { i:1, name:'Shadow Forge', type:'crafting',      x: 2301, y: 19.1, z: 632,  dist:2386, angle:15.4 },
-  { i:2, name:'Crystal Nexus',type:'trading',       x: 1111, y: 33.6, z:1709,  dist:2038, angle:57.0 },
-  { i:3, name:'Void Empire',  type:'exploration',   x:  -23, y:-27.3, z:1409,  dist:1409, angle:90.9 },
-  { i:4, name:'Ember Sanctum',type:'breeding',      x: -976, y:-22.6, z: 510,  dist:1101, angle:152.4 },
-  { i:5, name:'Frost Wilds',  type:'governance',    x: -668, y: 23,   z: -85,  dist: 674, angle:187.3 },
-  { i:6, name:'Storm Hub',    type:'economy',       x:-2211, y:-14.1, z:-567,  dist:2282, angle:194.4 },
-  { i:7, name:'Soul Arena',   type:'building',      x:-1048, y: -8.8, z:-2792, dist:2982, angle:249.4 },
-  { i:8, name:'Cosmic Garden',type:'conversation',  x: 1553, y: 17.3, z:-2135, dist:2640, angle:306.0 },
-  { i:9, name:'Phantom Spire',type:'districts',     x: 1152, y: 32.5, z: -561, dist:1282, angle:334.1 },
+  // Lost Mechanics Ring (360-600u)
+  { i:0,  name:'Lost Mech I - Physics Gate', type:'physics',      x: -490, y: 0,   z:   59, dist:494, angle:173.1 },
+  { i:1,  name:'Lost Mech II - Arena Core',  type:'arena',        x: -360, y: 0,   z:  -21, dist:361, angle:183.3 },
+  { i:2,  name:'Lost Mech III - Soul Home',  type:'soulhome',     x: -218, y: 0,   z: -288, dist:361, angle:232.9 },
+  // Lost Worlds Ring (600-3000u)
+  { i:3,  name:'Neon Citadel',               type:'combat',       x: 2090, y: 39.6, z:  221, dist:2102, angle:6.0 },
+  { i:4,  name:'Shadow Forge',               type:'crafting',     x: 2301, y: 19.1, z:  632, dist:2386, angle:15.4 },
+  { i:5,  name:'Crystal Nexus',              type:'trading',      x:  400, y: 0,   z:  400, dist: 566, angle:45.0 },
+  { i:6,  name:'Void Empire',                type:'exploration',  x:  -23, y:-27.3, z: 1409, dist:1409, angle:90.9 },
+  { i:7,  name:'Ember Sanctum',              type:'breeding',     x: -976, y:-22.6, z:  510, dist:1101, angle:152.4 },
+  { i:8,  name:'Frost Wilds',                type:'governance',   x: -589, y: 0,   z: -118, dist: 601, angle:191.3 },
+  { i:9,  name:'Storm Hub',                  type:'economy',      x:-2211, y:-14.1, z: -567, dist:2282, angle:194.4 },
+  { i:10, name:'Soul Arena',                 type:'building',     x:-1048, y: -8.8, z:-2792, dist:2982, angle:249.4 },
+  { i:11, name:'Cosmic Garden',              type:'conversation', x: 1553, y: 17.3, z:-2135, dist:2640, angle:306.0 },
+  { i:12, name:'Phantom Spire',              type:'districts',    x: 1152, y: 32.5, z: -561, dist:1282, angle:334.1 },
 ];
-const TYPE_COLORS = { combat:'#ff3355', crafting:'#66ff88', trading:'#ffdd00', exploration:'#aa66ff', breeding:'#ff66cc', governance:'#ff8844', economy:'#00ffaa', building:'#4488ff', conversation:'#ffaa00', districts:'#00ffcc' };
+const TYPE_COLORS = { combat:'#ff3355', crafting:'#66ff88', trading:'#ffdd00', exploration:'#aa66ff', breeding:'#ff66cc', governance:'#ff8844', economy:'#00ffaa', building:'#4488ff', conversation:'#ffaa00', districts:'#00ffcc', physics:'#aa66ff', arena:'#ff3355', soulhome:'#ffaa00' };
 
 // ====== STATE ======
 let userMarkers = [];
@@ -212,16 +217,16 @@ function render() {
   }
 
   // Rings
-  const rings = [500, 1000, 2000, 3000, 5000, 8000];
-  const ringColors = ['#151540','#1a1a50','#1a1a44','#111138','#0d0d30','#0a0a28'];
+  const rings = [360, 500, 1000, 2000, 3000, 5000, 8000];
+  const ringColors = ['#aa335533','#151540','#1a1a50','#1a1a44','#111138','#0d0d30','#0a0a28'];
   rings.forEach((r, i) => {
     const pr = r * ppu;
     ctx.beginPath(); ctx.arc(half, half, pr, 0, Math.PI*2);
     ctx.strokeStyle = ringColors[i]; ctx.lineWidth = r === 1000 ? 1.5 : (r === 500 ? 0.5 : 0.7);
     ctx.stroke();
     if (pr + 5 > 0 && pr - 5 < s) {
-      ctx.fillStyle = '#2a2a55'; ctx.font = '7px monospace';
-      ctx.fillText(r + 'u', half + pr + 3, half + 3);
+      ctx.fillStyle = r === 360 ? '#aa335588' : '#2a2a55'; ctx.font = '7px monospace';
+      ctx.fillText(r === 360 ? '360u NO-BUILD' : r + 'u', half + pr + 3, half + 3);
     }
   });
 
@@ -524,8 +529,10 @@ function buildLegend() {
   const items = [
     { color:'#ffffff', label:'CPL City (origin)' },
     { color:'#ffaa22', label:'Pyramidion' },
+    { color:'#aa66ff', label:'Lost Mechanics City' },
     { color:'#66ffff', label:'Lost World' },
     { color:'#66ff88', label:'User Marker (click/drag)' },
+    { color:'#aa3355', label:'NO-BUILD ZONE (360u)' },
   ];
   items.forEach(i => {
     bar.innerHTML += '<div class="lg"><div class="lg-dot" style="background:'+i.color+';border:1px solid '+i.color+'88;"></div>' + i.label + '</div>';
