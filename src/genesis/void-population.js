@@ -57,37 +57,62 @@ const NAMES = WORLD_CONFIG.map(w => w.name);
 const TYPES = ['physics', 'arena', 'soulhome', 'combat', 'crafting', 'trading', 'exploration', 'breeding', 'governance', 'economy', 'building', 'conversation', 'districts'];
 
 const TYPE_COLORS = {
-  physics: 0xaa66ff, arena: 0xff3355, soulhome: 0xffaa00,
+  // Lost Mechanics Archetypes
+  physics: 0xaa66ff, gacha: 0xff66cc, evolve: 0x66ff88,
+  typeadv: 0xff8844, arena: 0xff3355, idle: 0x00ffaa,
+  prestige: 0xffdd00, pantheon: 0x4488ff, soulhome: 0xffaa00,
+  persona: 0x00ffcc, economy: 0x00ffaa, achievement: 0xff7722,
+  // Original types
   combat: 0xff3355, crafting: 0x66ff88, trading: 0xffdd00, exploration: 0xaa66ff,
-  breeding: 0xff66cc, governance: 0xff8844, economy: 0x00ffaa, building: 0x4488ff,
+  breeding: 0xff66cc, governance: 0xff8844, building: 0x4488ff,
   conversation: 0xffaa00, districts: 0x00ffcc
 };
 const TYPE_QUESTS = {
-  physics: 'Master Momentum — control the fundamental forces',
-  arena: 'Defeat the Arena Champion — prove your strength in the Pantheon',
-  soulhome: 'Build your SoulHome — establish personal sanctuary',
+  // Lost Mechanics Archetypes
+  physics: 'Master Momentum Fields — control collision and force',
+  gacha: 'Complete a full collection — 100% drop rate achieved',
+  evolve: 'Evolve to Apex Form — transcend the base state',
+  typeadv: 'Master all 12 types — achieve perfect counter balance',
+  arena: 'Defeat the Pantheon Champion — prove your worth',
+  idle: 'Achieve 24-hour automation — watch the world build itself',
+  prestige: 'Ascend 3 times — reset with bonus multipliers',
+  pantheon: 'Gain favor with all 12 Deities — unlock divine powers',
+  soulhome: 'Build your perfect sanctuary — customize every corner',
+  persona: 'Create a perfect companion — match personality to need',
+  economy: 'Trigger a PLT market boom — exceed 200 PLT',
+  achievement: 'Complete all 12 Lost Mechanics — unlock the Door',
+  // Original types
   combat: 'Defeat the Arena Champion — prove your strength in the Pantheon',
   crafting: 'Forge 3 Legendary Souls — master the Soul Forge',
   trading: 'Accumulate 1000 PLT — become the greatest merchant',
   exploration: 'Discover all 5 hidden beacons — map the unknown',
   breeding: 'Breed a Legendary Soul — combine Profit and Love',
   governance: 'Achieve 90% citizen satisfaction — lead with wisdom',
-  economy: 'Trigger a market boom — PLT must exceed 200',
   building: 'Construct a Mega-Structure — reach building level 10',
   conversation: 'Hold 10 conversations — connect every citizen',
   districts: 'Unlock all 4 districts — achieve total unity'
 };
 const TYPE_DENIZEN_NAMES = {
+  // Lost Mechanics Archetypes
   physics: ['Vector Master','Momentum Keeper','Force Weaver','Collision Sage','Field Architect'],
+  gacha: ['Luck Broker','Rarity Seeker','Dragon Hoarder','Wish Fulfiller','Pity Timer'],
+  evolve: ['Mutation Sage','Branch Keeper','Ascension Guide','Transcendent One','Life Architect'],
+  typeadv: ['Elementalist','Counter Master','Advantage Seeker','Weakness Exploiter','Type Sage'],
   arena: ['Pantheon Warrior','Bone Master','Gladiator','Champion','Protector'],
+  idle: ['Idle Sage','Automation Master','Progress Watcher','Offline Duke','Passive Income'],
+  prestige: ['Ascension Sage','Rebirth Keeper','Reset Master','Bonus Oracle','Transcendant'],
+  pantheon: ['Divine Judge','God Tongue','Heavenly Arbiter','Celestial Knight','Deity Speaker'],
   soulhome: ['Home Keeper','Nest Builder','Family Head','Host','Caretaker'],
+  persona: ['Mind Weaver','Dialogue Sage','Personality Architect','Soul Reader','Character Architect'],
+  economy: ['Market Sage','Token Master','Ledger Keeper','PLT Scorer','Exchange Artisan'],
+  achievement: ['Milestone Keeper','Triumph Bearer','Completionist','Reward Seeker','Honor Guard'],
+  // Original types
   combat: ['Blade Master','War Chief','Arena Guard','Berserker','Paladin'],
   crafting: ['Forge Keeper','Artisan','Smith','Runecaster','Alchemist'],
   trading: ['Merchant Lord','Broker','Dealer','Banker','Auctioneer'],
   exploration: ['Pathfinder','Scout','Cartographer','Ranger','Explorer'],
   breeding: ['Breeder','Nurturer','Hatchery Master','Geneticist','Keeper'],
   governance: ['Councilor','Judge','Advisor','Elder','Chancellor'],
-  economy: ['Economist','Tax Collector','Market Analyst','Investor','Auditor'],
   building: ['Architect','Engineer','Builder','Mason','Contractor'],
   conversation: ['Orator','Diplomat','Counselor','Mediator','Liaison'],
   districts: ['Warden','Overseer','Administrator','Coordinator','Director']
