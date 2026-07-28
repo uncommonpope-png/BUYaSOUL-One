@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { installVoidCosmos } from './void-cosmos.js';
 
-const WORLD_COUNT = 15;
+const WORLD_COUNT = 16;
 const MIN_DIST = 360; // Lost Mechanics Ring starts here (CPL Territory ends at 360u)
 const MAX_DIST = 3000;
 const WAKE_RADIUS = 800;
@@ -37,6 +37,8 @@ const WORLD_COORDINATES = [
   { x: 313, y: 0, z: 179, zone: 'lost-mechanics', cplclone: true },   // New City — LM bible randomized
   // Grand Tower — the central tower at (-104, 0, 401)
   { x: -104, y: 0, z: 401, zone: 'lost-mechanics' },
+  // Stormhold Castle — Outer Void at 3800u
+  { x: 3800, y: 0, z: 0, zone: 'outer-void' },
 ];
 
 const WORLD_CONFIG = [
@@ -59,10 +61,12 @@ const WORLD_CONFIG = [
   { name: 'New City', type: 'cplclone', plt: { profit: 25, love: 25, tax: 0 } },
   // Grand Tower — the central tower
   { name: 'Grand Tower', type: 'grandtower', plt: { profit: 50, love: 50, tax: 50 } },
+  // Stormhold Castle — Outer Void fortress
+  { name: 'Stormhold Castle', type: 'castle', plt: { profit: 30, love: 10, tax: 40 } },
 ];
 
 const NAMES = WORLD_CONFIG.map(w => w.name);
-const TYPES = ['physics', 'arena', 'soulhome', 'combat', 'crafting', 'trading', 'exploration', 'breeding', 'governance', 'economy', 'building', 'conversation', 'districts', 'cplclone', 'grandtower'];
+const TYPES = ['physics', 'arena', 'soulhome', 'combat', 'crafting', 'trading', 'exploration', 'breeding', 'governance', 'economy', 'building', 'conversation', 'districts', 'cplclone', 'grandtower', 'castle'];
 
 const TYPE_COLORS = {
   // Lost Mechanics Archetypes
@@ -73,7 +77,7 @@ const TYPE_COLORS = {
   // Original types
   combat: 0xff3355, crafting: 0x66ff88, trading: 0xffdd00, exploration: 0xaa66ff,
   breeding: 0xff66cc, governance: 0xff8844, building: 0x4488ff,
-  conversation: 0xffaa00, districts: 0x00ffcc, cplclone: 0x66ffff, grandtower: 0xffcc44
+  conversation: 0xffaa00, districts: 0x00ffcc, cplclone: 0x66ffff, grandtower: 0xffcc44, castle: 0xcc8844
 };
 const TYPE_QUESTS = {
   // Lost Mechanics Archetypes
@@ -100,7 +104,8 @@ const TYPE_QUESTS = {
   conversation: 'Hold 10 conversations — connect every citizen',
   districts: 'Unlock all 4 districts — achieve total unity',
   cplclone: 'Build a CPL clone city — randomized by the Lost Mechanics Bible',
-  grandtower: 'The Grand Tower — ascend 100 floors, forge legendary souls'
+  grandtower: 'The Grand Tower — ascend 100 floors, forge legendary souls',
+  castle: 'Stormhold Castle — conquer the Outer Void fortress, claim its PLT treasury'
 };
 const TYPE_DENIZEN_NAMES = {
   // Lost Mechanics Archetypes
@@ -127,7 +132,8 @@ const TYPE_DENIZEN_NAMES = {
   conversation: ['Orator','Diplomat','Counselor','Mediator','Liaison'],
   districts: ['Warden','Overseer','Administrator','Coordinator','Director'],
   cplclone: ['City Architect','Neon Weaver','Grid Keeper','District Mind','Clone Master'],
-  grandtower: ['Tower Guardian','Forge Master','Soul Keeper','Gate Watcher','Crown Bearer']
+  grandtower: ['Tower Guardian','Forge Master','Soul Keeper','Gate Watcher','Crown Bearer'],
+  castle: ['Castle Lord','Keep Warden','Wall Commander','Gate Captain','Iron Sentinel']
 };
 
 function seededRandom(seed) {
@@ -1697,6 +1703,164 @@ export function install(Genesis) {
     return points;
   }
 
+  function createCastle(pos, rng) {
+    const g = new T.Group();
+    g.position.copy(pos);
+
+    const stoneMat = new T.MeshStandardMaterial({ color: 0x665544, roughness: 0.8, metalness: 0.2 });
+    const roofMat = new T.MeshStandardMaterial({ color: 0x884422, roughness: 0.9, metalness: 0.1 });
+    const glowMat = new T.MeshStandardMaterial({ color: 0xffaa44, emissive: 0xffaa44, emissiveIntensity: 0.3 });
+    const windowMat = new T.MeshStandardMaterial({ color: 0xffdd88, emissive: 0xff8800, emissiveIntensity: 0.5 });
+
+    const W = 70;
+    const wallH = 25;
+    const wallT = 3;
+
+    // ── Outer Curtain Wall ──
+    const walls = [
+      { x: 0, z: W, w: W*2, d: wallT },
+      { x: 0, z: -W, w: W*2, d: wallT },
+      { x: W, z: 0, w: wallT, d: W*2 },
+      { x: -W, z: 0, w: wallT, d: W*2 },
+    ];
+    for (const wp of walls) {
+      const wall = new T.Mesh(new T.BoxGeometry(wp.w, wallH, wp.d), stoneMat);
+      wall.position.set(wp.x, wallH/2, wp.z);
+      wall.castShadow = true;
+      wall.receiveShadow = true;
+      g.add(wall);
+      const bc = Math.floor(wp.w / 5);
+      for (let i = 0; i < bc; i++) {
+        if (i % 2 === 0) continue;
+        const b = new T.Mesh(new T.BoxGeometry(2.5, 3, wp.d * 0.7), stoneMat);
+        b.position.set(wp.x + (i / bc - 0.5) * wp.w, wallH + 1.5, wp.z);
+        g.add(b);
+      }
+    }
+
+    // ── Corner Towers ──
+    const corners = [{ x: W, z: W }, { x: W, z: -W }, { x: -W, z: W }, { x: -W, z: -W }];
+    for (const c of corners) {
+      const th = wallH + 12;
+      const tr = 7;
+      const tower = new T.Mesh(new T.CylinderGeometry(tr * 0.6, tr, th, 10), stoneMat);
+      tower.position.set(c.x, th/2, c.z);
+      tower.castShadow = true;
+      g.add(tower);
+      const roof = new T.Mesh(new T.ConeGeometry(tr * 0.8, 8, 10), roofMat);
+      roof.position.set(c.x, th + 4, c.z);
+      roof.castShadow = true;
+      g.add(roof);
+      const slit = new T.Mesh(new T.BoxGeometry(0.4, 2.5, 0.3), windowMat);
+      slit.position.set(c.x + tr * 0.6, th * 0.5, c.z);
+      g.add(slit);
+      const tip = new T.Mesh(new T.SphereGeometry(0.4, 6, 6), glowMat);
+      tip.position.set(c.x, th + 8, c.z);
+      g.add(tip);
+    }
+
+    // ── Central Keep ──
+    const kw = 28, kd = 22, kh = 35;
+    const keep = new T.Mesh(new T.BoxGeometry(kw, kh, kd), stoneMat);
+    keep.position.set(0, kh/2, 0);
+    keep.castShadow = true;
+    keep.receiveShadow = true;
+    g.add(keep);
+
+    // Keep upper tier
+    const uw = kw * 0.7, ud = kd * 0.7, uh = 12;
+    const upper = new T.Mesh(new T.BoxGeometry(uw, uh, ud), new T.MeshStandardMaterial({ color: 0x776655, roughness: 0.7 }));
+    upper.position.set(0, kh + uh/2, 0);
+    upper.castShadow = true;
+    g.add(upper);
+
+    // Keep roof
+    const kRoof = new T.Mesh(new T.ConeGeometry(uw * 0.5, 10, 4), roofMat);
+    kRoof.position.set(0, kh + uh + 5, 0);
+    g.add(kRoof);
+
+    // Keep windows
+    for (let wy = 5; wy < kh; wy += 7) {
+      for (let side = -1; side <= 1; side += 2) {
+        const ww = new T.Mesh(new T.BoxGeometry(1.5, 3, 0.4), windowMat);
+        ww.position.set(kw/2 * side + 0.2, wy, 0);
+        g.add(ww);
+      }
+    }
+
+    // Keep crown beacon
+    const crown = new T.Mesh(new T.SphereGeometry(2, 12, 12), new T.MeshStandardMaterial({
+      color: 0xffaa44, emissive: 0xffaa44, emissiveIntensity: 1.5
+    }));
+    crown.position.set(0, kh + uh + 11, 0);
+    crown.userData.isCastleCrown = true;
+    g.add(crown);
+
+    // Crown beam
+    const beam = new T.Mesh(
+      new T.CylinderGeometry(0.4, 2.5, 70, 8, 1, true),
+      new T.MeshBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.12, side: T.DoubleSide, depthWrite: false })
+    );
+    beam.position.set(0, kh + uh + 11 + 35, 0);
+    beam.userData.isCastleBeam = true;
+    g.add(beam);
+
+    // ── Gatehouse ──
+    for (let side = -1; side <= 1; side += 2) {
+      const gt = new T.Mesh(new T.CylinderGeometry(3.5, 4.5, wallH + 4, 8), stoneMat);
+      gt.position.set(side * 8, (wallH + 4)/2, W - 1);
+      g.add(gt);
+      const gr = new T.Mesh(new T.ConeGeometry(3.5, 5, 8), roofMat);
+      gr.position.set(side * 8, wallH + 6.5, W - 1);
+      g.add(gr);
+    }
+    const arch = new T.Mesh(new T.TorusGeometry(5, 1.2, 6, 10, Math.PI), stoneMat);
+    arch.rotation.x = Math.PI / 2;
+    arch.position.set(0, 5, W);
+    g.add(arch);
+
+    // ── Inner courtyard buildings ──
+    for (let i = 0; i < 6; i++) {
+      const bh = 7 + rng() * 6;
+      const bw = 5 + rng() * 4;
+      const b = new T.Mesh(new T.BoxGeometry(bw, bh, bw), stoneMat);
+      b.position.set((rng() - 0.5) * 50, bh/2, (rng() - 0.5) * 50);
+      b.castShadow = true;
+      g.add(b);
+      const w = new T.Mesh(new T.BoxGeometry(0.8, 1.2, 0.2), windowMat);
+      w.position.set(b.position.x + bw/2 + 0.1, b.position.y, b.position.z);
+      g.add(w);
+    }
+
+    // ── Ground platform ──
+    const ground = new T.Mesh(
+      new T.CircleGeometry(90, 32),
+      new T.MeshStandardMaterial({ color: 0x443322, roughness: 0.9 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.5;
+    g.add(ground);
+
+    // ── Torchlight particles ──
+    const pc = 80;
+    const pg = new T.BufferGeometry();
+    const pp = new Float32Array(pc * 3);
+    for (let i = 0; i < pc * 3; i += 3) {
+      const a = rng() * Math.PI * 2;
+      const r = rng() * 80;
+      pp[i] = Math.cos(a) * r;
+      pp[i + 1] = rng() * 45;
+      pp[i + 2] = Math.sin(a) * r;
+    }
+    pg.setAttribute('position', new T.BufferAttribute(pp, 3));
+    const pm = new T.PointsMaterial({ color: 0xff8844, size: 0.4, transparent: true, opacity: 0.4, depthWrite: false });
+    const particles = new T.Points(pg, pm);
+    particles.userData.isCastleParticles = true;
+    g.add(particles);
+
+    return g;
+  }
+
   function populate(opts) {
     opts = opts || {};
     scene = opts.scene || null;
@@ -1809,6 +1973,42 @@ export function install(Genesis) {
       }
     }
 
+    // Wire Barracks combat mechanic (GT-P15)
+    if (!window.__barracksMechanicWired) {
+      window.__barracksMechanicWired = true;
+      const RP = window.Genesis && window.Genesis.ResourcePool;
+      if (RP) RP.ensure('grand-tower-barracks', 100, 2);
+      const EB = window.Genesis && window.Genesis.EventBridge;
+      if (EB) {
+        EB.registerTrigger({
+          when: 'building:click',
+          condition: (p) => p && p.type === 'Barracks',
+          action: () => {
+            if (!RP) return;
+            if (RP.spend('grand-tower-barracks', 20)) {
+              const hit = Math.random();
+              let profit = 0, love = 0, tax = 0, result = 'miss';
+              if (hit < 0.2) {
+                profit = 15; love = 5; tax = 2; result = 'critical';
+              } else if (hit < 0.65) {
+                profit = 8; love = 3; tax = 4; result = 'hit';
+              } else {
+                profit = 0; love = 1; tax = 5; result = 'blocked';
+              }
+              RP.addPLT('grand-tower-barracks', profit, love, tax);
+              RP.regen('grand-tower-barracks');
+              window.__barracksLastCombat = { time: Date.now(), result, profit, love, tax };
+              const stats = RP.get('grand-tower-barracks');
+              console.log('[Barracks] ' + result.toUpperCase() + '! +' + profit + 'P +' + love + 'L -' + tax + 'T | Energy: ' + stats.energy + '/' + stats.max);
+            } else {
+              console.log('[Barracks] Too exhausted to train!');
+            }
+          }
+        });
+        console.log('[Barracks] Combat trigger registered.');
+      }
+    }
+
     // Clean previous
     if (worldRoot.parent) worldRoot.parent.remove(worldRoot);
     worlds.length = 0;
@@ -1844,6 +2044,8 @@ export function install(Genesis) {
         city.add(pyramids);
         const boids = createSoulBoids(new T.Vector3(0, 0, 0));
         city.add(boids);
+      } else if (type === 'castle') {
+        city = createCastle(pos, rng);
       } else {
         city = createCitySkeleton(pos, type, rng);
       }
@@ -1928,6 +2130,10 @@ export function install(Genesis) {
         const market = RP.get('grand-tower-market');
         if (market && market.energy > 60) {
           RP.addPLT('grand-tower-market', 2, 1, 0);
+        }
+        const barracks = RP.get('grand-tower-barracks');
+        if (barracks && barracks.energy > 70) {
+          RP.addPLT('grand-tower-barracks', 1, 0, 1);
         }
       }
     }
@@ -2079,6 +2285,19 @@ export function install(Genesis) {
               child.material.emissiveIntensity = 0.12;
             }
           }
+          // Barracks combat glow feedback
+          if (window.__barracksLastCombat && child.userData && child.userData.buildingType === 'Barracks' && child.isMesh && child.material) {
+            const elapsed = Date.now() - window.__barracksLastCombat.time;
+            if (elapsed < 1200) {
+              const decay = 1 - elapsed / 1200;
+              const isCrit = window.__barracksLastCombat.result === 'critical';
+              child.material.color.setHex(isCrit ? 0xffaa00 : window.__barracksLastCombat.result === 'blocked' ? 0x4444ff : 0xff3355);
+              child.material.emissiveIntensity = 0.6 + Math.sin(elapsed * 0.03) * 0.5 * decay;
+            } else {
+              child.material.color.setHex(0x222244);
+              child.material.emissiveIntensity = 0.12;
+            }
+          }
         });
       }
 
@@ -2089,6 +2308,28 @@ export function install(Genesis) {
           diamond.rotation.y += dt * 0.5;
           diamond.position.y = 20 + Math.sin(Date.now() * 0.002 + w.position.z) * 2;
         }
+      }
+
+      // Castle animations
+      if (w.city && w.type === 'castle') {
+        w.city.children.forEach(child => {
+          if (child.userData && child.userData.isCastleCrown) {
+            const p = 1.0 + Math.sin(Date.now() * 0.003) * 0.15;
+            child.scale.setScalar(p);
+            child.material.emissiveIntensity = 1.5 + Math.sin(Date.now() * 0.002) * 0.5;
+          }
+          if (child.userData && child.userData.isCastleBeam) {
+            child.rotation.y += dt * 0.1;
+          }
+          if (child.userData && child.userData.isCastleParticles) {
+            const pos = child.geometry.attributes.position.array;
+            for (let i = 1; i < pos.length; i += 3) {
+              pos[i] += dt * 0.3;
+              if (pos[i] > 45) pos[i] = 0;
+            }
+            child.geometry.attributes.position.needsUpdate = true;
+          }
+        });
       }
 
       // Animate ambient particles
