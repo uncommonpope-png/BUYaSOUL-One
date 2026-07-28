@@ -1768,6 +1768,47 @@ export function install(Genesis) {
       }
     }
 
+    // Wire Market trading mechanic (GT-P14)
+    if (!window.__marketMechanicWired) {
+      window.__marketMechanicWired = true;
+      const RP = window.Genesis && window.Genesis.ResourcePool;
+      if (RP) {
+        RP.ensure('grand-tower-market', 100, 3);
+        RP.addItem('grand-tower-market', 'profit', 5);
+        RP.addItem('grand-tower-market', 'love', 5);
+        RP.addItem('grand-tower-market', 'tax', 5);
+        console.log('[Market] Pool + stock seeded.');
+      }
+      const EB = window.Genesis && window.Genesis.EventBridge;
+      if (EB) {
+        EB.registerTrigger({
+          when: 'building:click',
+          condition: (p) => p && p.type === 'Market',
+          action: () => {
+            if (!RP) return;
+            if (RP.spend('grand-tower-market', 15)) {
+              const roll = Math.random();
+              let profit = 0, love = 0, tax = 0, quality = 'common';
+              if (roll < 0.2) {
+                profit = 12; love = 4; tax = 0; quality = 'rare';
+              } else if (roll < 0.7) {
+                profit = 5; love = 3; tax = 1; quality = 'common';
+              } else {
+                profit = 3; love = 1; tax = 3; quality = 'poor';
+              }
+              RP.addPLT('grand-tower-market', profit, love, tax);
+              window.__marketLastTrade = { time: Date.now(), quality, profit, love, tax };
+              const stats = RP.get('grand-tower-market');
+              console.log('[Market] ' + quality.toUpperCase() + ' trade! +' + profit + ' Profit, +' + love + ' Love, +' + tax + ' Tax | Energy: ' + stats.energy + '/' + stats.max);
+            } else {
+              console.log('[Market] Not enough energy — wait for regen.');
+            }
+          }
+        });
+        console.log('[Market] EventBridge trigger registered.');
+      }
+    }
+
     // Clean previous
     if (worldRoot.parent) worldRoot.parent.remove(worldRoot);
     worlds.length = 0;
@@ -1882,8 +1923,11 @@ export function install(Genesis) {
         RP.regenAll();
         const farm = RP.get('grand-tower-farm');
         if (farm) {
-          // Slow passive PLT gain while energy > 50
           if (farm.energy > 50) RP.addPLT('grand-tower-farm', 1, 0, 0);
+        }
+        const market = RP.get('grand-tower-market');
+        if (market && market.energy > 60) {
+          RP.addPLT('grand-tower-market', 2, 1, 0);
         }
       }
     }
@@ -2019,6 +2063,19 @@ export function install(Genesis) {
               const decay = 1 - elapsed / 1500;
               child.material.emissiveIntensity = 0.12 + Math.sin(elapsed * 0.02) * 0.5 * decay;
             } else {
+              child.material.emissiveIntensity = 0.12;
+            }
+          }
+          // Market trade glow feedback
+          if (window.__marketLastTrade && child.userData && child.userData.buildingType === 'Market' && child.isMesh && child.material) {
+            const elapsed = Date.now() - window.__marketLastTrade.time;
+            if (elapsed < 1500) {
+              const decay = 1 - elapsed / 1500;
+              const isRare = window.__marketLastTrade.quality === 'rare';
+              child.material.color.setHex(isRare ? 0xffdd44 : window.__marketLastTrade.quality === 'poor' ? 0xff4444 : 0x44ff88);
+              child.material.emissiveIntensity = 0.5 + Math.sin(elapsed * 0.025) * 0.4 * decay;
+            } else {
+              child.material.color.setHex(0x222244);
               child.material.emissiveIntensity = 0.12;
             }
           }
