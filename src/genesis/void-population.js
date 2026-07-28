@@ -940,42 +940,39 @@ export function install(Genesis) {
     // ── GROUND PLATFORM (200u diameter) ──
     const ground = new T.Mesh(
       new T.CylinderGeometry(100, 110, 3, 32),
-      new T.MeshStandardMaterial({ color: 0x0a0a1a, emissive: color, emissiveIntensity: 0.05, metalness: 0.8, roughness: 0.4 })
+      new T.MeshStandardMaterial({ color: 0x0a0a1a, emissive: color, emissiveIntensity: 0.08, metalness: 0.8, roughness: 0.4 })
     );
     ground.position.y = -1;
     ground.receiveShadow = true;
     group.add(ground);
 
-    // Ground glow ring
-    const glowRing = new T.Mesh(
-      new T.TorusGeometry(105, 0.8, 8, 48),
-      new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.4 })
-    );
-    glowRing.rotation.x = -Math.PI / 2;
-    glowRing.position.y = 0.5;
-    group.add(glowRing);
+    // Ground glow rings — 3 rings for more drama
+    for (let r = 0; r < 3; r++) {
+      const ringR = 105 + r * 12;
+      const ringOp = 0.5 - r * 0.15;
+      const ring = new T.Mesh(
+        new T.TorusGeometry(ringR, 0.8 - r * 0.2, 8, 48),
+        new T.MeshBasicMaterial({ color, transparent: true, opacity: ringOp })
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.5;
+      group.add(ring);
+    }
 
-    // Second glow ring
-    const glowRing2 = new T.Mesh(
-      new T.TorusGeometry(115, 0.4, 8, 48),
-      new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.2 })
-    );
-    glowRing2.rotation.x = -Math.PI / 2;
-    glowRing2.position.y = 0.5;
-    group.add(glowRing2);
-
-    // ── TOWER CORE (300u tall, 10 floors) ──
-    const towerH = 300;
-    const towerW = 18;
-    const floorH = towerH / 10;
-    for (let i = 0; i < 10; i++) {
-      const taper = 1 - i * 0.06;
+    // ── TOWER CORE (500u tall, 15 floors) ──
+    const towerH = 500;
+    const towerW = 22;
+    const floorCount = 15;
+    const floorH = towerH / floorCount;
+    for (let i = 0; i < floorCount; i++) {
+      const taper = 1 - i * 0.04;
       const fw = towerW * taper;
       const fh = floorH - 1;
+      const intensity = 0.04 + i * 0.015;
       const floorMat = new T.MeshStandardMaterial({
         color: i % 2 === 0 ? 0x1a1a3a : 0x222255,
         emissive: color,
-        emissiveIntensity: 0.03 + i * 0.01,
+        emissiveIntensity: intensity,
         metalness: 0.7,
         roughness: 0.3
       });
@@ -985,25 +982,32 @@ export function install(Genesis) {
       floor.receiveShadow = true;
       group.add(floor);
 
-      // Window strips on each floor
+      // Window strips on each floor — front and back
       if (i > 0) {
-        for (let wy = 0; wy < 3; wy++) {
+        for (let wy = 0; wy < 4; wy++) {
           const wGeo = new T.BoxGeometry(fw * 0.6, 0.3, 0.05);
-          const wMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.5 });
+          const wMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.7 });
           const win = new T.Mesh(wGeo, wMat);
-          win.position.set(0, i * floorH + 5 + wy * 4, fw / 2 + 0.03);
+          win.position.set(0, i * floorH + 4 + wy * 4, fw / 2 + 0.03);
           group.add(win);
           const win2 = new T.Mesh(wGeo, wMat);
-          win2.position.set(0, i * floorH + 5 + wy * 4, -fw / 2 - 0.03);
+          win2.position.set(0, i * floorH + 4 + wy * 4, -fw / 2 - 0.03);
           group.add(win2);
+          // Side windows
+          const win3 = new T.Mesh(new T.BoxGeometry(0.05, 0.3, fw * 0.6), wMat);
+          win3.position.set(fw / 2 + 0.03, i * floorH + 4 + wy * 4, 0);
+          group.add(win3);
+          const win4 = new T.Mesh(new T.BoxGeometry(0.05, 0.3, fw * 0.6), wMat);
+          win4.position.set(-fw / 2 - 0.03, i * floorH + 4 + wy * 4, 0);
+          group.add(win4);
         }
       }
 
       // Floor separator ring
-      if (i < 9) {
+      if (i < floorCount - 1) {
         const sepRing = new T.Mesh(
-          new T.TorusGeometry(fw * 0.7, 0.3, 8, 16),
-          new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.3 })
+          new T.TorusGeometry(fw * 0.7, 0.4, 8, 16),
+          new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.35 })
         );
         sepRing.rotation.x = -Math.PI / 2;
         sepRing.position.y = (i + 1) * floorH + 2;
@@ -1012,38 +1016,58 @@ export function install(Genesis) {
     }
 
     // ── CROWN (orb + halos at top) ──
-    const crownY = towerH + 15;
-    const orbGeo = new T.SphereGeometry(10, 16, 12);
-    const orbMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2.5, transparent: true, opacity: 0.95 });
+    const crownY = towerH + 20;
+    const orbGeo = new T.SphereGeometry(14, 16, 12);
+    const orbMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 3.0, transparent: true, opacity: 0.95 });
     const orb = new T.Mesh(orbGeo, orbMat);
     orb.position.y = crownY;
+    orb.userData.isGrandTowerOrb = true;
     group.add(orb);
 
     // Halo rings
-    const haloGeo = new T.TorusGeometry(16, 0.6, 8, 32);
-    const haloMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 });
+    const haloGeo = new T.TorusGeometry(20, 0.8, 8, 32);
+    const haloMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.65 });
     const halo = new T.Mesh(haloGeo, haloMat);
     halo.position.y = crownY;
     group.add(halo);
 
-    const halo2Geo = new T.TorusGeometry(22, 0.3, 8, 32);
-    const halo2Mat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.3 });
+    const halo2Geo = new T.TorusGeometry(28, 0.4, 8, 32);
+    const halo2Mat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.35 });
     const halo2 = new T.Mesh(halo2Geo, halo2Mat);
     halo2.position.y = crownY;
     group.add(halo2);
 
-    // Crown point light
-    const crownLight = new T.PointLight(color, 4.0, 300);
+    // Third halo
+    const halo3Geo = new T.TorusGeometry(34, 0.2, 8, 32);
+    const halo3Mat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.2 });
+    const halo3 = new T.Mesh(halo3Geo, halo3Mat);
+    halo3.position.y = crownY;
+    group.add(halo3);
+
+    // Crown point light — bright, visible from far
+    const crownLight = new T.PointLight(color, 6.0, 500);
     crownLight.position.y = crownY;
     group.add(crownLight);
 
+    // Second light lower
+    const midLight = new T.PointLight(color, 2.0, 200);
+    midLight.position.y = towerH / 2;
+    group.add(midLight);
+
     // ── BEAM TO SKY ──
-    const beamH = 200;
-    const beamGeo = new T.CylinderGeometry(1.5, 1.5, beamH, 6);
-    const beamMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.25 });
+    const beamH = 300;
+    const beamGeo = new T.CylinderGeometry(2, 2, beamH, 6);
+    const beamMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.3 });
     const beam = new T.Mesh(beamGeo, beamMat);
     beam.position.y = crownY + beamH / 2;
     group.add(beam);
+
+    // Beam glow — wider cylinder
+    const beamGlowGeo = new T.CylinderGeometry(6, 6, beamH, 8);
+    const beamGlowMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.06 });
+    const beamGlow = new T.Mesh(beamGlowGeo, beamGlowMat);
+    beamGlow.position.y = crownY + beamH / 2;
+    group.add(beamGlow);
 
     // ── NAME LABEL ──
     const canvas = document.createElement('canvas');
@@ -1348,6 +1372,17 @@ export function install(Genesis) {
         }
       }
 
+      // Pulse Grand Tower orb + halos
+      if (w.city && w.type === 'grandtower') {
+        w.city.children.forEach(child => {
+          if (child.userData && child.userData.isGrandTowerOrb) {
+            const t = Date.now() * 0.002;
+            child.scale.setScalar(1.0 + Math.sin(t) * 0.2);
+            child.material.emissiveIntensity = 2.5 + Math.sin(t * 1.5) * 1.0;
+          }
+        });
+      }
+
       // Animate quest beacon diamond
       if (w.questBeacon) {
         const diamond = w.questBeacon.children[0]; // diamond mesh
@@ -1417,9 +1452,26 @@ export function install(Genesis) {
     const panel = document.createElement('div');
     panel.id = 'void-travel-panel';
     panel.style.cssText = 'position:fixed;top:50%;right:20px;transform:translateY(-50%);width:220px;background:rgba(5,5,20,0.92);border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:14px;z-index:35;font-family:monospace;pointer-events:auto;max-height:80vh;overflow-y:auto;';
-    let html = '<div style="font-size:10px;color:#66ffff;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px;text-align:center;">⚡ Lost Worlds</div>';
+
+    // Grand Tower — highlighted first
+    let html = '<div style="font-size:11px;color:#ffcc44;text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;text-align:center;">🏰 GRAND TOWER</div>';
+    const towerWorld = worlds.find(w => w.type === 'grandtower');
+    if (towerWorld) {
+      const towerIdx = worlds.indexOf(towerWorld);
+      const dist = Math.round(towerWorld.position.length());
+      html += '<div onclick="window.__voidJump(' + towerIdx + ')" style="padding:8px 10px;margin-bottom:8px;background:rgba(255,204,68,0.12);border:1px solid #ffcc44;border-radius:8px;cursor:pointer;font-size:12px;color:#fff;display:flex;justify-content:space-between;align-items:center;transition:background 0.2s;font-weight:bold;" onmouseover="this.style.background=\'rgba(255,204,68,0.25)\'" onmouseout="this.style.background=\'rgba(255,204,68,0.12)\'">';
+      html += '<span style="color:#ffcc44;">🏰 Grand Tower</span>';
+      html += '<span style="font-size:10px;color:#ffcc44aa;">' + dist + 'u</span>';
+      html += '</div>';
+    }
+
+    // Separator
+    html += '<div style="border-top:1px solid rgba(255,255,255,0.1);margin:6px 0;"></div>';
+    html += '<div style="font-size:10px;color:#66ffff;text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;text-align:center;">⚡ Lost Worlds</div>';
+
     for (let i = 0; i < worlds.length; i++) {
       const w = worlds[i];
+      if (w.type === 'grandtower') continue; // skip tower, already shown above
       const color = '#' + (TYPE_COLORS[w.type] || 0x66ffff).toString(16).padStart(6, '0');
       const dist = Math.round(w.position.length());
       html += '<div onclick="window.__voidJump(' + i + ')" style="padding:6px 8px;margin-bottom:4px;background:rgba(255,255,255,0.04);border:1px solid ' + color + '33;border-radius:6px;cursor:pointer;font-size:11px;color:#fff;display:flex;justify-content:space-between;align-items:center;transition:background 0.2s;" onmouseover="this.style.background=\'rgba(255,255,255,0.1)\'" onmouseout="this.style.background=\'rgba(255,255,255,0.04)\'">';
