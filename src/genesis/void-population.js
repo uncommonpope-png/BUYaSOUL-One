@@ -1738,6 +1738,36 @@ export function install(Genesis) {
       }, { passive: true });
     }
 
+    // Wire Farm passive income mechanic (GT-P13)
+    if (!window.__farmMechanicWired) {
+      window.__farmMechanicWired = true;
+      const RP = window.Genesis && window.Genesis.ResourcePool;
+      if (RP) {
+        RP.ensure('grand-tower-farm', 100, 2);
+        console.log('[Farm] Pool ensured: max=100, regen=2/tick');
+      }
+      const EB = window.Genesis && window.Genesis.EventBridge;
+      if (EB) {
+        EB.registerTrigger({
+          when: 'building:click',
+          condition: (p) => p && p.type === 'Farm',
+          action: () => {
+            if (!RP) return;
+            if (RP.spend('grand-tower-farm', 10)) {
+              RP.regen('grand-tower-farm');
+              RP.addPLT('grand-tower-farm', 5, 2, 1);
+              window.__farmLastClickTime = Date.now();
+              const stats = RP.get('grand-tower-farm');
+              console.log('[Farm] Tended! +5 Profit, +2 Love, +1 Tax | Energy: ' + stats.energy + '/' + stats.max + ' | PLT: P' + stats.profit + ' L' + stats.love + ' T' + stats.tax);
+            } else {
+              console.log('[Farm] Too tired! Energy depleted — wait for regen.');
+            }
+          }
+        });
+        console.log('[Farm] EventBridge trigger registered.');
+      }
+    }
+
     // Clean previous
     if (worldRoot.parent) worldRoot.parent.remove(worldRoot);
     worlds.length = 0;
@@ -1843,6 +1873,21 @@ export function install(Genesis) {
 
   function tick(dt) {
     if (!camera) return;
+
+    // Throttled passive income: regen all ResourcePools once per second
+    if (!window.__lastRegenTick || Date.now() - window.__lastRegenTick > 1000) {
+      window.__lastRegenTick = Date.now();
+      const RP = window.Genesis && window.Genesis.ResourcePool;
+      if (RP) {
+        RP.regenAll();
+        const farm = RP.get('grand-tower-farm');
+        if (farm) {
+          // Slow passive PLT gain while energy > 50
+          if (farm.energy > 50) RP.addPLT('grand-tower-farm', 1, 0, 0);
+        }
+      }
+    }
+
     const camPos = camera.position;
 
     for (const w of worlds) {
@@ -1966,6 +2011,16 @@ export function install(Genesis) {
               posArr[i * 3 + 2] = b.pos.z;
             }
             child.geometry.attributes.position.needsUpdate = true;
+          }
+          // Farm click glow feedback
+          if (window.__farmLastClickTime && child.userData && child.userData.buildingType === 'Farm' && child.isMesh && child.material) {
+            const elapsed = Date.now() - window.__farmLastClickTime;
+            if (elapsed < 1500) {
+              const decay = 1 - elapsed / 1500;
+              child.material.emissiveIntensity = 0.12 + Math.sin(elapsed * 0.02) * 0.5 * decay;
+            } else {
+              child.material.emissiveIntensity = 0.12;
+            }
           }
         });
       }
