@@ -1266,6 +1266,38 @@ export function install(Genesis) {
     label.position.y = crownY + 60;
     group.add(label);
 
+    // ── HELPER: add windows, caps, spires to a building ──
+    const addBuildingDetails = (bx, bz, b, accent, g) => {
+      if (b.h > 10) {
+        for (let wy = 4; wy < b.h - 2; wy += 5) {
+          const wGeo = new T.BoxGeometry(b.w * 0.5, 0.3, 0.05);
+          const wMat = new T.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.6 });
+          const w1 = new T.Mesh(wGeo, wMat);
+          w1.position.set(bx, wy, bz + (b.d || b.w) / 2 + 0.03);
+          g.add(w1);
+          const w2 = new T.Mesh(wGeo, wMat);
+          w2.position.set(bx, wy, bz - (b.d || b.w) / 2 - 0.03);
+          g.add(w2);
+        }
+      }
+      if (b.h > 14 && rng() > 0.4) {
+        const capGeo = new T.BoxGeometry(b.w + 0.5, 0.4, (b.d || b.w) + 0.5);
+        const capMat = new T.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.7 });
+        const cap = new T.Mesh(capGeo, capMat);
+        cap.position.set(bx, b.h + 2.2, bz);
+        g.add(cap);
+      }
+      if (b.h > 30 && rng() > 0.4) {
+        const spireH = 4 + rng() * 8;
+        const spire = new T.Mesh(
+          new T.CylinderGeometry(0.1, 0.35, spireH, 4),
+          new T.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.8 })
+        );
+        spire.position.set(bx, b.h + spireH / 2 + 2, bz);
+        g.add(spire);
+      }
+    };
+
     // ── 4 DISTRICTS around tower (each with own color, taller buildings) ──
     const districts = [
       { name: 'work', angle: 0, accent: 0xff3355, buildings: [
@@ -1411,43 +1443,6 @@ export function install(Genesis) {
       lLabel.position.set(cx, 25, cz);
       lLabel.rotation.x = -Math.PI / 4;
       group.add(lLabel);
-    }
-
-    // Helper: add windows, caps, spires to a building
-    function addBuildingDetails(bx, bz, b, accent, g) {
-      // Windows on front + back
-      if (b.h > 10) {
-        for (let wy = 4; wy < b.h - 2; wy += 5) {
-          const wGeo = new T.BoxGeometry(b.w * 0.5, 0.3, 0.05);
-          const wMat = new T.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.6 });
-          const w1 = new T.Mesh(wGeo, wMat);
-          w1.position.set(bx, wy, bz + (b.d || b.w) / 2 + 0.03);
-          g.add(w1);
-          const w2 = new T.Mesh(wGeo, wMat);
-          w2.position.set(bx, wy, bz - (b.d || b.w) / 2 - 0.03);
-          g.add(w2);
-        }
-      }
-
-      // Glowing cap on tall buildings
-      if (b.h > 14 && rng() > 0.4) {
-        const capGeo = new T.BoxGeometry(b.w + 0.5, 0.4, (b.d || b.w) + 0.5);
-        const capMat = new T.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.7 });
-        const cap = new T.Mesh(capGeo, capMat);
-        cap.position.set(bx, b.h + 2.2, bz);
-        g.add(cap);
-      }
-
-      // Antenna spire on very tall buildings
-      if (b.h > 30 && rng() > 0.4) {
-        const spireH = 4 + rng() * 8;
-        const spire = new T.Mesh(
-          new T.CylinderGeometry(0.1, 0.35, spireH, 4),
-          new T.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.8 })
-        );
-        spire.position.set(bx, b.h + spireH / 2 + 2, bz);
-        g.add(spire);
-      }
     }
 
     // ── ROAD GRID ──
@@ -1632,9 +1627,9 @@ export function install(Genesis) {
             child.material.opacity = 0.6 + Math.sin(Date.now() * 0.001) * 0.1;
           }
           // Rotate tilted halos
-          if (child.userData.isHalo1) child.rotation.y += dt * 0.08;
-          if (child.userData.isHalo2) child.rotation.y += dt * 0.15;
-          if (child.userData.isHalo3) child.rotation.y -= dt * 0.1;
+          if (child.userData && child.userData.isHalo1) child.rotation.y += dt * 0.08;
+          if (child.userData && child.userData.isHalo2) child.rotation.y += dt * 0.15;
+          if (child.userData && child.userData.isHalo3) child.rotation.y -= dt * 0.1;
         });
       }
 
