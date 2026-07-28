@@ -2031,6 +2031,391 @@ export function install(Genesis) {
     return g;
   }
 
+  // ====== WAR FLEET — ships fighting around CPL perimeter ======
+  const WAR_FLEET = [];
+  const LASER_BOLTS = [];
+  const EXPLOSIONS = [];
+  const FLEET_RADIUS_MIN = 380;
+  const FLEET_RADIUS_MAX = 520;
+
+  function createWarship(faction, rng) {
+    const g = new T.Group();
+
+    const isImperium = faction === 'imperium';
+    const bodyColor = isImperium ? 0x8844aa : 0x4488ff;
+    const accentColor = isImperium ? 0xff3355 : 0xffcc44;
+    const emissiveColor = isImperium ? 0x440066 : 0x004488;
+
+    const bodyMat = new T.MeshStandardMaterial({ color: bodyColor, emissive: emissiveColor, emissiveIntensity: 0.3, metalness: 0.6, roughness: 0.3 });
+    const accentMat = new T.MeshStandardMaterial({ color: accentColor, emissive: accentColor, emissiveIntensity: 0.1, metalness: 0.4, roughness: 0.5 });
+    const cockpitMat = new T.MeshStandardMaterial({ color: 0x88ddff, emissive: 0x00aaff, emissiveIntensity: 0.5, transparent: true, opacity: 0.7 });
+
+    // Fuselage
+    if (isImperium) {
+      // Void Imperium: angular dart shape
+      const hull = new T.Mesh(new T.ConeGeometry(1.2, 3.5, 6), bodyMat);
+      hull.rotation.x = Math.PI / 2;
+      hull.position.y = 0;
+      g.add(hull);
+
+      // Wing struts (angled down)
+      for (let side = -1; side <= 1; side += 2) {
+        const wing = new T.Mesh(new T.BoxGeometry(2.2, 0.08, 0.6), accentMat);
+        wing.position.set(side * 1.4, -0.2, 0.2);
+        wing.rotation.z = side * 0.3;
+        wing.rotation.x = 0.1;
+        g.add(wing);
+
+        // Wing tip spikes
+        const tip = new T.Mesh(new T.ConeGeometry(0.1, 0.6, 4), accentMat);
+        tip.position.set(side * 2.6, -0.2, 0.2);
+        tip.rotation.z = side * 0.5;
+        g.add(tip);
+      }
+    } else {
+      // Solar Fleet: rounded, sleek
+      const hull = new T.Mesh(new T.CylinderGeometry(0.3, 0.8, 3, 8), bodyMat);
+      hull.rotation.x = Math.PI / 2;
+      g.add(hull);
+
+      // Swept wings
+      for (let side = -1; side <= 1; side += 2) {
+        const wing = new T.Mesh(new T.BoxGeometry(2.0, 0.06, 0.8), accentMat);
+        wing.position.set(side * 1.2, 0, 0.3);
+        wing.rotation.y = side * 0.2;
+        wing.rotation.x = 0.2;
+        g.add(wing);
+      }
+
+      // Tail fin
+      const fin = new T.Mesh(new T.BoxGeometry(0.06, 1.0, 0.5), accentMat);
+      fin.position.set(0, 0.5, -1.2);
+      g.add(fin);
+    }
+
+    // Cockpit
+    const cockpit = new T.Mesh(new T.SphereGeometry(0.25, 6, 6), cockpitMat);
+    cockpit.position.set(0, 0.15, 1.2);
+    g.add(cockpit);
+
+    // Engine glow
+    const engineMat = new T.MeshStandardMaterial({
+      color: isImperium ? 0xff4400 : 0x00aaff,
+      emissive: isImperium ? 0xff2200 : 0x0088ff,
+      emissiveIntensity: 2.0
+    });
+    for (let side = -1; side <= 1; side += 2) {
+      const engine = new T.Mesh(new T.SphereGeometry(0.2, 6, 6), engineMat);
+      engine.position.set(side * 0.3, 0, -1.8);
+      g.add(engine);
+    }
+
+    // Orbit state
+    const angle = rng() * Math.PI * 2;
+    const radius = FLEET_RADIUS_MIN + rng() * (FLEET_RADIUS_MAX - FLEET_RADIUS_MIN);
+    const heightOffset = (rng() - 0.5) * 80;
+
+    // Targeting system: SC2 4-tier auto-acquire (Threat->ATP->Weapon->Closest)
+    const scanRange = 50 + rng() * 20;
+    g.userData = {
+      faction,
+      state: 'patrol',
+      target: null,
+      orbitAngle: angle,
+      orbitRadius: radius,
+      orbitHeight: heightOffset,
+      orbitSpeed: (0.1 + rng() * 0.15) * (isImperium ? 1 : -1),
+      speed: 0.5 + rng() * 1.0,
+      hp: 5 + Math.floor(rng() * 3),
+      maxHp: 5 + Math.floor(rng() * 3),
+      fireCooldown: 0,
+      fireInterval: 1.5 + rng() * 1.5,
+      isWarship: true,
+      respawnTimer: 0,
+      // SC2 4-tier targeting
+      scanRange,
+      weaponRange: Math.max(15, scanRange - 20),
+      atp: 20,
+      isThreat: true,
+      acquireTarget: null,
+      acquireTimer: Math.random() * 2,
+      acquireInterval: 0.5 + rng() * 0.5,
+      // WC3 leash/chase
+      leashRange: 80 + rng() * 40,
+      returnTimer: 0,
+      homePos: null
+    };
+
+    return g;
+  }
+
+  function spawnFleet(scene, rng) {
+    const factionSize = 7;
+    const fleetGroup = new T.Group();
+    fleetGroup.name = 'war-fleet';
+
+    for (let i = 0; i < factionSize; i++) {
+      const imperium = createWarship('imperium', rng);
+      const solar = createWarship('solar', rng);
+      WAR_FLEET.push(imperium);
+      WAR_FLEET.push(solar);
+      fleetGroup.add(imperium);
+      fleetGroup.add(solar);
+    }
+
+    scene.add(fleetGroup);
+    return fleetGroup;
+  }
+
+  // SC2 4-tier auto-acquire: Threat -> ATP -> Weapon Pref -> Closest
+  function acquireTarget(ship, enemies) {
+    const shipPos = ship.position;
+    const scanRange = ship.userData.scanRange;
+    let bestTarget = null;
+    let bestScore = -Infinity;
+
+    for (const enemy of enemies) {
+      if (enemy.userData.hp <= 0) continue;
+      if (!enemy.userData.isThreat) continue;
+      const dist = shipPos.distanceTo(enemy.position);
+      if (dist > scanRange) continue;
+      const atp = enemy.userData.atp || 20;
+      const score = atp * 10000 + (scanRange - dist);
+      if (score > bestScore) {
+        bestScore = score;
+        bestTarget = enemy;
+      }
+    }
+    return bestTarget;
+  }
+
+  // WC3-style leash check: returns true if ship should give up chase
+  function checkLeash(ship, dt) {
+    const ud = ship.userData;
+    if (!ud.homePos) return false;
+    const distFromHome = ship.position.distanceTo(ud.homePos);
+    if (distFromHome > ud.leashRange) {
+      ud.returnTimer += dt;
+      return ud.returnTimer > 5;
+    }
+    ud.returnTimer = Math.max(0, ud.returnTimer - dt * 2);
+    return false;
+  }
+
+  function fireLaser(origin, targetShip) {
+    const start = origin.position.clone();
+    const dir = new T.Vector3().subVectors(targetShip.position, start);
+    const len = dir.length();
+    if (len < 1) return;
+    dir.normalize();
+
+    const boltMat = new T.MeshStandardMaterial({
+      color: origin.userData.faction === 'imperium' ? 0xff2244 : 0x44ddff,
+      emissive: origin.userData.faction === 'imperium' ? 0xff0044 : 0x00aaff,
+      emissiveIntensity: 3.0
+    });
+    const bolt = new T.Mesh(new T.SphereGeometry(0.15, 4, 4), boltMat);
+
+    const startPos = start.clone().add(dir.clone().multiplyScalar(2));
+    bolt.position.copy(startPos);
+
+    bolt.userData = {
+      origin,
+      target: targetShip,
+      damage: 1,
+      speed: len * 2, // bolt travel speed proportional to distance
+      faction: origin.userData.faction
+    };
+
+    const fleetGroup = origin.parent;
+    if (fleetGroup) fleetGroup.add(bolt);
+
+    LASER_BOLTS.push(bolt);
+  }
+
+  function spawnExplosion(position, parent) {
+    const count = 30;
+    const geo = new T.BufferGeometry();
+    const pos = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = 0.5 + Math.random() * 1.5;
+      pos[i * 3] = Math.sin(phi) * Math.cos(theta) * r;
+      pos[i * 3 + 1] = Math.sin(phi) * Math.sin(theta) * r;
+      pos[i * 3 + 2] = Math.cos(phi) * r;
+      colors[i * 3] = 0.8 + Math.random() * 0.2;
+      colors[i * 3 + 1] = 0.3 + Math.random() * 0.3;
+      colors[i * 3 + 2] = 0.1;
+    }
+    geo.setAttribute('position', new T.BufferAttribute(pos, 3));
+    geo.setAttribute('color', new T.BufferAttribute(colors, 3));
+
+    const mat = new T.PointsMaterial({
+      size: 0.5,
+      vertexColors: true,
+      transparent: true,
+      opacity: 1.0,
+      blending: T.AdditiveBlending,
+      depthWrite: false
+    });
+    const points = new T.Points(geo, mat);
+    points.position.copy(position);
+    points.userData = { lifetime: 1.5, elapsed: 0, isExplosion: true };
+    if (parent) parent.add(points);
+    EXPLOSIONS.push(points);
+  }
+
+  function fleetTick(dt) {
+    if (WAR_FLEET.length === 0) return;
+
+    // Separate factions
+    const imperium = [];
+    const solar = [];
+    for (const ship of WAR_FLEET) {
+      if (ship.userData.faction === 'imperium') imperium.push(ship);
+      else solar.push(ship);
+    }
+
+    for (const ship of WAR_FLEET) {
+      const ud = ship.userData;
+      const enemies = ud.faction === 'imperium' ? solar : imperium;
+
+      // Dead — respawn
+      if (ud.hp <= 0) {
+        ud.respawnTimer -= dt;
+        ship.visible = false;
+        if (ud.respawnTimer <= 0) {
+          const rng2 = seededRandom('fleet-respawn-' + Date.now() + Math.random());
+          ud.hp = ud.maxHp;
+          ud.state = 'patrol';
+          ud.acquireTarget = null;
+          ud.acquireTimer = rng2() * 2;
+          ud.returnTimer = 0;
+          ud.homePos = null;
+          ud.orbitAngle = rng2() * Math.PI * 2;
+          ud.orbitRadius = FLEET_RADIUS_MIN + rng2() * (FLEET_RADIUS_MAX - FLEET_RADIUS_MIN);
+          ud.orbitHeight = (rng2() - 0.5) * 80;
+          ud.fireCooldown = 0;
+          ship.visible = true;
+        }
+        continue;
+      }
+
+      // Advance orbit angle
+      ud.orbitAngle += ud.orbitSpeed * dt;
+      const orbitX = Math.cos(ud.orbitAngle) * ud.orbitRadius;
+      const orbitZ = Math.sin(ud.orbitAngle) * ud.orbitRadius;
+      const orbitPos = new T.Vector3(orbitX, ud.orbitHeight, orbitZ);
+
+      if (ud.state === 'patrol') {
+        ship.position.copy(orbitPos);
+        const lookTarget = new T.Vector3(-Math.sin(ud.orbitAngle) * ud.orbitRadius, ud.orbitHeight, Math.cos(ud.orbitAngle) * ud.orbitRadius);
+        ship.lookAt(lookTarget);
+        ud.acquireTimer -= dt;
+        if (ud.acquireTimer <= 0) {
+          ud.acquireTimer = ud.acquireInterval;
+          const target = acquireTarget(ship, enemies);
+          if (target) {
+            ud.state = 'chase';
+            ud.acquireTarget = target;
+            ud.homePos = orbitPos.clone();
+            ud.returnTimer = 0;
+          }
+        }
+      } else if (ud.state === 'chase') {
+        const target = ud.acquireTarget;
+        const targetDead = !target || target.userData.hp <= 0;
+        const leashed = checkLeash(ship, dt);
+        if (targetDead || leashed) {
+          ud.state = 'return';
+          ud.acquireTarget = null;
+          ud.returnTimer = 5;
+        } else {
+          const targetPos = target.position;
+          const dir = new T.Vector3().subVectors(targetPos, ship.position);
+          const dist = dir.length();
+          if (dist > 0.5) {
+            dir.normalize();
+            ship.position.add(dir.clone().multiplyScalar(ud.speed * dt));
+          }
+          ship.lookAt(targetPos);
+          ud.fireCooldown -= dt;
+          if (dist <= ud.weaponRange && ud.fireCooldown <= 0) {
+            ud.fireCooldown = ud.fireInterval;
+            fireLaser(ship, target);
+          }
+          // Re-evaluate for higher priority targets
+          ud.acquireTimer -= dt;
+          if (ud.acquireTimer <= 0) {
+            ud.acquireTimer = ud.acquireInterval;
+            const better = acquireTarget(ship, enemies);
+            if (better && better !== target) {
+              ud.acquireTarget = better;
+              ud.homePos = ship.position.clone();
+              ud.returnTimer = 0;
+            }
+          }
+        }
+      } else if (ud.state === 'return') {
+        ud.returnTimer -= dt;
+        const dir = new T.Vector3().subVectors(orbitPos, ship.position);
+        const dist = dir.length();
+        if (dist < 2 || ud.returnTimer <= 0) {
+          ud.state = 'patrol';
+          ud.homePos = null;
+          ud.acquireTarget = null;
+          ud.returnTimer = 0;
+          ud.acquireTimer = 1;
+        } else {
+          dir.normalize();
+          ship.position.add(dir.clone().multiplyScalar(ud.speed * dt * 1.5));
+          ship.lookAt(orbitPos);
+        }
+      }
+    }
+
+    // Update laser bolts (homing)
+    for (let i = LASER_BOLTS.length - 1; i >= 0; i--) {
+      const bolt = LASER_BOLTS[i];
+      const ud = bolt.userData;
+      const target = ud.target;
+      if (!target) { LASER_BOLTS.splice(i, 1); const p = bolt.parent; if (p) p.remove(bolt); continue; }
+      const dir = new T.Vector3().subVectors(target.position, bolt.position);
+      const dist = dir.length();
+      if (dist < 0.8) {
+        // Hit — deal damage
+        if (target.userData.hp !== undefined) {
+          target.userData.hp -= ud.damage;
+          spawnExplosion(target.position.clone(), target.parent);
+        }
+        LASER_BOLTS.splice(i, 1);
+        const p = bolt.parent;
+        if (p) p.remove(bolt);
+      } else {
+        dir.normalize();
+        bolt.position.add(dir.clone().multiplyScalar(ud.speed * dt));
+      }
+    }
+
+    // Update explosions (fade out)
+    for (let i = EXPLOSIONS.length - 1; i >= 0; i--) {
+      const exp = EXPLOSIONS[i];
+      exp.userData.elapsed += dt;
+      const life = exp.userData.lifetime;
+      if (exp.userData.elapsed >= life) {
+        EXPLOSIONS.splice(i, 1);
+        const p = exp.parent;
+        if (p) p.remove(exp);
+      } else {
+        exp.material.opacity = 1 - exp.userData.elapsed / life;
+      }
+    }
+  }
+
+  // ====== END WAR FLEET ======
+
   function populate(opts) {
     opts = opts || {};
     scene = opts.scene || null;
@@ -2279,10 +2664,13 @@ export function install(Genesis) {
       voidCosmosApi.populateCosmos(worldPositions, scene);
     }
 
+    // Spawn war fleet — SC2 4-tier auto-acquire + WC3 leash/chase
+    spawnFleet(scene, rng);
+
     // Build travel panel for easy navigation
     buildTravelPanel();
 
-    console.log('[VoidPopulation] Spawned', WORLD_COUNT, 'Lost Worlds at distances', MIN_DIST, '-', MAX_DIST, 'units');
+    console.log('[VoidPopulation] Spawned', WORLD_COUNT, 'Lost Worlds + war fleet at distances', MIN_DIST, '-', MAX_DIST, 'units');
     return { built: true, worlds: worlds.length };
   }
 
@@ -2536,6 +2924,9 @@ export function install(Genesis) {
         });
       }
     }
+
+    // Fleet tick — SC2 4-tier targeting, WC3 leash, lasers, explosions, death/respawn
+    fleetTick(dt);
 
     // Animate portal frames
     for (const p of PORTALS) {
