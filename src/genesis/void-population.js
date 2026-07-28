@@ -1023,64 +1023,162 @@ export function install(Genesis) {
       group.add(ring);
     }
 
-    // ── TOWER CORE (500u tall, 15 floors) ──
+    // ── TOWER CORE (500u, varied geometry — not just boxes) ──
     const towerH = 500;
     const towerW = 22;
-    const floorCount = 15;
-    const floorH = towerH / floorCount;
-    for (let i = 0; i < floorCount; i++) {
-      const taper = 1 - i * 0.04;
-      const fw = towerW * taper;
-      const fh = floorH - 1;
-      const intensity = 0.04 + i * 0.015;
-      const floorMat = new T.MeshStandardMaterial({
-        color: i % 2 === 0 ? 0x1a1a3a : 0x222255,
+    const crownY = towerH + 20;
+
+    // --- Base: 3-tier ziggurat (wider at bottom) ---
+    for (let t = 0; t < 3; t++) {
+      const tw = towerW * (1.4 - t * 0.25);
+      const th = 30;
+      const ty = t * th + th / 2 + 2;
+      const tierMat = new T.MeshStandardMaterial({
+        color: t === 0 ? 0x0f0f2a : 0x161640,
         emissive: color,
-        emissiveIntensity: intensity,
+        emissiveIntensity: 0.06 + t * 0.02,
         metalness: 0.7,
         roughness: 0.3
       });
-      const floor = new T.Mesh(new T.BoxGeometry(fw, fh, fw), floorMat);
-      floor.position.y = i * floorH + floorH / 2 + 2;
-      floor.castShadow = true;
-      floor.receiveShadow = true;
-      group.add(floor);
+      const tier = new T.Mesh(new T.BoxGeometry(tw, th, tw), tierMat);
+      tier.position.y = ty;
+      tier.castShadow = true;
+      tier.receiveShadow = true;
+      group.add(tier);
 
-      // Window strips on each floor — front and back
-      if (i > 0) {
-        for (let wy = 0; wy < 4; wy++) {
-          const wGeo = new T.BoxGeometry(fw * 0.6, 0.3, 0.05);
-          const wMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.7 });
-          const win = new T.Mesh(wGeo, wMat);
-          win.position.set(0, i * floorH + 4 + wy * 4, fw / 2 + 0.03);
-          group.add(win);
-          const win2 = new T.Mesh(wGeo, wMat);
-          win2.position.set(0, i * floorH + 4 + wy * 4, -fw / 2 - 0.03);
-          group.add(win2);
-          // Side windows
-          const win3 = new T.Mesh(new T.BoxGeometry(0.05, 0.3, fw * 0.6), wMat);
-          win3.position.set(fw / 2 + 0.03, i * floorH + 4 + wy * 4, 0);
-          group.add(win3);
-          const win4 = new T.Mesh(new T.BoxGeometry(0.05, 0.3, fw * 0.6), wMat);
-          win4.position.set(-fw / 2 - 0.03, i * floorH + 4 + wy * 4, 0);
-          group.add(win4);
+      // Ziggurat glow edge on each tier
+      const edge = new T.Mesh(
+        new T.TorusGeometry(tw * 0.7, 0.5, 8, 32),
+        new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.4 - t * 0.1 })
+      );
+      edge.rotation.x = -Math.PI / 2;
+      edge.position.y = ty + th / 2;
+      group.add(edge);
+
+      // Buttresses at base (4 angled supports)
+      if (t === 0) {
+        for (let b = 0; b < 4; b++) {
+          const angle = (b / 4) * Math.PI * 2;
+          const buttress = new T.Mesh(
+            new T.ConeGeometry(3, 25, 4),
+            new T.MeshStandardMaterial({ color: 0x1a1a3a, emissive: color, emissiveIntensity: 0.1, metalness: 0.7, roughness: 0.3 })
+          );
+          buttress.position.set(Math.cos(angle) * (tw / 2 + 4), 12, Math.sin(angle) * (tw / 2 + 4));
+          buttress.rotation.z = -Math.cos(angle) * 0.3;
+          buttress.rotation.x = Math.sin(angle) * 0.3;
+          buttress.castShadow = true;
+          group.add(buttress);
         }
-      }
-
-      // Floor separator ring
-      if (i < floorCount - 1) {
-        const sepRing = new T.Mesh(
-          new T.TorusGeometry(fw * 0.7, 0.4, 8, 16),
-          new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.35 })
-        );
-        sepRing.rotation.x = -Math.PI / 2;
-        sepRing.position.y = (i + 1) * floorH + 2;
-        group.add(sepRing);
       }
     }
 
-    // ── CROWN (orb + halos at top) ──
-    const crownY = towerH + 20;
+    // --- Mid-section: alternating cylinder + box floors ---
+    const midStart = 92;
+    const midEnd = 350;
+    const midFloorH = 28;
+    const midCount = Math.floor((midEnd - midStart) / midFloorH);
+    for (let i = 0; i < midCount; i++) {
+      const y = midStart + i * midFloorH + midFloorH / 2;
+      const taper = 1 - (i / midCount) * 0.3;
+      const fw = towerW * taper;
+      const isCyl = i % 3 === 1; // every 3rd floor is a cylinder
+
+      const floorMat = new T.MeshStandardMaterial({
+        color: isCyl ? 0x181838 : 0x1a1a3a,
+        emissive: color,
+        emissiveIntensity: 0.06 + (i / midCount) * 0.08,
+        metalness: 0.7,
+        roughness: 0.3
+      });
+
+      if (isCyl) {
+        // Cylinder floor
+        const cyl = new T.Mesh(new T.CylinderGeometry(fw * 0.5, fw * 0.55, midFloorH - 2, 12), floorMat);
+        cyl.position.y = y;
+        cyl.castShadow = true;
+        cyl.receiveShadow = true;
+        group.add(cyl);
+      } else {
+        // Box floor
+        const box = new T.Mesh(new T.BoxGeometry(fw, midFloorH - 2, fw), floorMat);
+        box.position.y = y;
+        box.castShadow = true;
+        box.receiveShadow = true;
+        group.add(box);
+      }
+
+      // Window glow strips — all 4 faces
+      for (let wy = 0; wy < 3; wy++) {
+        const wGeo = new T.BoxGeometry(fw * 0.5, 0.25, 0.05);
+        const wMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.6 });
+        const wyPos = y - midFloorH / 2 + 4 + wy * 5;
+        // Front/back
+        const w1 = new T.Mesh(wGeo, wMat);
+        w1.position.set(0, wyPos, fw / 2 + 0.03);
+        group.add(w1);
+        const w2 = new T.Mesh(wGeo, wMat);
+        w2.position.set(0, wyPos, -fw / 2 - 0.03);
+        group.add(w2);
+        // Sides
+        const w3 = new T.Mesh(new T.BoxGeometry(0.05, 0.25, fw * 0.5), wMat);
+        w3.position.set(fw / 2 + 0.03, wyPos, 0);
+        group.add(w3);
+        const w4 = new T.Mesh(new T.BoxGeometry(0.05, 0.25, fw * 0.5), wMat);
+        w4.position.set(-fw / 2 - 0.03, wyPos, 0);
+        group.add(w4);
+      }
+
+      // Separator ring between floors
+      const sepRing = new T.Mesh(
+        new T.TorusGeometry(fw * 0.6, 0.35, 8, 24),
+        new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.3 })
+      );
+      sepRing.rotation.x = -Math.PI / 2;
+      sepRing.position.y = y + midFloorH / 2;
+      group.add(sepRing);
+    }
+
+    // --- Observation Deck (wider ring platform at ~250u) ---
+    const deckY = 250;
+    const deckR = towerW * 0.9;
+    const deck = new T.Mesh(
+      new T.CylinderGeometry(deckR + 8, deckR + 5, 4, 24),
+      new T.MeshStandardMaterial({ color: 0x1a1a3a, emissive: color, emissiveIntensity: 0.12, metalness: 0.7, roughness: 0.3 })
+    );
+    deck.position.y = deckY;
+    deck.castShadow = true;
+    group.add(deck);
+
+    // Deck railing (torus)
+    const railing = new T.Mesh(
+      new T.TorusGeometry(deckR + 8, 0.6, 8, 32),
+      new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.5 })
+    );
+    railing.rotation.x = -Math.PI / 2;
+    railing.position.y = deckY + 2.5;
+    group.add(railing);
+
+    // --- Upper section: tapered spire (cone narrowing to crown) ---
+    const spireH = towerH - deckY - 10;
+    const spireBase = towerW * 0.6;
+    const spire = new T.Mesh(
+      new T.ConeGeometry(spireBase, spireH, 8),
+      new T.MeshStandardMaterial({ color: 0x181838, emissive: color, emissiveIntensity: 0.1, metalness: 0.7, roughness: 0.3 })
+    );
+    spire.position.y = deckY + spireH / 2 + 2;
+    spire.castShadow = true;
+    group.add(spire);
+
+    // Spire glow ring at base
+    const spireRing = new T.Mesh(
+      new T.TorusGeometry(spireBase, 0.4, 8, 24),
+      new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.45 })
+    );
+    spireRing.rotation.x = -Math.PI / 2;
+    spireRing.position.y = deckY + 2;
+    group.add(spireRing);
+
+    // ── CROWN (orb + tilted halos at top) ──
     const orbGeo = new T.SphereGeometry(14, 16, 12);
     const orbMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 3.0, transparent: true, opacity: 0.95 });
     const orb = new T.Mesh(orbGeo, orbMat);
@@ -1088,24 +1186,40 @@ export function install(Genesis) {
     orb.userData.isGrandTowerOrb = true;
     group.add(orb);
 
-    // Halo rings
-    const haloGeo = new T.TorusGeometry(20, 0.8, 8, 32);
-    const haloMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.65 });
-    const halo = new T.Mesh(haloGeo, haloMat);
-    halo.position.y = crownY;
-    group.add(halo);
+    // Inner core (smaller, brighter)
+    const coreGeo = new T.SphereGeometry(7, 12, 8);
+    const coreMat = new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
+    const core = new T.Mesh(coreGeo, coreMat);
+    core.position.y = crownY;
+    group.add(core);
 
-    const halo2Geo = new T.TorusGeometry(28, 0.4, 8, 32);
-    const halo2Mat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.35 });
-    const halo2 = new T.Mesh(halo2Geo, halo2Mat);
+    // Halo 1 — horizontal
+    const halo1 = new T.Mesh(
+      new T.TorusGeometry(22, 0.7, 8, 32),
+      new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 })
+    );
+    halo1.position.y = crownY;
+    halo1.userData.isHalo1 = true;
+    group.add(halo1);
+
+    // Halo 2 — tilted 60° on X
+    const halo2 = new T.Mesh(
+      new T.TorusGeometry(28, 0.4, 8, 32),
+      new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.35 })
+    );
     halo2.position.y = crownY;
+    halo2.rotation.x = Math.PI / 3;
+    halo2.userData.isHalo2 = true;
     group.add(halo2);
 
-    // Third halo
-    const halo3Geo = new T.TorusGeometry(34, 0.2, 8, 32);
-    const halo3Mat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.2 });
-    const halo3 = new T.Mesh(halo3Geo, halo3Mat);
+    // Halo 3 — tilted 30° on Z
+    const halo3 = new T.Mesh(
+      new T.TorusGeometry(34, 0.25, 8, 32),
+      new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.2 })
+    );
     halo3.position.y = crownY;
+    halo3.rotation.z = Math.PI / 6;
+    halo3.userData.isHalo3 = true;
     group.add(halo3);
 
     // Crown point light — bright, visible from far
@@ -1118,17 +1232,17 @@ export function install(Genesis) {
     midLight.position.y = towerH / 2;
     group.add(midLight);
 
-    // ── BEAM TO SKY ──
+    // ── BEAM TO SKY (tapered, open-ended) ──
     const beamH = 300;
-    const beamGeo = new T.CylinderGeometry(2, 2, beamH, 6);
-    const beamMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.3 });
+    const beamGeo = new T.CylinderGeometry(1.5, 5, beamH, 12, 1, true);
+    const beamMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, side: T.DoubleSide, depthWrite: false });
     const beam = new T.Mesh(beamGeo, beamMat);
     beam.position.y = crownY + beamH / 2;
     group.add(beam);
 
-    // Beam glow — wider cylinder
-    const beamGlowGeo = new T.CylinderGeometry(6, 6, beamH, 8);
-    const beamGlowMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.06 });
+    // Beam glow — wider tapered cylinder
+    const beamGlowGeo = new T.CylinderGeometry(4, 10, beamH, 12, 1, true);
+    const beamGlowMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.06, side: T.DoubleSide, depthWrite: false });
     const beamGlow = new T.Mesh(beamGlowGeo, beamGlowMat);
     beamGlow.position.y = crownY + beamH / 2;
     group.add(beamGlow);
@@ -1448,6 +1562,10 @@ export function install(Genesis) {
           if (child.material && child.material.metalness > 0.8 && child.geometry && child.geometry.type === 'CircleGeometry') {
             child.material.opacity = 0.6 + Math.sin(Date.now() * 0.001) * 0.1;
           }
+          // Rotate tilted halos
+          if (child.userData.isHalo1) child.rotation.y += dt * 0.08;
+          if (child.userData.isHalo2) child.rotation.y += dt * 0.15;
+          if (child.userData.isHalo3) child.rotation.y -= dt * 0.1;
         });
       }
 
