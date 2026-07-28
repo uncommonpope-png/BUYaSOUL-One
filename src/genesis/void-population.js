@@ -1566,6 +1566,125 @@ export function install(Genesis) {
     return group;
   }
 
+  function createExplodingPlanet(posOffset) {
+    const count = 2000;
+    const radius = 12;
+    const geometry = new T.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    const spherePos = new Float32Array(count * 3);
+    const explodeDir = new Float32Array(count * 3);
+    const phases = new Float32Array(count);
+
+    for (let i = 0; i < count; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = radius * (0.8 + Math.random() * 0.2);
+      const x = Math.sin(phi) * Math.cos(theta) * r;
+      const y = Math.sin(phi) * Math.sin(theta) * r;
+      const z = Math.cos(phi) * r;
+      spherePos[i * 3] = x;
+      spherePos[i * 3 + 1] = y;
+      spherePos[i * 3 + 2] = z;
+      const angle = Math.random() * Math.PI * 2;
+      const elev = Math.random() * Math.PI * 2;
+      const dist = 5 + Math.random() * 20;
+      explodeDir[i * 3] = Math.cos(angle) * Math.sin(elev) * dist;
+      explodeDir[i * 3 + 1] = Math.cos(elev) * dist;
+      explodeDir[i * 3 + 2] = Math.sin(angle) * Math.sin(elev) * dist;
+      phases[i] = Math.random() * Math.PI * 2;
+      positions[i * 3] = x;
+      positions[i * 3 + 1] = y;
+      positions[i * 3 + 2] = z;
+    }
+
+    geometry.setAttribute('position', new T.BufferAttribute(positions, 3));
+
+    const material = new T.PointsMaterial({
+      color: 0xff8844, size: 0.8, sizeAttenuation: true,
+      blending: T.AdditiveBlending, transparent: true, opacity: 0.9, depthWrite: false
+    });
+
+    const points = new T.Points(geometry, material);
+    points.userData.isExplodingPlanet = true;
+    points.userData.spherePos = spherePos;
+    points.userData.explodeDir = explodeDir;
+    points.userData.phases = phases;
+    points.userData.count = count;
+
+    const coreGeo = new T.SphereGeometry(2, 12, 12);
+    const coreMat = new T.MeshBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.8 });
+    const core = new T.Mesh(coreGeo, coreMat);
+    core.userData.isExplodingCore = true;
+
+    const group = new T.Group();
+    group.userData.isExplodingGroup = true;
+    group.add(points);
+    group.add(core);
+    group.position.copy(posOffset);
+
+    return group;
+  }
+
+  function createInvertedPyramids(posOffset) {
+    const count = 16;
+    const geo = new T.ConeGeometry(3, 6, 4);
+    const mat = new T.MeshStandardMaterial({
+      color: 0x4488ff, emissive: 0x4488ff, emissiveIntensity: 0.3,
+      transparent: true, opacity: 0.7, metalness: 0.3, roughness: 0.4
+    });
+    const mesh = new T.InstancedMesh(geo, mat, count);
+    const dummy = new T.Object3D();
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2;
+      const ringR = 20 + Math.random() * 15;
+      const yOff = 280 + Math.random() * 40;
+      dummy.position.set(Math.cos(angle) * ringR, yOff, Math.sin(angle) * ringR);
+      dummy.rotation.x = Math.PI;
+      dummy.rotation.z = Math.random() * Math.PI;
+      dummy.scale.setScalar(0.6 + Math.random() * 0.8);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.userData.isInvertedPyramids = true;
+    mesh.userData.pyramidCount = count;
+    mesh.position.copy(posOffset);
+    return mesh;
+  }
+
+  function createSoulBoids(posOffset) {
+    const count = 60;
+    const geometry = new T.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    const boids = [];
+
+    for (let i = 0; i < count; i++) {
+      const x = (Math.random() - 0.5) * 120;
+      const z = (Math.random() - 0.5) * 120;
+      const y = 5 + Math.random() * 60;
+      positions[i * 3] = x;
+      positions[i * 3 + 1] = y;
+      positions[i * 3 + 2] = z;
+      boids.push({
+        pos: new T.Vector3(x, y, z),
+        vel: new T.Vector3((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 2),
+        target: new T.Vector3((Math.random() - 0.5) * 100, 10 + Math.random() * 50, (Math.random() - 0.5) * 100),
+        timer: Math.random() * 5
+      });
+    }
+
+    geometry.setAttribute('position', new T.BufferAttribute(positions, 3));
+    const material = new T.PointsMaterial({
+      color: 0x66ffff, size: 0.8, sizeAttenuation: true,
+      blending: T.AdditiveBlending, transparent: true, opacity: 0.7, depthWrite: false
+    });
+    const points = new T.Points(geometry, material);
+    points.userData.isSoulBoids = true;
+    points.userData.boids = boids;
+    points.position.copy(posOffset);
+    return points;
+  }
+
   function populate(opts) {
     opts = opts || {};
     scene = opts.scene || null;
@@ -1600,6 +1719,14 @@ export function install(Genesis) {
         city = createGrandTower(pos, rng);
         const galaxy = createGalaxy(new T.Vector3(0, 500, 0));
         city.add(galaxy);
+        const planet = createExplodingPlanet(new T.Vector3(70, 300, 0));
+        planet.userData.orbitSpeed = 0.15;
+        city.add(planet);
+        const pyramids = createInvertedPyramids(new T.Vector3(0, 0, 0));
+        pyramids.userData.rotateSpeed = 0.08;
+        city.add(pyramids);
+        const boids = createSoulBoids(new T.Vector3(0, 0, 0));
+        city.add(boids);
       } else {
         city = createCitySkeleton(pos, type, rng);
       }
@@ -1737,6 +1864,62 @@ export function install(Genesis) {
           if (child.userData && child.userData.isGalaxyCore) {
             const p = 1.0 + Math.sin(Date.now() * 0.003) * 0.15;
             child.scale.setScalar(p);
+          }
+          // Exploding planet orbit + cycle
+          if (child.userData && child.userData.isExplodingGroup) {
+            child.rotation.y += dt * (child.userData.orbitSpeed || 0.15);
+          }
+          if (child.userData && child.userData.isExplodingPlanet) {
+            const posArr = child.geometry.attributes.position.array;
+            const sp = child.userData.spherePos;
+            const ed = child.userData.explodeDir;
+            const ph = child.userData.phases;
+            const cn = child.userData.count;
+            const t = Date.now() * 0.001;
+            for (let i = 0; i < cn; i++) {
+              const cycle = Math.sin(t * 0.5 + ph[i]);
+              const mix = cycle * 0.5 + 0.5;
+              posArr[i * 3] = sp[i * 3] + ed[i * 3] * mix;
+              posArr[i * 3 + 1] = sp[i * 3 + 1] + ed[i * 3 + 1] * mix;
+              posArr[i * 3 + 2] = sp[i * 3 + 2] + ed[i * 3 + 2] * mix;
+            }
+            child.geometry.attributes.position.needsUpdate = true;
+          }
+          if (child.userData && child.userData.isExplodingCore) {
+            const p = 1.0 + Math.sin(Date.now() * 0.005) * 0.2;
+            child.scale.setScalar(p);
+          }
+          // Inverted pyramids rotation
+          if (child.userData && child.userData.isInvertedPyramids) {
+            child.rotation.y += dt * (child.userData.rotateSpeed || 0.08);
+          }
+          // Soul boids flocking
+          if (child.userData && child.userData.isSoulBoids) {
+            const posArr = child.geometry.attributes.position.array;
+            const boids = child.userData.boids;
+            const targetChangeSpeed = 3;
+            for (let i = 0; i < boids.length; i++) {
+              const b = boids[i];
+              b.timer -= dt;
+              if (b.timer <= 0) {
+                b.target.set(
+                  (Math.random() - 0.5) * 100,
+                  10 + Math.random() * 50,
+                  (Math.random() - 0.5) * 100
+                );
+                b.timer = 3 + Math.random() * targetChangeSpeed;
+              }
+              const steer = new T.Vector3().subVectors(b.target, b.pos).normalize().multiplyScalar(0.5);
+              b.vel.add(steer);
+              b.vel.x += (Math.random() - 0.5) * 0.1;
+              b.vel.z += (Math.random() - 0.5) * 0.1;
+              b.vel.clampLength(0, 2);
+              b.pos.add(b.vel.clone().multiplyScalar(dt));
+              posArr[i * 3] = b.pos.x;
+              posArr[i * 3 + 1] = b.pos.y;
+              posArr[i * 3 + 2] = b.pos.z;
+            }
+            child.geometry.attributes.position.needsUpdate = true;
           }
         });
       }
