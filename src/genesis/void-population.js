@@ -1449,14 +1449,6 @@ export function install(Genesis) {
         g.add(spire);
       }
     }
-      lctx.textAlign = 'center';
-      lctx.fillText(d.name.toUpperCase(), 128, 42);
-      const lTex = new T.CanvasTexture(lCanvas);
-      const lLabel = new T.Mesh(new T.PlaneGeometry(10, 2.5), new T.MeshBasicMaterial({ map: lTex, transparent: true }));
-      lLabel.position.set(cx, 35, cz);
-      lLabel.rotation.x = -Math.PI / 4;
-      group.add(lLabel);
-    }
 
     // ── ROAD GRID ──
     const roadMat = new T.MeshStandardMaterial({ color: 0x0a0a22, roughness: 0.8 });
