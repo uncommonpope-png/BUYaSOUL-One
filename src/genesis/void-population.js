@@ -937,21 +937,85 @@ export function install(Genesis) {
     group.position.copy(pos);
     const color = 0xffcc44;
 
-    // ── GROUND PLATFORM (200u diameter) ──
-    const ground = new T.Mesh(
-      new T.CylinderGeometry(100, 110, 3, 32),
-      new T.MeshStandardMaterial({ color: 0x0a0a1a, emissive: color, emissiveIntensity: 0.08, metalness: 0.8, roughness: 0.4 })
-    );
-    ground.position.y = -1;
-    ground.receiveShadow = true;
-    group.add(ground);
+    // ── HEIGHT FUNCTION (terrain displacement) ──
+    function getHeight(x, z) {
+      let h = 0;
+      h += Math.sin(x * 0.025) * Math.cos(z * 0.025) * 4.0;
+      h += Math.sin(x * 0.08) * 1.2;
+      h += Math.cos(z * 0.08) * 1.2;
+      h += Math.sin(x * 0.15 + z * 0.1) * 0.6;
+      return h;
+    }
 
-    // Ground glow rings — 3 rings for more drama
+    // ── TERRAIN GROUND (displaced plane) ──
+    const terrainGeo = new T.PlaneGeometry(240, 240, 60, 60);
+    terrainGeo.rotateX(-Math.PI / 2);
+    const tPosAttr = terrainGeo.attributes.position;
+    for (let i = 0; i < tPosAttr.count; i++) {
+      const x = tPosAttr.getX(i);
+      const z = tPosAttr.getZ(i);
+      tPosAttr.setY(i, getHeight(x, z));
+    }
+    tPosAttr.needsUpdate = true;
+    terrainGeo.computeVertexNormals();
+
+    // Create vertex colors for depth (dark at low, lighter at high)
+    const tColors = new Float32Array(tPosAttr.count * 3);
+    for (let i = 0; i < tPosAttr.count; i++) {
+      const y = tPosAttr.getY(i);
+      const t = (y + 5) / 12; // normalize roughly 0-1
+      const base = 0.04 + t * 0.04;
+      const accent = t * 0.08;
+      tColors[i * 3] = base;
+      tColors[i * 3 + 1] = base + accent * 0.3;
+      tColors[i * 3 + 2] = base + accent * 0.8;
+    }
+    terrainGeo.setAttribute('color', new T.BufferAttribute(tColors, 3));
+
+    const terrainMat = new T.MeshStandardMaterial({
+      vertexColors: true,
+      emissive: color,
+      emissiveIntensity: 0.02,
+      metalness: 0.7,
+      roughness: 0.4
+    });
+    const terrainMesh = new T.Mesh(terrainGeo, terrainMat);
+    terrainMesh.position.y = -3;
+    terrainMesh.receiveShadow = true;
+    group.add(terrainMesh);
+
+    // ── WATER POOL (reflective disc at tower base) ──
+    const waterGeo = new T.CircleGeometry(30, 48);
+    waterGeo.rotateX(-Math.PI / 2);
+    const waterMat = new T.MeshStandardMaterial({
+      color: 0x1a3366,
+      emissive: 0x2244aa,
+      emissiveIntensity: 0.15,
+      metalness: 0.9,
+      roughness: 0.1,
+      transparent: true,
+      opacity: 0.7
+    });
+    const waterMesh = new T.Mesh(waterGeo, waterMat);
+    waterMesh.position.y = -2.5;
+    waterMesh.receiveShadow = true;
+    group.add(waterMesh);
+
+    // Water edge glow ring
+    const waterRing = new T.Mesh(
+      new T.TorusGeometry(30, 0.5, 8, 48),
+      new T.MeshBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.3 })
+    );
+    waterRing.rotation.x = -Math.PI / 2;
+    waterRing.position.y = -2.4;
+    group.add(waterRing);
+
+    // ── GROUND GLOW RINGS (around terrain edge) ──
     for (let r = 0; r < 3; r++) {
       const ringR = 105 + r * 12;
-      const ringOp = 0.5 - r * 0.15;
+      const ringOp = 0.4 - r * 0.12;
       const ring = new T.Mesh(
-        new T.TorusGeometry(ringR, 0.8 - r * 0.2, 8, 48),
+        new T.TorusGeometry(ringR, 0.6 - r * 0.15, 8, 48),
         new T.MeshBasicMaterial({ color, transparent: true, opacity: ringOp })
       );
       ring.rotation.x = -Math.PI / 2;
@@ -1379,6 +1443,10 @@ export function install(Genesis) {
             const t = Date.now() * 0.002;
             child.scale.setScalar(1.0 + Math.sin(t) * 0.2);
             child.material.emissiveIntensity = 2.5 + Math.sin(t * 1.5) * 1.0;
+          }
+          // Animate water opacity
+          if (child.material && child.material.metalness > 0.8 && child.geometry && child.geometry.type === 'CircleGeometry') {
+            child.material.opacity = 0.6 + Math.sin(Date.now() * 0.001) * 0.1;
           }
         });
       }
