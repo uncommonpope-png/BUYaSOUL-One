@@ -1266,46 +1266,47 @@ export function install(Genesis) {
     label.position.y = crownY + 60;
     group.add(label);
 
-    // ── 4 DISTRICTS around tower ──
+    // ── 4 DISTRICTS around tower (each with own color, taller buildings) ──
     const districts = [
-      { name: 'work', angle: 0, buildings: [
-        { name: 'Forge', h: 12, w: 8, d: 8, shape: 'cylinder' },
-        { name: 'Market', h: 8, w: 12, d: 8, shape: 'box' },
-        { name: 'Barracks', h: 16, w: 8, d: 6, shape: 'box' },
-        { name: 'Farm', h: 3, w: 14, d: 14, shape: 'flat' }
+      { name: 'work', angle: 0, accent: 0xff3355, buildings: [
+        { name: 'Forge', h: 28, w: 12, d: 10, shape: 'cylinder' },
+        { name: 'Market', h: 20, w: 16, d: 12, shape: 'box' },
+        { name: 'Barracks', h: 35, w: 10, d: 8, shape: 'box' },
+        { name: 'Farm', h: 6, w: 20, d: 18, shape: 'flat' }
       ]},
-      { name: 'home', angle: Math.PI / 2, buildings: [
-        { name: 'Town Hall', h: 20, w: 10, d: 10, shape: 'box' },
-        { name: 'Vault', h: 10, w: 10, d: 10, shape: 'thick' },
-        { name: 'Tower', h: 30, w: 6, d: 6, shape: 'spire' },
-        { name: 'Residence', h: 8, w: 8, d: 8, shape: 'box' }
+      { name: 'home', angle: Math.PI / 2, accent: 0xff66aa, buildings: [
+        { name: 'Town Hall', h: 40, w: 14, d: 14, shape: 'ziggurat' },
+        { name: 'Vault', h: 22, w: 12, d: 12, shape: 'thick' },
+        { name: 'Tower', h: 50, w: 8, d: 8, shape: 'spire' },
+        { name: 'Residence', h: 18, w: 10, d: 10, shape: 'stacked' }
       ]},
-      { name: 'social', angle: Math.PI, buildings: [
-        { name: 'Breeding Den', h: 10, w: 10, d: 10, shape: 'dome' },
-        { name: 'Monument', h: 25, w: 5, d: 5, shape: 'obelisk' },
-        { name: 'Exchange', h: 8, w: 10, d: 10, shape: 'circle' },
-        { name: 'Pavilion', h: 6, w: 12, d: 12, shape: 'open' }
+      { name: 'social', angle: Math.PI, accent: 0x00ffcc, buildings: [
+        { name: 'Breeding Den', h: 24, w: 14, d: 14, shape: 'dome' },
+        { name: 'Monument', h: 45, w: 6, d: 6, shape: 'obelisk' },
+        { name: 'Exchange', h: 18, w: 14, d: 14, shape: 'circle' },
+        { name: 'Pavilion', h: 14, w: 18, d: 18, shape: 'open' }
       ]},
-      { name: 'learn', angle: Math.PI * 1.5, buildings: [
-        { name: 'Mage Tower', h: 28, w: 7, d: 7, shape: 'crystal' },
-        { name: 'Blacksmith', h: 10, w: 8, d: 8, shape: 'chimney' },
-        { name: 'Library', h: 14, w: 10, d: 8, shape: 'box' },
-        { name: 'Workshop', h: 8, w: 8, d: 8, shape: 'box' }
+      { name: 'learn', angle: Math.PI * 1.5, accent: 0x4488ff, buildings: [
+        { name: 'Mage Tower', h: 48, w: 10, d: 10, shape: 'crystal' },
+        { name: 'Blacksmith', h: 22, w: 12, d: 10, shape: 'chimney' },
+        { name: 'Library', h: 30, w: 14, d: 10, shape: 'box' },
+        { name: 'Workshop', h: 20, w: 10, d: 10, shape: 'ziggurat' }
       ]}
     ];
 
-    const distColor = 0xffcc44;
     for (const d of districts) {
-      const distRadius = 60;
+      const distRadius = 65;
       const cx = Math.cos(d.angle) * distRadius;
       const cz = Math.sin(d.angle) * distRadius;
 
       for (let bi = 0; bi < d.buildings.length; bi++) {
         const b = d.buildings[bi];
-        const bx = cx + (rng() - 0.5) * 30;
-        const bz = cz + (rng() - 0.5) * 30;
+        const bx = cx + (rng() - 0.5) * 35;
+        const bz = cz + (rng() - 0.5) * 35;
+        const isColored = rng() > 0.4;
+        const bColor = isColored ? d.accent : 0x222244;
         const mat = new T.MeshStandardMaterial({
-          color: 0x222244, emissive: distColor, emissiveIntensity: 0.06, metalness: 0.7, roughness: 0.3
+          color: bColor, emissive: d.accent, emissiveIntensity: isColored ? 0.12 : 0.05, metalness: 0.7, roughness: 0.3
         });
 
         let mesh;
@@ -1316,7 +1317,7 @@ export function install(Genesis) {
         } else if (b.shape === 'spire') {
           mesh = new T.Mesh(new T.ConeGeometry(b.w * 0.4, b.h, 6), mat);
         } else if (b.shape === 'obelisk') {
-          mesh = new T.Mesh(new T.CylinderGeometry(b.w * 0.2, b.w * 0.4, b.h, 4), mat);
+          mesh = new T.Mesh(new T.CylinderGeometry(b.w * 0.15, b.w * 0.35, b.h, 4), mat);
         } else if (b.shape === 'crystal') {
           mesh = new T.Mesh(new T.OctahedronGeometry(b.w * 0.5, 0), mat);
           mesh.scale.y = b.h / b.w;
@@ -1326,23 +1327,63 @@ export function install(Genesis) {
           mesh = new T.Mesh(new T.CylinderGeometry(b.w * 0.5, b.w * 0.5, b.h, 16), mat);
         } else if (b.shape === 'thick') {
           mesh = new T.Mesh(new T.BoxGeometry(b.w, b.h, b.d), new T.MeshStandardMaterial({
-            color: 0x333355, emissive: distColor, emissiveIntensity: 0.08, metalness: 0.8, roughness: 0.2
+            color: 0x333355, emissive: d.accent, emissiveIntensity: 0.1, metalness: 0.8, roughness: 0.2
           }));
+        } else if (b.shape === 'ziggurat') {
+          // 3-tier tapered building
+          const zGroup = new T.Group();
+          for (let t = 0; t < 3; t++) {
+            const tw = b.w * (1 - t * 0.2);
+            const td = b.d * (1 - t * 0.2);
+            const th = b.h / 3;
+            const tier = new T.Mesh(
+              new T.BoxGeometry(tw, th, td),
+              new T.MeshStandardMaterial({ color: bColor, emissive: d.accent, emissiveIntensity: 0.08 + t * 0.03, metalness: 0.6, roughness: 0.3 })
+            );
+            tier.position.y = th / 2 + t * th;
+            tier.castShadow = true;
+            zGroup.add(tier);
+          }
+          mesh = zGroup;
+          mesh.position.set(bx, 2, bz);
+          group.add(mesh);
+          // Skip normal positioning
+          addBuildingDetails(bx, bz, b, d.accent, group);
+          continue;
+        } else if (b.shape === 'stacked') {
+          // 2-tier building
+          const sGroup = new T.Group();
+          for (let t = 0; t < 2; t++) {
+            const tw = b.w * (1 - t * 0.15);
+            const td = b.d * (1 - t * 0.15);
+            const th = b.h / 2;
+            const tier = new T.Mesh(
+              new T.BoxGeometry(tw, th, td),
+              new T.MeshStandardMaterial({ color: bColor, emissive: d.accent, emissiveIntensity: 0.1, metalness: 0.6, roughness: 0.3 })
+            );
+            tier.position.y = th / 2 + t * th;
+            tier.castShadow = true;
+            sGroup.add(tier);
+          }
+          mesh = sGroup;
+          mesh.position.set(bx, 2, bz);
+          group.add(mesh);
+          addBuildingDetails(bx, bz, b, d.accent, group);
+          continue;
         } else if (b.shape === 'chimney') {
           const chimneyGroup = new T.Group();
           chimneyGroup.add(new T.Mesh(new T.BoxGeometry(b.w, b.h, b.d), mat));
           const chimney = new T.Mesh(
-            new T.CylinderGeometry(1, 1.5, 6, 6),
-            new T.MeshStandardMaterial({ color: 0x444466, emissive: distColor, emissiveIntensity: 0.1 })
+            new T.CylinderGeometry(1.5, 2, 10, 6),
+            new T.MeshStandardMaterial({ color: 0x444466, emissive: d.accent, emissiveIntensity: 0.15 })
           );
-          chimney.position.set(b.w * 0.3, b.h / 2 + 3, 0);
+          chimney.position.set(b.w * 0.3, b.h / 2 + 5, 0);
           chimneyGroup.add(chimney);
           mesh = chimneyGroup;
-          mesh.position.set(bx, 0, bz);
+          mesh.position.set(bx, 2, bz);
           group.add(mesh);
+          addBuildingDetails(bx, bz, b, d.accent, group);
           continue;
-        } else if (b.shape === 'open') {
-          mesh = new T.Mesh(new T.BoxGeometry(b.w, b.h, b.d), mat);
         } else {
           mesh = new T.Mesh(new T.BoxGeometry(b.w, b.h, b.d), mat);
         }
@@ -1352,26 +1393,62 @@ export function install(Genesis) {
         mesh.receiveShadow = true;
         group.add(mesh);
 
-        // Window glow on tall buildings
-        if (b.h > 8) {
-          for (let wy = 3; wy < b.h - 2; wy += 4) {
-            const wGeo = new T.BoxGeometry(b.w * 0.5, 0.25, 0.05);
-            const wMat = new T.MeshStandardMaterial({ color: distColor, emissive: distColor, emissiveIntensity: 0.5 });
-            const win = new T.Mesh(wGeo, wMat);
-            win.position.set(bx, wy, bz + (b.d || b.w) / 2 + 0.03);
-            group.add(win);
-          }
-        }
+        addBuildingDetails(bx, bz, b, d.accent, group);
       }
 
-      // District label
+      // District ground label
       const lCanvas = document.createElement('canvas');
       lCanvas.width = 256; lCanvas.height = 64;
       const lctx = lCanvas.getContext('2d');
       lctx.fillStyle = 'rgba(0,0,0,0.7)';
       lctx.fillRect(0, 0, 256, 64);
-      lctx.fillStyle = '#ffcc44';
+      lctx.fillStyle = '#' + d.accent.toString(16).padStart(6, '0');
       lctx.font = 'bold 28px sans-serif';
+      lctx.textAlign = 'center';
+      lctx.fillText(d.name.toUpperCase(), 128, 42);
+      const lTex = new T.CanvasTexture(lCanvas);
+      const lLabel = new T.Mesh(new T.PlaneGeometry(10, 2.5), new T.MeshBasicMaterial({ map: lTex, transparent: true }));
+      lLabel.position.set(cx, 25, cz);
+      lLabel.rotation.x = -Math.PI / 4;
+      group.add(lLabel);
+    }
+
+    // Helper: add windows, caps, spires to a building
+    function addBuildingDetails(bx, bz, b, accent, g) {
+      // Windows on front + back
+      if (b.h > 10) {
+        for (let wy = 4; wy < b.h - 2; wy += 5) {
+          const wGeo = new T.BoxGeometry(b.w * 0.5, 0.3, 0.05);
+          const wMat = new T.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.6 });
+          const w1 = new T.Mesh(wGeo, wMat);
+          w1.position.set(bx, wy, bz + (b.d || b.w) / 2 + 0.03);
+          g.add(w1);
+          const w2 = new T.Mesh(wGeo, wMat);
+          w2.position.set(bx, wy, bz - (b.d || b.w) / 2 - 0.03);
+          g.add(w2);
+        }
+      }
+
+      // Glowing cap on tall buildings
+      if (b.h > 14 && rng() > 0.4) {
+        const capGeo = new T.BoxGeometry(b.w + 0.5, 0.4, (b.d || b.w) + 0.5);
+        const capMat = new T.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.7 });
+        const cap = new T.Mesh(capGeo, capMat);
+        cap.position.set(bx, b.h + 2.2, bz);
+        g.add(cap);
+      }
+
+      // Antenna spire on very tall buildings
+      if (b.h > 30 && rng() > 0.4) {
+        const spireH = 4 + rng() * 8;
+        const spire = new T.Mesh(
+          new T.CylinderGeometry(0.1, 0.35, spireH, 4),
+          new T.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.8 })
+        );
+        spire.position.set(bx, b.h + spireH / 2 + 2, bz);
+        g.add(spire);
+      }
+    }
       lctx.textAlign = 'center';
       lctx.fillText(d.name.toUpperCase(), 128, 42);
       const lTex = new T.CanvasTexture(lCanvas);
