@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { installVoidCosmos } from './void-cosmos.js';
 
-const WORLD_COUNT = 16;
+const WORLD_COUNT = 17;
 const MIN_DIST = 360; // Lost Mechanics Ring starts here (CPL Territory ends at 360u)
 const MAX_DIST = 3000;
 const WAKE_RADIUS = 800;
@@ -39,6 +39,8 @@ const WORLD_COORDINATES = [
   { x: -104, y: 0, z: 401, zone: 'lost-mechanics' },
   // Stormhold Castle — Outer Void at 3800u
   { x: 3800, y: 0, z: 0, zone: 'outer-void' },
+  // Cosmic Colosseum — Outer Void at 4000u
+  { x: 0, y: 0, z: -4000, zone: 'outer-void' },
 ];
 
 const WORLD_CONFIG = [
@@ -63,10 +65,12 @@ const WORLD_CONFIG = [
   { name: 'Grand Tower', type: 'grandtower', plt: { profit: 50, love: 50, tax: 50 } },
   // Stormhold Castle — Outer Void fortress
   { name: 'Stormhold Castle', type: 'castle', plt: { profit: 30, love: 10, tax: 40 } },
+  // Cosmic Colosseum — Outer Void arena
+  { name: 'Cosmic Colosseum', type: 'colosseum', plt: { profit: 40, love: 20, tax: 30 } },
 ];
 
 const NAMES = WORLD_CONFIG.map(w => w.name);
-const TYPES = ['physics', 'arena', 'soulhome', 'combat', 'crafting', 'trading', 'exploration', 'breeding', 'governance', 'economy', 'building', 'conversation', 'districts', 'cplclone', 'grandtower', 'castle'];
+const TYPES = ['physics', 'arena', 'soulhome', 'combat', 'crafting', 'trading', 'exploration', 'breeding', 'governance', 'economy', 'building', 'conversation', 'districts', 'cplclone', 'grandtower', 'castle', 'colosseum'];
 
 const TYPE_COLORS = {
   // Lost Mechanics Archetypes
@@ -77,7 +81,7 @@ const TYPE_COLORS = {
   // Original types
   combat: 0xff3355, crafting: 0x66ff88, trading: 0xffdd00, exploration: 0xaa66ff,
   breeding: 0xff66cc, governance: 0xff8844, building: 0x4488ff,
-  conversation: 0xffaa00, districts: 0x00ffcc, cplclone: 0x66ffff, grandtower: 0xffcc44, castle: 0xcc8844
+  conversation: 0xffaa00, districts: 0x00ffcc, cplclone: 0x66ffff, grandtower: 0xffcc44,   castle: 0xcc8844, colosseum: 0xff8844
 };
 const TYPE_QUESTS = {
   // Lost Mechanics Archetypes
@@ -105,7 +109,8 @@ const TYPE_QUESTS = {
   districts: 'Unlock all 4 districts — achieve total unity',
   cplclone: 'Build a CPL clone city — randomized by the Lost Mechanics Bible',
   grandtower: 'The Grand Tower — ascend 100 floors, forge legendary souls',
-  castle: 'Stormhold Castle — conquer the Outer Void fortress, claim its PLT treasury'
+  castle: 'Stormhold Castle — conquer the Outer Void fortress, claim its PLT treasury',
+  colosseum: 'Cosmic Colosseum — triumph in the arena, earn glory beyond measure'
 };
 const TYPE_DENIZEN_NAMES = {
   // Lost Mechanics Archetypes
@@ -133,7 +138,8 @@ const TYPE_DENIZEN_NAMES = {
   districts: ['Warden','Overseer','Administrator','Coordinator','Director'],
   cplclone: ['City Architect','Neon Weaver','Grid Keeper','District Mind','Clone Master'],
   grandtower: ['Tower Guardian','Forge Master','Soul Keeper','Gate Watcher','Crown Bearer'],
-  castle: ['Castle Lord','Keep Warden','Wall Commander','Gate Captain','Iron Sentinel']
+  castle: ['Castle Lord','Keep Warden','Wall Commander','Gate Captain','Iron Sentinel'],
+  colosseum: ['Arena Champion','Gladiator Prime','Crowd Master','Sand Lord','Triumph Herald']
 };
 
 function seededRandom(seed) {
@@ -1861,6 +1867,170 @@ export function install(Genesis) {
     return g;
   }
 
+  function createColosseum(pos, rng) {
+    const g = new T.Group();
+    g.position.copy(pos);
+
+    const outerRadius = 40;
+    const innerRadius = 25;
+    const height = 20;
+    const tiers = 5;
+    const archCount = 32;
+
+    const stoneMat = new T.MeshStandardMaterial({ color: 0xccbb99, roughness: 0.7, metalness: 0.1 });
+    const darkStoneMat = new T.MeshStandardMaterial({ color: 0x887766, roughness: 0.8, metalness: 0.05 });
+    const floorMat = new T.MeshStandardMaterial({ color: 0x554433, roughness: 0.9 });
+    const marbleMat = new T.MeshStandardMaterial({ color: 0xeeddcc, roughness: 0.4, metalness: 0.2, emissive: 0x443322, emissiveIntensity: 0.05 });
+    const torchMat = new T.MeshStandardMaterial({ color: 0xff6633, emissive: 0xff4400, emissiveIntensity: 2.0 });
+
+    // 1. Arena floor
+    const floor = new T.Mesh(new T.CircleGeometry(innerRadius - 0.5, 64), floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = 0.1;
+    floor.receiveShadow = true;
+    g.add(floor);
+
+    // 2. Inner wall
+    const innerWall = new T.Mesh(
+      new T.CylinderGeometry(innerRadius, innerRadius, 1.5, 64, 1, true),
+      new T.MeshStandardMaterial({ color: 0xaa9988, roughness: 0.8, side: T.DoubleSide })
+    );
+    innerWall.position.y = 0.75;
+    innerWall.castShadow = true;
+    g.add(innerWall);
+
+    // 3. Seating tiers
+    for (let t = 0; t < tiers; t++) {
+      const frac = (t + 1) / tiers;
+      const radius = innerRadius + frac * (outerRadius - innerRadius) * 0.7;
+      const yBase = 1.5 + t * (height / tiers) * 0.8;
+      const stepHeight = height / tiers * 0.6;
+
+      const step = new T.Mesh(new T.RingGeometry(radius - 0.6, radius + 0.6, 64), stoneMat);
+      step.rotation.x = -Math.PI / 2;
+      step.position.y = yBase;
+      step.receiveShadow = true;
+      g.add(step);
+
+      const riser = new T.Mesh(new T.CylinderGeometry(radius + 0.6, radius + 0.6, stepHeight, 64, 1, true), darkStoneMat);
+      riser.position.y = yBase + stepHeight / 2;
+      riser.castShadow = true;
+      g.add(riser);
+
+      const seat = new T.Mesh(new T.TorusGeometry(radius, 0.3, 8, 64), marbleMat);
+      seat.position.y = yBase + 0.2;
+      seat.rotation.x = Math.PI / 2;
+      seat.scale.set(1, 1, 0.5);
+      g.add(seat);
+    }
+
+    // 4. Outer wall with arches
+    const wallRadius = outerRadius;
+    const wallHeight = height;
+    const pillarWidth = 0.8;
+    const archWidth = 2.0;
+
+    for (let i = 0; i < archCount; i++) {
+      const angle = (i / archCount) * Math.PI * 2;
+      const midAngle = (angle + ((i + 0.5) / archCount) * Math.PI * 2) / 2;
+
+      const pillar = new T.Mesh(new T.BoxGeometry(pillarWidth, wallHeight, pillarWidth), stoneMat);
+      pillar.position.set(Math.cos(angle) * wallRadius, wallHeight / 2, Math.sin(angle) * wallRadius);
+      pillar.castShadow = true;
+      g.add(pillar);
+
+      const arch = new T.Mesh(new T.TorusGeometry(archWidth / 2, 0.5, 8, 8, Math.PI), marbleMat);
+      arch.position.set(Math.cos(midAngle) * wallRadius, wallHeight - 2, Math.sin(midAngle) * wallRadius);
+      arch.rotation.y = -midAngle;
+      arch.rotation.x = Math.PI / 2;
+      arch.scale.set(1, 1, 1.5);
+      arch.castShadow = true;
+      g.add(arch);
+
+      const panel = new T.Mesh(
+        new T.PlaneGeometry(archWidth * 0.8, 3),
+        new T.MeshStandardMaterial({ color: 0xbbaa99, roughness: 0.8, side: T.DoubleSide })
+      );
+      panel.position.set(Math.cos(midAngle) * (wallRadius + 0.1), wallHeight - 2.5, Math.sin(midAngle) * (wallRadius + 0.1));
+      panel.rotation.y = -midAngle;
+      g.add(panel);
+    }
+
+    // 5. Upper cornice
+    const cornice = new T.Mesh(new T.TorusGeometry(wallRadius + 0.5, 0.6, 8, 64), marbleMat);
+    cornice.position.y = wallHeight + 0.2;
+    cornice.rotation.x = Math.PI / 2;
+    cornice.scale.set(1, 1, 0.8);
+    cornice.castShadow = true;
+    g.add(cornice);
+
+    // 6. Inner columns
+    for (let i = 0; i < 16; i++) {
+      const angle = (i / 16) * Math.PI * 2;
+      const col = new T.Mesh(new T.CylinderGeometry(0.4, 0.5, 4, 8), marbleMat);
+      col.position.set(Math.cos(angle) * (innerRadius + 0.5), 2, Math.sin(angle) * (innerRadius + 0.5));
+      col.castShadow = true;
+      g.add(col);
+
+      const cap = new T.Mesh(new T.CylinderGeometry(0.6, 0.4, 0.3, 8), marbleMat);
+      cap.position.set(Math.cos(angle) * (innerRadius + 0.5), 4.2, Math.sin(angle) * (innerRadius + 0.5));
+      cap.castShadow = true;
+      g.add(cap);
+    }
+
+    // 7. Giant entrance arch
+    const entranceAngle = 0;
+    const entranceHeight = wallHeight * 1.3;
+    for (let side = -1; side <= 1; side += 2) {
+      const ep = new T.Mesh(new T.BoxGeometry(1.5, entranceHeight, 1.5), marbleMat);
+      ep.position.set(Math.cos(entranceAngle + side * 0.15) * wallRadius, entranceHeight / 2, Math.sin(entranceAngle + side * 0.15) * wallRadius);
+      ep.castShadow = true;
+      g.add(ep);
+    }
+    const archTop = new T.Mesh(new T.BoxGeometry(4, 1.5, 1.5), marbleMat);
+    archTop.position.set(Math.cos(entranceAngle) * wallRadius, entranceHeight, Math.sin(entranceAngle) * wallRadius);
+    archTop.castShadow = true;
+    g.add(archTop);
+
+    // 8. Torches
+    for (let i = 0; i < archCount; i++) {
+      const angle = (i / archCount) * Math.PI * 2;
+      const torch = new T.Mesh(new T.SphereGeometry(0.3, 6, 6), torchMat);
+      torch.position.set(Math.cos(angle) * (wallRadius + 0.8), wallHeight * 0.9, Math.sin(angle) * (wallRadius + 0.8));
+      torch.userData = { torchPhase: i * 1.2 };
+      g.add(torch);
+    }
+
+    // 9. Ground disc
+    const groundDisc = new T.Mesh(
+      new T.CircleGeometry(outerRadius + 5, 64),
+      new T.MeshStandardMaterial({ color: 0x2a2a3a, roughness: 0.9 })
+    );
+    groundDisc.rotation.x = -Math.PI / 2;
+    groundDisc.position.y = -0.5;
+    groundDisc.receiveShadow = true;
+    g.add(groundDisc);
+
+    // 10. Floating embers
+    const ec = 200;
+    const eg = new T.BufferGeometry();
+    const ep2 = new Float32Array(ec * 3);
+    for (let i = 0; i < ec * 3; i += 3) {
+      const a = rng() * Math.PI * 2;
+      const r = rng() * outerRadius;
+      ep2[i] = Math.cos(a) * r;
+      ep2[i + 1] = rng() * height * 1.5;
+      ep2[i + 2] = Math.sin(a) * r;
+    }
+    eg.setAttribute('position', new T.BufferAttribute(ep2, 3));
+    const em = new T.PointsMaterial({ color: 0xff8844, size: 0.2, transparent: true, opacity: 0.3, blending: T.AdditiveBlending, depthWrite: false });
+    const embers = new T.Points(eg, em);
+    embers.userData.isColosseumEmbers = true;
+    g.add(embers);
+
+    return g;
+  }
+
   function populate(opts) {
     opts = opts || {};
     scene = opts.scene || null;
@@ -2046,6 +2216,8 @@ export function install(Genesis) {
         city.add(boids);
       } else if (type === 'castle') {
         city = createCastle(pos, rng);
+      } else if (type === 'colosseum') {
+        city = createColosseum(pos, rng);
       } else {
         city = createCitySkeleton(pos, type, rng);
       }
@@ -2326,6 +2498,24 @@ export function install(Genesis) {
             for (let i = 1; i < pos.length; i += 3) {
               pos[i] += dt * 0.3;
               if (pos[i] > 45) pos[i] = 0;
+            }
+            child.geometry.attributes.position.needsUpdate = true;
+          }
+        });
+      }
+
+      // Colosseum animations
+      if (w.city && w.type === 'colosseum') {
+        w.city.children.forEach(child => {
+          if (child.userData && child.userData.torchPhase !== undefined && child.isMesh && child.material) {
+            const t = Date.now() * 0.002 + child.userData.torchPhase;
+            child.material.emissiveIntensity = 1.5 + Math.sin(t) * 0.8;
+          }
+          if (child.userData && child.userData.isColosseumEmbers) {
+            const pos = child.geometry.attributes.position.array;
+            for (let i = 1; i < pos.length; i += 3) {
+              pos[i] += dt * 0.5;
+              if (pos[i] > 30) pos[i] = 0;
             }
             child.geometry.attributes.position.needsUpdate = true;
           }
