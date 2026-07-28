@@ -1378,6 +1378,9 @@ export function install(Genesis) {
           }
           mesh = zGroup;
           mesh.position.set(bx, 2, bz);
+          mesh.userData.buildingType = b.name;
+          mesh.userData.district = d.name;
+          mesh.userData.isTowerBuilding = true;
           group.add(mesh);
           // Skip normal positioning
           addBuildingDetails(bx, bz, b, d.accent, group);
@@ -1399,6 +1402,9 @@ export function install(Genesis) {
           }
           mesh = sGroup;
           mesh.position.set(bx, 2, bz);
+          mesh.userData.buildingType = b.name;
+          mesh.userData.district = d.name;
+          mesh.userData.isTowerBuilding = true;
           group.add(mesh);
           addBuildingDetails(bx, bz, b, d.accent, group);
           continue;
@@ -1413,6 +1419,9 @@ export function install(Genesis) {
           chimneyGroup.add(chimney);
           mesh = chimneyGroup;
           mesh.position.set(bx, 2, bz);
+          mesh.userData.buildingType = b.name;
+          mesh.userData.district = d.name;
+          mesh.userData.isTowerBuilding = true;
           group.add(mesh);
           addBuildingDetails(bx, bz, b, d.accent, group);
           continue;
@@ -1423,6 +1432,9 @@ export function install(Genesis) {
         mesh.position.set(bx, b.h / 2 + 2, bz);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
+        mesh.userData.buildingType = b.name;
+        mesh.userData.district = d.name;
+        mesh.userData.isTowerBuilding = true;
         group.add(mesh);
 
         addBuildingDetails(bx, bz, b, d.accent, group);
@@ -1691,6 +1703,40 @@ export function install(Genesis) {
     camera = opts.camera || null;
     if (!flagOn()) return { built: false, reason: 'flag-off' };
     if (!T || !scene) return { built: false, reason: 'no-THREE/scene' };
+
+    // Wire building click handler once
+    if (!window.__towerBuildingClickWired) {
+      window.__towerBuildingClickWired = true;
+      const _ray = new T.Raycaster();
+      const _ptr = new T.Vector2();
+      window.addEventListener('pointerdown', (ev) => {
+        if (!camera || !worldRoot) return;
+        const rect = ev.target.getBoundingClientRect();
+        _ptr.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+        _ptr.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+        _ray.setFromCamera(_ptr, camera);
+        const hits = _ray.intersectObjects(worldRoot.children, true);
+        for (const hit of hits) {
+          let obj = hit.object;
+          while (obj) {
+            if (obj.userData && obj.userData.isTowerBuilding) {
+              const type = obj.userData.buildingType;
+              const dist = obj.userData.district;
+              const name = type;
+              if (window.Genesis && window.Genesis.EventBridge) {
+                window.Genesis.EventBridge.emit('building:click', { type, district: dist, name });
+              }
+              if (window.Genesis && window.Genesis.PLT && typeof window.Genesis.PLT.record === 'function') {
+                window.Genesis.PLT.record('building.click.' + type.toLowerCase(), { profit: 0.5, love: 0.3, tax: 0.1 }, { actor: 'player', building: type });
+              }
+              console.log('[Tower] Clicked', type);
+              break;
+            }
+            obj = obj.parent;
+          }
+        }
+      }, { passive: true });
+    }
 
     // Clean previous
     if (worldRoot.parent) worldRoot.parent.remove(worldRoot);
