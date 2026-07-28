@@ -84,6 +84,7 @@ The complete archetype system for the Lost Mechanics. Each archetype is a type s
 | persona | `#00ffcc` | `(0, 255, 204)` |
 | economy | `#00ffaa` | `(0, 255, 170)` |
 | achievement | `#ff7722` | `(255, 119, 34)` |
+| cosmic | `#ff8844` | `(255, 136, 68)` |
 
 ---
 
@@ -95,6 +96,7 @@ The complete archetype system for the Lost Mechanics. Each archetype is a type s
 | Lost Mech II — Arena Core | 13 | 8 | -3 |
 | Lost Mech III — Soul Home | 9 | 14 | -3 |
 | New City (CPL Clone) | 25 | 25 | 0 |
+| **Grand Tower** | **50** | **50** | **50** |
 
 ---
 
@@ -111,3 +113,46 @@ Beyond the 12 Lost Mechanics types, the full PLT Doctrine defines 22 frequency s
 ---
 
 *Source: void-population.js lines 59–120 · PLT Press / The Sacred Texts of the Soulverse*
+
+---
+
+## The Grand Tower — Cosmic Nexus
+
+The Grand Tower at (-104, 0, 401) ~414u is the central pillar of the Lost Mechanics Ring. It manifests PLT as a living cosmology — a tower that reaches from the void toward the stars, surrounded by celestial machinery.
+
+### Visual Features
+
+| Feature | Description | Location |
+|---------|-------------|----------|
+| **Tower Core** | 300u tapered structure: 3-tier ziggurat base, buttresses, alternating box/cylinder mid-section, observation deck at 250u, ConeGeometry spire, crown orb with 3 rotating halos, open-ended tapered beam | Center at y=0–300 |
+| **Terrain + Water** | Displaced PlaneGeometry (60x60, sine/cosine octaves), vertex-colored terrain, reflective 30u CircleGeometry water pool with pulsing opacity | Base at y=0 |
+| **4 Districts** | Work (red), Home (pink), Social (cyan), Learn (blue) — buildings 14-50u, 8 shapes (cylinder/cone/box/ziggurat/stacked/crystal/dome/obelisk), glowing caps, antenna spires, window strips | Ground ring around tower |
+
+### Celestial Additions (Phase 5+)
+
+| Feature | Description | Cosmic Role |
+|---------|-------------|-------------|
+| **Spiral Galaxy** | 15,000 particles, 4 logarithmic arms, power-curve density, warm→cool gradient, differential rotation (inner spins faster) | The cosmos above — the eternal macro scale |
+| **Exploding Planet** | 2,000 particles cycling sphere→explode→reassemble via sine wave. Orbits tower at 70u radius, y=300 | The cycle of destruction and rebirth — the meso scale |
+| **Inverted Pyramids** | 16 upside-down ConeGeometry floating in a ring at y=280–320, rotating slowly | The celestial city — the inverted reflection |
+| **Soul Boids** | 60 glowing particles wandering between districts, target-seeking with organic noise | The micro scale — individual souls finding their way |
+
+### PLT Profile
+
+| Profit | Love | Tax |
+|--------|------|-----|
+| 50 | 50 | 50 |
+
+Perfect balance. The Grand Tower is the point where all three forces converge equally.
+
+---
+
+## Cosmic Archetype — `#ff8844`
+
+**Quest:** Witness the eternal cycle — explosion and reassembly, destruction and rebirth
+**Denizens:** Star Forger, Orbit Keeper, Cycle Sage, Nova Walker, Void Astronomer
+**Domain:** Celestial mechanics, orbital cycles, cosmic destruction and creation. The grand scale — galaxies, planets, the void itself. Everything explodes, everything reforms.
+
+**Visual signature:** Spiral arms, orbiting bodies, particle explosions, glowing orbs, additive blending.
+
+---
