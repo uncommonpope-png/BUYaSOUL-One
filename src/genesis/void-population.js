@@ -2038,6 +2038,36 @@ export function install(Genesis) {
   const FLEET_RADIUS_MIN = 380;
   const FLEET_RADIUS_MAX = 520;
 
+  // Selection system state
+  const SELECTED_SHIPS = new Set();
+  let _selPointerDown = false;
+  let _selStartX = 0, _selStartY = 0;
+  let _selDragged = false;
+  let _selRectEl = null;
+
+  // Selection ring (shared geometry + material)
+  const _selRingGeo = new T.TorusGeometry(1.8, 0.08, 8, 24);
+  const _selRingMat = new T.MeshBasicMaterial({ color: 0x00ffaa, transparent: true, opacity: 0.9, blending: T.AdditiveBlending, depthWrite: false });
+
+  function _addSelRing(ship) {
+    if (ship.userData.selRing) return;
+    const ring = new T.Mesh(_selRingGeo, _selRingMat);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = -0.5;
+    ship.add(ring);
+    ship.userData.selRing = ring;
+  }
+
+  function _removeSelRing(ship) {
+    const ring = ship.userData.selRing;
+    if (ring) { ship.remove(ring); ship.userData.selRing = null; }
+  }
+
+  function _clearSelection() {
+    for (const ship of SELECTED_SHIPS) _removeSelRing(ship);
+    SELECTED_SHIPS.clear();
+  }
+
   function createWarship(faction, rng) {
     const g = new T.Group();
 
@@ -2282,8 +2312,9 @@ export function install(Genesis) {
       const ud = ship.userData;
       const enemies = ud.faction === 'imperium' ? solar : imperium;
 
-      // Dead — respawn
+      // Dead — remove from selection, respawn
       if (ud.hp <= 0) {
+        if (SELECTED_SHIPS.has(ship)) { SELECTED_SHIPS.delete(ship); _removeSelRing(ship); }
         ud.respawnTimer -= dt;
         ship.visible = false;
         if (ud.respawnTimer <= 0) {
@@ -2373,7 +2404,75 @@ export function install(Genesis) {
           ship.position.add(dir.clone().multiplyScalar(ud.speed * dt * 1.5));
           ship.lookAt(orbitPos);
         }
+      } else if (ud.state === 'cmd_move') {
+        const target = ud.moveTarget;
+        if (!target) { _advanceCommandQueue(ship); }
+        else {
+          const dir = new T.Vector3().subVectors(target, ship.position);
+          const dist = dir.length();
+          if (dist < 3) { _advanceCommandQueue(ship); }
+          else {
+            dir.normalize();
+            ship.position.add(dir.clone().multiplyScalar(ud.speed * dt));
+            ship.lookAt(target);
+          }
+        }
+        // Defensive: fight threats in range while moving (SC2 Move behavior)
+        ud.acquireTimer -= dt;
+        if (ud.acquireTimer <= 0) {
+          ud.acquireTimer = ud.acquireInterval;
+          const threat = acquireTarget(ship, enemies);
+          if (threat && ship.position.distanceTo(threat.position) <= ud.weaponRange) {
+            ud.fireCooldown -= dt;
+            if (ud.fireCooldown <= 0) { ud.fireCooldown = ud.fireInterval; fireLaser(ship, threat); }
+          }
+        }
+      } else if (ud.state === 'cmd_attack') {
+        const target = ud.attackTarget;
+        if (!target || target.userData.hp <= 0) { _advanceCommandQueue(ship); }
+        else {
+          const targetPos = target.position;
+          const dir = new T.Vector3().subVectors(targetPos, ship.position);
+          const dist = dir.length();
+          if (dist > 0.5) {
+            dir.normalize();
+            ship.position.add(dir.clone().multiplyScalar(ud.speed * dt));
+          }
+          ship.lookAt(targetPos);
+          ud.fireCooldown -= dt;
+          if (dist <= ud.weaponRange && ud.fireCooldown <= 0) {
+            ud.fireCooldown = ud.fireInterval;
+            fireLaser(ship, target);
+          }
+        }
+      } else if (ud.state === 'cmd_stop') {
+        // Do nothing — ship stays in place
+        ship.lookAt(new T.Vector3().addVectors(ship.position, new T.Vector3(0, 0, -1)));
+        ud.fireCooldown -= dt;
+        if (ud.fireCooldown <= 0 && enemies.length > 0) {
+          const threat = acquireTarget(ship, enemies);
+          if (threat && ship.position.distanceTo(threat.position) <= ud.weaponRange) {
+            ud.fireCooldown = ud.fireInterval;
+            fireLaser(ship, threat);
+          }
+        }
+      } else if (ud.state === 'cmd_hold') {
+        // Hold position — attack enemies in range, do not chase
+        const threat = acquireTarget(ship, enemies);
+        if (threat && ship.position.distanceTo(threat.position) <= ud.weaponRange) {
+          ship.lookAt(threat.position);
+          ud.fireCooldown -= dt;
+          if (ud.fireCooldown <= 0) { ud.fireCooldown = ud.fireInterval; fireLaser(ship, threat); }
+        }
       }
+    }
+
+    // Rotate + pulse selection rings
+    const _ringPulse = 0.6 + Math.sin(Date.now() * 0.004) * 0.3;
+    _selRingMat.opacity = _ringPulse;
+    for (const ship of SELECTED_SHIPS) {
+      const ring = ship.userData.selRing;
+      if (ring) ring.rotation.z += dt * 1.5;
     }
 
     // Update laser bolts (homing)
@@ -2414,7 +2513,173 @@ export function install(Genesis) {
     }
   }
 
-  // ====== END WAR FLEET ======
+  // ====== COMMAND SYSTEM (SC2-style) ======
+
+  const CMD = { MOVE: 'MOVE', ATTACK: 'ATTACK', ATTACK_MOVE: 'ATTACK_MOVE', STOP: 'STOP', HOLD: 'HOLD', PATROL: 'PATROL', FOLLOW: 'FOLLOW' };
+  const CMD_POLICY = { REPLACE: 'REPLACE', QUEUE: 'QUEUE' };
+
+  function _shipToScreen(ship) {
+    const vec = new T.Vector3();
+    ship.getWorldPosition(vec);
+    vec.project(camera);
+    return { x: (vec.x * 0.5 + 0.5) * window.innerWidth, y: (-vec.y * 0.5 + 0.5) * window.innerHeight };
+  }
+
+  function _issueCommand(ship, cmd) {
+    const ud = ship.userData;
+    if (!ud.commandQueue) ud.commandQueue = [];
+    if (cmd.policy === CMD_POLICY.REPLACE) ud.commandQueue.length = 0;
+    ud.commandQueue.push(cmd);
+    if (ud.commandQueue.length === 1) _activateCommand(ship, cmd);
+  }
+
+  function _activateCommand(ship, cmd) {
+    const ud = ship.userData;
+    switch (cmd.type) {
+      case CMD.MOVE:
+        ud.state = 'cmd_move';
+        ud.moveTarget = cmd.targetPos;
+        break;
+      case CMD.ATTACK:
+        ud.state = 'cmd_attack';
+        ud.attackTarget = cmd.target;
+        break;
+      case CMD.ATTACK_MOVE:
+        ud.state = 'cmd_attack_move';
+        ud.moveTarget = cmd.targetPos;
+        break;
+      case CMD.STOP:
+        ud.state = 'cmd_stop';
+        break;
+      case CMD.HOLD:
+        ud.state = 'cmd_hold';
+        break;
+    }
+  }
+
+  function _advanceCommandQueue(ship) {
+    const q = ship.userData.commandQueue;
+    if (!q || q.length === 0) return;
+    q.shift();
+    if (q.length > 0) _activateCommand(ship, q[0]);
+    else {
+      ship.userData.state = 'patrol';
+      ship.userData.acquireTarget = null;
+    }
+  }
+
+  // Selection event handlers
+  function _cmdPointerDown(e) {
+    if (!camera || !scene) return;
+    if (e.button !== 0) return;
+    _selPointerDown = true;
+    _selStartX = e.clientX;
+    _selStartY = e.clientY;
+    _selDragged = false;
+  }
+
+  function _cmdPointerMove(e) {
+    if (!_selPointerDown) return;
+    const dx = e.clientX - _selStartX;
+    const dy = e.clientY - _selStartY;
+    if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+    _selDragged = true;
+    if (!_selRectEl) {
+      _selRectEl = document.createElement('div');
+      _selRectEl.style.cssText = 'position:fixed;border:1px solid #00ffaa;background:rgba(0,255,170,0.08);pointer-events:none;z-index:100;';
+      document.body.appendChild(_selRectEl);
+    }
+    const left = Math.min(_selStartX, e.clientX);
+    const top = Math.min(_selStartY, e.clientY);
+    _selRectEl.style.cssText = 'position:fixed;left:' + left + 'px;top:' + top + 'px;width:' + Math.abs(dx) + 'px;height:' + Math.abs(dy) + 'px;border:1px solid #00ffaa;background:rgba(0,255,170,0.08);pointer-events:none;z-index:100;display:block;';
+  }
+
+  function _cmdPointerUp(e) {
+    if (!_selPointerDown) return;
+    _selPointerDown = false;
+    if (_selRectEl) { _selRectEl.style.display = 'none'; _selRectEl.style.width = '0px'; _selRectEl.style.height = '0px'; }
+    if (e.button !== 0) return;
+
+    // Check if click was on a tower building — skip selection
+    if (!_selDragged && camera && worldRoot) {
+      const ndc = new T.Vector2(((e.clientX - (e.target && e.target.getBoundingClientRect ? e.target.getBoundingClientRect().left : 0)) / (e.target && e.target.clientWidth || window.innerWidth)) * 2 - 1, -((e.clientY - (e.target && e.target.getBoundingClientRect ? e.target.getBoundingClientRect().top : 0)) / (e.target && e.target.clientHeight || window.innerHeight)) * 2 + 1);
+      const ray = new T.Raycaster();
+      ray.setFromCamera(ndc, camera);
+      const hits = ray.intersectObjects(worldRoot.children, true);
+      for (const hit of hits) {
+        let obj = hit.object;
+        while (obj) {
+          if (obj.userData && obj.userData.isTowerBuilding) return;
+          obj = obj.parent;
+        }
+      }
+    }
+
+    if (_selDragged) {
+      // Drag-box select
+      if (!e.shiftKey) _clearSelection();
+      const left = Math.min(_selStartX, e.clientX), right = Math.max(_selStartX, e.clientX);
+      const top = Math.min(_selStartY, e.clientY), bottom = Math.max(_selStartY, e.clientY);
+      for (const ship of WAR_FLEET) {
+        const sp = _shipToScreen(ship);
+        if (sp.x >= left && sp.x <= right && sp.y >= top && sp.y <= bottom) {
+          if (e.shiftKey && SELECTED_SHIPS.has(ship)) { SELECTED_SHIPS.delete(ship); _removeSelRing(ship); }
+          else { SELECTED_SHIPS.add(ship); _addSelRing(ship); }
+        }
+      }
+    } else {
+      // Single click — raycast for ship
+      if (!e.shiftKey) _clearSelection();
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const ndc = new T.Vector2((e.clientX / vw) * 2 - 1, -(e.clientY / vh) * 2 + 1);
+      const ray = new T.Raycaster();
+      ray.setFromCamera(ndc, camera);
+      const hits = ray.intersectObjects(scene.children, true);
+      let hitShip = null;
+      for (const hit of hits) {
+        let obj = hit.object;
+        while (obj) {
+          if (obj.userData && obj.userData.isWarship && obj.userData.hp > 0) { hitShip = obj; break; }
+          obj = obj.parent;
+        }
+        if (hitShip) break;
+      }
+      if (hitShip) { SELECTED_SHIPS.add(hitShip); _addSelRing(hitShip); }
+    }
+  }
+
+  function _cmdContextMenu(e) {
+    if (!camera || !scene) return;
+    e.preventDefault();
+    if (SELECTED_SHIPS.size === 0) return;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const ndc = new T.Vector2((e.clientX / vw) * 2 - 1, -(e.clientY / vh) * 2 + 1);
+    const ray = new T.Raycaster();
+    ray.setFromCamera(ndc, camera);
+    const hits = ray.intersectObjects(scene.children, true);
+    let hitEnemy = null;
+    for (const hit of hits) {
+      let obj = hit.object;
+      while (obj) {
+        if (obj.userData && obj.userData.isWarship && obj.userData.hp > 0 && !SELECTED_SHIPS.has(obj)) { hitEnemy = obj; break; }
+        obj = obj.parent;
+      }
+      if (hitEnemy) break;
+    }
+    const policy = e.shiftKey ? CMD_POLICY.QUEUE : CMD_POLICY.REPLACE;
+    if (hitEnemy) {
+      for (const ship of SELECTED_SHIPS) _issueCommand(ship, { type: CMD.ATTACK, target: hitEnemy, policy });
+    } else {
+      const plane = new T.Plane(new T.Vector3(0, 1, 0), 0);
+      const pos = new T.Vector3();
+      ray.ray.intersectPlane(plane, pos);
+      if (pos) {
+        for (const ship of SELECTED_SHIPS) _issueCommand(ship, { type: CMD.MOVE, targetPos: pos.clone(), policy });
+      }
+    }
+  }
+
+  // ====== END COMMAND SYSTEM ======
 
   function populate(opts) {
     opts = opts || {};
@@ -2562,6 +2827,16 @@ export function install(Genesis) {
         });
         console.log('[Barracks] Combat trigger registered.');
       }
+    }
+
+    // Wire command system event handlers (selection + right-click commands)
+    if (!window.__cmdSystemWired) {
+      window.__cmdSystemWired = true;
+      window.addEventListener('pointerdown', _cmdPointerDown);
+      window.addEventListener('pointermove', _cmdPointerMove);
+      window.addEventListener('pointerup', _cmdPointerUp);
+      window.addEventListener('contextmenu', _cmdContextMenu);
+      console.log('[CommandSystem] Selection + right-click command handlers wired.');
     }
 
     // Clean previous
