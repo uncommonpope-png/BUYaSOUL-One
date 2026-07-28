@@ -1488,6 +1488,84 @@ export function install(Genesis) {
     return group;
   }
 
+  function createGalaxy(pos) {
+    const count = 15000;
+    const radius = 120;
+    const branches = 4;
+    const spin = 1.5;
+    const randomness = 0.4;
+    const randomnessPower = 2.5;
+    const insideColor = 0xffaa44;
+    const outsideColor = 0x4488ff;
+    const ySpread = 3;
+
+    const geometry = new T.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const radii = new Float32Array(count);
+    const angles = new Float32Array(count);
+
+    const colorInside = new T.Color(insideColor);
+    const colorOutside = new T.Color(outsideColor);
+
+    for (let i = 0; i < count; i++) {
+      const r = Math.pow(Math.random(), 1.6) * radius;
+      const branchAngle = (i % branches) / branches * Math.PI * 2;
+      const spinAngle = r * spin;
+      const randomAngle = Math.random() * Math.PI * 2;
+      const scatter = Math.pow(Math.random(), randomnessPower) * randomness * (1 - r / radius);
+      const randX = Math.cos(randomAngle) * scatter;
+      const randZ = Math.sin(randomAngle) * scatter;
+      const randY = (Math.random() - 0.5) * ySpread * (1 - r / radius * 0.5);
+      const angle = branchAngle + spinAngle;
+
+      positions[i * 3] = Math.cos(angle) * r + randX;
+      positions[i * 3 + 1] = randY;
+      positions[i * 3 + 2] = Math.sin(angle) * r + randZ;
+      radii[i] = r;
+      angles[i] = angle;
+
+      const mix = r / radius;
+      const c = colorInside.clone().lerp(colorOutside, mix);
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+    }
+
+    geometry.setAttribute('position', new T.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new T.BufferAttribute(colors, 3));
+
+    const material = new T.PointsMaterial({
+      size: 1.2, sizeAttenuation: true, depthWrite: false,
+      blending: T.AdditiveBlending, vertexColors: true,
+      transparent: true, opacity: 0.9
+    });
+
+    const points = new T.Points(geometry, material);
+    points.userData.isGalaxy = true;
+    points.userData.radii = radii;
+    points.userData.angles = angles;
+    points.userData.count = count;
+    points.userData.branches = branches;
+    points.userData.spin = spin;
+    points.userData.radius = radius;
+
+    const coreGeo = new T.SphereGeometry(8, 16, 16);
+    const coreMat = new T.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0.9 });
+    const core = new T.Mesh(coreGeo, coreMat);
+    core.userData.isGalaxyCore = true;
+
+    const group = new T.Group();
+    group.userData.isGalaxyGroup = true;
+    group.add(points);
+    group.add(core);
+    group.position.copy(pos);
+    group.rotation.x = 0.3;
+    group.rotation.z = 0.1;
+
+    return group;
+  }
+
   function populate(opts) {
     opts = opts || {};
     scene = opts.scene || null;
@@ -1515,7 +1593,16 @@ export function install(Genesis) {
       worldRoot.add(beacon);
 
       // Create city skeleton — detailed buildings visible from far
-      const city = type === 'cplclone' ? createCPLCloneCity(pos, rng) : type === 'grandtower' ? createGrandTower(pos, rng) : createCitySkeleton(pos, type, rng);
+      let city;
+      if (type === 'cplclone') {
+        city = createCPLCloneCity(pos, rng);
+      } else if (type === 'grandtower') {
+        city = createGrandTower(pos, rng);
+        const galaxy = createGalaxy(new T.Vector3(0, 500, 0));
+        city.add(galaxy);
+      } else {
+        city = createCitySkeleton(pos, type, rng);
+      }
       worldRoot.add(city);
 
       // Create quest beacon
@@ -1630,6 +1717,27 @@ export function install(Genesis) {
           if (child.userData && child.userData.isHalo1) child.rotation.y += dt * 0.08;
           if (child.userData && child.userData.isHalo2) child.rotation.y += dt * 0.15;
           if (child.userData && child.userData.isHalo3) child.rotation.y -= dt * 0.1;
+          // Galaxy differential rotation
+          if (child.userData && child.userData.isGalaxy) {
+            const posArr = child.geometry.attributes.position.array;
+            const radii = child.userData.radii;
+            const angles = child.userData.angles;
+            const count = child.userData.count;
+            const t = Date.now() * 0.00005;
+            for (let i = 0; i < count; i++) {
+              const r = radii[i];
+              const speed = 1 / (0.3 + r * 0.02);
+              const newAngle = angles[i] + t * speed;
+              posArr[i * 3] = Math.cos(newAngle) * r;
+              posArr[i * 3 + 2] = Math.sin(newAngle) * r;
+            }
+            child.geometry.attributes.position.needsUpdate = true;
+          }
+          // Galaxy core pulse
+          if (child.userData && child.userData.isGalaxyCore) {
+            const p = 1.0 + Math.sin(Date.now() * 0.003) * 0.15;
+            child.scale.setScalar(p);
+          }
         });
       }
 
