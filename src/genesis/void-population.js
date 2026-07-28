@@ -2600,7 +2600,7 @@ export function install(Genesis) {
     if (_selRectEl) { _selRectEl.style.display = 'none'; _selRectEl.style.width = '0px'; _selRectEl.style.height = '0px'; }
     if (e.button !== 0) return;
 
-    // Check if click was on a tower building — skip selection
+    // Check if click was on a tower building or barracks
     if (!_selDragged && camera && worldRoot) {
       const ndc = new T.Vector2(((e.clientX - (e.target && e.target.getBoundingClientRect ? e.target.getBoundingClientRect().left : 0)) / (e.target && e.target.clientWidth || window.innerWidth)) * 2 - 1, -((e.clientY - (e.target && e.target.getBoundingClientRect ? e.target.getBoundingClientRect().top : 0)) / (e.target && e.target.clientHeight || window.innerHeight)) * 2 + 1);
       const ray = new T.Raycaster();
@@ -2610,6 +2610,10 @@ export function install(Genesis) {
         let obj = hit.object;
         while (obj) {
           if (obj.userData && obj.userData.isTowerBuilding) return;
+          if (obj.userData && obj.userData.isBarracks) {
+            _buildProductionPanel(obj.userData.worldIndex);
+            return;
+          }
           obj = obj.parent;
         }
       }
@@ -2651,6 +2655,23 @@ export function install(Genesis) {
   function _cmdContextMenu(e) {
     if (!camera || !scene) return;
     e.preventDefault();
+
+    // If barracks panel is active, set rally point
+    if (_activeBarracksIdx >= 0) {
+      const plane = new T.Plane(new T.Vector3(0, 1, 0), 0);
+      const pos = new T.Vector3();
+      const vw2 = window.innerWidth, vh2 = window.innerHeight;
+      const ndc2 = new T.Vector2((e.clientX / vw2) * 2 - 1, -(e.clientY / vh2) * 2 + 1);
+      const ray2 = new T.Raycaster();
+      ray2.setFromCamera(ndc2, camera);
+      ray2.ray.intersectPlane(plane, pos);
+      if (pos) {
+        _setRallyPoint(_activeBarracksIdx, pos);
+        _closeProductionPanel();
+      }
+      return;
+    }
+
     if (SELECTED_SHIPS.size === 0) return;
     const vw = window.innerWidth, vh = window.innerHeight;
     const ndc = new T.Vector2((e.clientX / vw) * 2 - 1, -(e.clientY / vh) * 2 + 1);
@@ -2680,6 +2701,347 @@ export function install(Genesis) {
   }
 
   // ====== END COMMAND SYSTEM ======
+
+  // ====== UNIT PRODUCTION SYSTEM — Barracks + Training Queues + Rally Point ======
+
+  const UNIT_DEFS = [
+    { id: 'scout', name: 'Scout', trainTime: 5, cost: { profit: 15, love: 5, tax: 2 }, hp: 3, maxHp: 3, speed: 1.5, scanRange: 70, weaponRange: 20, atp: 5, isThreat: false, fireInterval: 2.0, color: 0x44ddff },
+    { id: 'fighter', name: 'Fighter', trainTime: 10, cost: { profit: 30, love: 10, tax: 5 }, hp: 6, maxHp: 6, speed: 1.0, scanRange: 55, weaponRange: 35, atp: 20, isThreat: true, fireInterval: 1.5, color: 0xff3355 },
+    { id: 'cruiser', name: 'Cruiser', trainTime: 20, cost: { profit: 60, love: 15, tax: 10 }, hp: 12, maxHp: 12, speed: 0.7, scanRange: 60, weaponRange: 40, atp: 35, isThreat: true, fireInterval: 1.2, color: 0xff8844 },
+    { id: 'carrier', name: 'Carrier', trainTime: 35, cost: { profit: 120, love: 25, tax: 20 }, hp: 22, maxHp: 22, speed: 0.4, scanRange: 80, weaponRange: 50, atp: 55, isThreat: true, fireInterval: 1.0, color: 0xaa66ff }
+  ];
+
+  let _activeBarracksIdx = -1;
+  let _prodPanel = null;
+
+  // Per-world PLT tracking (pooled from beacon PLT)
+  const _worldResources = {};
+
+  function _ensureWorldResource(wi) {
+    if (!_worldResources[wi]) {
+      const cfg = WORLD_CONFIG[wi];
+      const plt = cfg && cfg.plt ? cfg.plt : { profit: 50, love: 50, tax: 50 };
+      _worldResources[wi] = { profit: plt.profit * 2, love: plt.love * 2, tax: plt.tax * 2 };
+    }
+  }
+
+  function _canAfford(wi, cost) {
+    const r = _worldResources[wi];
+    if (!r) return false;
+    return r.profit >= cost.profit && r.love >= cost.love && r.tax >= cost.tax;
+  }
+
+  function _spendResources(wi, cost) {
+    const r = _worldResources[wi];
+    if (!r) return false;
+    if (!_canAfford(wi, cost)) return false;
+    r.profit -= cost.profit;
+    r.love -= cost.love;
+    r.tax -= cost.tax;
+    return true;
+  }
+
+  function _createBarracks(pos, wi, rng) {
+    const g = new T.Group();
+    g.position.copy(pos);
+    const color = TYPE_COLORS[TYPES[wi]] || 0x66ffff;
+    const accent = new T.Color(color);
+
+    // Main body
+    const bodyMat = new T.MeshStandardMaterial({ color: 0x1a1a3a, emissive: color, emissiveIntensity: 0.08, metalness: 0.7, roughness: 0.3 });
+    const body = new T.Mesh(new T.BoxGeometry(16, 8, 12), bodyMat);
+    body.position.y = 4;
+    body.castShadow = true;
+    g.add(body);
+
+    // Roof
+    const roofMat = new T.MeshStandardMaterial({ color: 0x2a2a4a, emissive: color, emissiveIntensity: 0.05, metalness: 0.6, roughness: 0.4 });
+    const roof = new T.Mesh(new T.ConeGeometry(9, 4, 4), roofMat);
+    roof.position.y = 10;
+    roof.castShadow = true;
+    g.add(roof);
+
+    // Door glow
+    const doorMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.5 });
+    const door = new T.Mesh(new T.BoxGeometry(2, 3, 0.2), doorMat);
+    door.position.set(0, 1.5, 6.1);
+    g.add(door);
+
+    // Pole + flag
+    const pole = new T.Mesh(new T.CylinderGeometry(0.08, 0.08, 6, 4), new T.MeshBasicMaterial({ color: 0xaaaaaa }));
+    pole.position.y = 12;
+    g.add(pole);
+    const flagMat = new T.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.7, side: T.DoubleSide });
+    const flag = new T.Mesh(new T.PlaneGeometry(2, 1.0), flagMat);
+    flag.position.set(1, 15, 0);
+    g.add(flag);
+
+    // Label sprite
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, 256, 64);
+    ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
+    ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('BARRACKS', 128, 30);
+    ctx.fillStyle = '#666688'; ctx.font = '11px sans-serif';
+    ctx.fillText('Click to open production', 128, 50);
+    const tex = new T.CanvasTexture(canvas);
+    const label = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+    label.scale.set(10, 2.5, 1);
+    label.position.y = 20;
+    g.add(label);
+
+    g.userData.isBarracks = true;
+    g.userData.worldIndex = wi;
+    return g;
+  }
+
+  function _createTrainedShipMesh(typeDef, wi) {
+    const color = typeDef.color;
+    const g = new T.Group();
+
+    const bodyMat = new T.MeshStandardMaterial({ color: 0x1a1a3a, emissive: color, emissiveIntensity: 0.2, metalness: 0.6, roughness: 0.3 });
+    const accentMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.1, metalness: 0.4, roughness: 0.5 });
+    const cockpitMat = new T.MeshStandardMaterial({ color: 0x88ddff, emissive: 0x00aaff, emissiveIntensity: 0.5, transparent: true, opacity: 0.7 });
+
+    if (typeDef.id === 'scout') {
+      // Small, fast, angular
+      const hull = new T.Mesh(new T.ConeGeometry(0.6, 2.5, 6), bodyMat);
+      hull.rotation.x = Math.PI / 2; g.add(hull);
+      for (let s = -1; s <= 1; s += 2) {
+        const w = new T.Mesh(new T.BoxGeometry(1.5, 0.06, 0.4), accentMat);
+        w.position.set(s * 1.0, -0.15, 0.2); g.add(w);
+      }
+    } else if (typeDef.id === 'fighter') {
+      const hull = new T.Mesh(new T.ConeGeometry(0.8, 3.0, 6), bodyMat);
+      hull.rotation.x = Math.PI / 2; g.add(hull);
+      for (let s = -1; s <= 1; s += 2) {
+        const w = new T.Mesh(new T.BoxGeometry(2.0, 0.08, 0.5), accentMat);
+        w.position.set(s * 1.2, -0.2, 0.3); w.rotation.z = s * 0.3; g.add(w);
+        const t = new T.Mesh(new T.ConeGeometry(0.08, 0.5, 4), accentMat);
+        t.position.set(s * 2.2, -0.2, 0.3); g.add(t);
+      }
+    } else if (typeDef.id === 'cruiser') {
+      const hull = new T.Mesh(new T.CylinderGeometry(0.4, 1.0, 4, 8), bodyMat);
+      hull.rotation.x = Math.PI / 2; g.add(hull);
+      for (let s = -1; s <= 1; s += 2) {
+        const w = new T.Mesh(new T.BoxGeometry(2.5, 0.1, 1.0), accentMat);
+        w.position.set(s * 1.5, 0, 0.5); w.rotation.y = s * 0.15; g.add(w);
+      }
+      const fin = new T.Mesh(new T.BoxGeometry(0.08, 1.2, 0.6), accentMat);
+      fin.position.set(0, 0.6, -2.0); g.add(fin);
+    } else if (typeDef.id === 'carrier') {
+      const hull = new T.Mesh(new T.CylinderGeometry(0.5, 1.5, 5, 8), bodyMat);
+      hull.rotation.x = Math.PI / 2; g.add(hull);
+      for (let s = -1; s <= 1; s += 2) {
+        const w = new T.Mesh(new T.BoxGeometry(3.0, 0.12, 1.2), accentMat);
+        w.position.set(s * 1.8, 0, 0.6); w.rotation.y = s * 0.1; g.add(w);
+        const e = new T.Mesh(new T.SphereGeometry(0.15, 6, 6), accentMat);
+        e.position.set(s * 2.8, 0, 0.6); g.add(e);
+      }
+      const tower = new T.Mesh(new T.BoxGeometry(0.5, 1.5, 0.5), accentMat);
+      tower.position.set(0, 0.8, 1.0); g.add(tower);
+    }
+
+    // Cockpit
+    const cockpit = new T.Mesh(new T.SphereGeometry(0.2, 6, 6), cockpitMat);
+    cockpit.position.set(0, 0.1, 1.0);
+    g.add(cockpit);
+
+    // Engine glow
+    const engineMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2.0 });
+    for (let s = -1; s <= 1; s += 2) {
+      const e = new T.Mesh(new T.SphereGeometry(0.15, 6, 6), engineMat);
+      e.position.set(s * 0.25, 0, -1.5);
+      g.add(e);
+    }
+
+    // Ship userData with full targeting/combat stats
+    g.userData = {
+      faction: 'player', state: 'patrol', target: null,
+      orbitAngle: 0, orbitRadius: 380 + Math.random() * 140, orbitHeight: (Math.random() - 0.5) * 80,
+      orbitSpeed: (0.1 + Math.random() * 0.15),
+      speed: typeDef.speed, hp: typeDef.hp, maxHp: typeDef.maxHp,
+      fireCooldown: 0, fireInterval: typeDef.fireInterval,
+      isWarship: true, respawnTimer: 0,
+      scanRange: typeDef.scanRange, weaponRange: typeDef.weaponRange,
+      atp: typeDef.atp, isThreat: typeDef.isThreat,
+      acquireTarget: null, acquireTimer: Math.random() * 2,
+      acquireInterval: 0.5 + Math.random() * 0.5,
+      leashRange: 120, returnTimer: 0, homePos: null,
+      productionWorld: wi,
+      commandQueue: []
+    };
+
+    return g;
+  }
+
+  function _spawnTrainedUnit(wi, typeDef) {
+    const name = NAMES[wi] || 'World ' + wi;
+    const pos = WORLD_COORDINATES[wi] ? new T.Vector3(WORLD_COORDINATES[wi].x, WORLD_COORDINATES[wi].y, WORLD_COORDINATES[wi].z) : new T.Vector3(0, 0, 0);
+    const ship = _createTrainedShipMesh(typeDef, wi);
+
+    // Place near the world position
+    const offsetAngle = Math.random() * Math.PI * 2;
+    const offsetDist = 30 + Math.random() * 20;
+    ship.position.set(pos.x + Math.cos(offsetAngle) * offsetDist, pos.y + 0.5, pos.z + Math.sin(offsetAngle) * offsetDist);
+
+    // Add to scene
+    scene.add(ship);
+    WAR_FLEET.push(ship);
+
+    // Spawn animation: scale from 0 to 1
+    ship.scale.set(0.01, 0.01, 0.01);
+    ship.userData._spawning = true;
+    ship.userData._spawnTimer = 0.5;
+
+    // Move to rally point if set
+    const wData = worlds[wi];
+    if (wData && wData._rallyPoint && wData._rallyMarker) {
+      const rp = wData._rallyPoint;
+      ship.userData.state = 'cmd_move';
+      ship.userData.moveTarget = rp.clone();
+      ship.userData.commandQueue = [{ type: CMD.MOVE, targetPos: rp.clone(), policy: CMD_POLICY.REPLACE }];
+      ship.userData.returnTimer = 0;
+    }
+
+    console.log('[Production] ' + typeDef.name + ' spawned at ' + name + ' (' + Math.round(pos.length()) + 'u)');
+    return ship;
+  }
+
+  function _setRallyPoint(wi, pos) {
+    const wData = worlds[wi];
+    if (!wData) return;
+    wData._rallyPoint = pos.clone();
+
+    // Remove old marker
+    if (wData._rallyMarker) {
+      scene.remove(wData._rallyMarker);
+      wData._rallyMarker = null;
+    }
+
+    // Create rally marker: glowing flag/chevron
+    const color = TYPE_COLORS[TYPES[wi]] || 0x66ffff;
+    const g = new T.Group();
+    g.position.copy(pos);
+
+    const pole = new T.Mesh(new T.CylinderGeometry(0.08, 0.08, 4, 4), new T.MeshBasicMaterial({ color: 0xffffff }));
+    pole.position.y = 2;
+    g.add(pole);
+
+    const flagMat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, side: T.DoubleSide });
+    const flag = new T.Mesh(new T.PlaneGeometry(1.5, 1.0), flagMat);
+    flag.position.set(0.8, 4, 0);
+    g.add(flag);
+
+    const ring = new T.Mesh(new T.TorusGeometry(3, 0.15, 8, 16), new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.5 }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.2;
+    g.add(ring);
+
+    g.userData.isRallyMarker = true;
+    g.userData.worldIndex = wi;
+    scene.add(g);
+    wData._rallyMarker = g;
+
+    console.log('[Production] Rally point set for ' + (NAMES[wi] || 'World ' + wi) + ' at ' + Math.round(pos.x) + ', ' + Math.round(pos.z));
+  }
+
+  function _buildProductionPanel(wi) {
+    // Remove old panel
+    if (_prodPanel) { _prodPanel.remove(); _prodPanel = null; }
+
+    const wData = worlds[wi];
+    if (!wData) return;
+    _activeBarracksIdx = wi;
+    _ensureWorldResource(wi);
+    const res = _worldResources[wi];
+    const color = TYPE_COLORS[TYPES[wi]] || 0x66ffff;
+    const colorHex = '#' + color.toString(16).padStart(6, '0');
+
+    const panel = document.createElement('div');
+    panel.id = 'production-panel';
+    panel.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:480px;background:rgba(5,5,20,0.95);border:1px solid ' + colorHex + '44;border-radius:12px;padding:16px;z-index:40;font-family:monospace;pointer-events:auto;';
+
+    let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+    html += '<span style="color:' + colorHex + ';font-size:14px;font-weight:bold;">' + (NAMES[wi] || 'World ' + wi) + ' — BARRACKS</span>';
+    html += '<div style="font-size:11px;color:#888;">P: <span style="color:#88ff88;">' + res.profit + '</span> L: <span style="color:#ff88cc;">' + res.love + '</span> T: <span style="color:#ffcc44;">' + res.tax + '</span></div>';
+    html += '<span onclick="window.__closeProduction()" style="cursor:pointer;color:#ff4444;font-size:16px;">✕</span>';
+    html += '</div>';
+
+    // Queue display
+    const queue = wData._productionQueue || [];
+    if (queue.length > 0) {
+      html += '<div style="font-size:10px;color:#aaa;margin-bottom:6px;">Training Queue:</div>';
+      for (let qi = 0; qi < queue.length; qi++) {
+        const q = queue[qi];
+        const qColor = '#' + q.color.toString(16).padStart(6, '0');
+        const timeLeft = Math.max(0, q.remaining).toFixed(1);
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:rgba(255,255,255,0.04);border-radius:4px;margin-bottom:3px;">';
+        html += '<span style="color:' + qColor + ';font-size:12px;">' + q.name + '</span>';
+        html += '<span style="color:#666;font-size:11px;">' + timeLeft + 's</span>';
+        html += '<span onclick="window.__cancelProduction(' + wi + ',' + qi + ')" style="cursor:pointer;color:#ff4444;font-size:12px;">✕</span>';
+        html += '</div>';
+      }
+    }
+
+    // Trainable units
+    html += '<div style="font-size:10px;color:#aaa;margin:8px 0 4px;">Train Units:</div>';
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+    for (const u of UNIT_DEFS) {
+      const uColor = '#' + u.color.toString(16).padStart(6, '0');
+      const canAfford = _canAfford(wi, u.cost);
+      const disabled = !canAfford ? 'opacity:0.4;pointer-events:none;' : '';
+      html += '<div onclick="window.__trainUnit(' + wi + ',\'' + u.id + '\')" style="cursor:pointer;padding:6px 10px;background:rgba(255,255,255,0.06);border:1px solid ' + uColor + '44;border-radius:6px;' + disabled + '">';
+      html += '<div style="color:' + uColor + ';font-size:12px;font-weight:bold;">' + u.name + '</div>';
+      html += '<div style="font-size:9px;color:#888;">' + u.trainTime + 's · P' + u.cost.profit + ' L' + u.cost.love + ' T' + u.cost.tax + '</div>';
+      html += '</div>';
+    }
+    html += '</div>';
+
+    // Rally point info
+    const hasRally = wData._rallyPoint ? 'Set at ' + Math.round(wData._rallyPoint.x) + ',' + Math.round(wData._rallyPoint.z) : 'Right-click on ground to set';
+    html += '<div style="font-size:10px;color:#666;margin-top:8px;">Rally: ' + hasRally + '</div>';
+    html += '<div style="font-size:9px;color:#444;margin-top:4px;text-align:center;">Right-click on ground to set rally point</div>';
+
+    panel.innerHTML = html;
+    document.body.appendChild(panel);
+    _prodPanel = panel;
+
+    // Wire close
+    window.__closeProduction = () => {
+      _closeProductionPanel();
+    };
+
+    // Wire train
+    window.__trainUnit = (idx, unitId) => {
+      const def = UNIT_DEFS.find(u => u.id === unitId);
+      if (!def) return;
+      _ensureWorldResource(idx);
+      if (!_canAfford(idx, def.cost)) { console.log('[Production] Cannot afford ' + def.name); return; }
+      _spendResources(idx, def.cost);
+
+      const wd = worlds[idx];
+      if (!wd._productionQueue) wd._productionQueue = [];
+      wd._productionQueue.push({ id: def.id, name: def.name, color: def.color, remaining: def.trainTime, totalTime: def.trainTime, typeDef: def });
+      console.log('[Production] Queued ' + def.name + ' at ' + (NAMES[idx] || 'World ' + idx));
+      _buildProductionPanel(idx); // refresh
+    };
+
+    // Wire cancel
+    window.__cancelProduction = (idx, slotIdx) => {
+      const wd = worlds[idx];
+      if (!wd || !wd._productionQueue) return;
+      wd._productionQueue.splice(slotIdx, 1);
+      _buildProductionPanel(idx);
+    };
+  }
+
+  function _closeProductionPanel() {
+    if (_prodPanel) { _prodPanel.remove(); _prodPanel = null; }
+    _activeBarracksIdx = -1;
+  }
 
   function populate(opts) {
     opts = opts || {};
@@ -2883,6 +3245,13 @@ export function install(Genesis) {
       }
       worldRoot.add(city);
 
+      // Create barracks production building (offset from city center)
+      const barOffsetDir = new T.Vector3(-pos.x, 0, -pos.z).normalize();
+      const barPos = pos.clone().add(barOffsetDir.clone().multiplyScalar(130));
+      barPos.y = pos.y;
+      const barracks = _createBarracks(barPos, i, rng);
+      worldRoot.add(barracks);
+
       // Create quest beacon
       const questBeacon = createQuestBeacon({ type }, rng);
       questBeacon.position.copy(pos);
@@ -2914,7 +3283,7 @@ export function install(Genesis) {
         }
       }
 
-      worlds.push({ realm, beacon, city, questBeacon, denizens, name, type, plt, position: pos, active: false });
+      worlds.push({ realm, beacon, city, questBeacon, denizens, name, type, plt, position: pos, active: false, _productionQueue: [], _rallyPoint: null, _rallyMarker: null });
     }
 
     // Create portal connections — each world connects to 2 others
@@ -3197,6 +3566,34 @@ export function install(Genesis) {
             child.geometry.attributes.position.needsUpdate = true;
           }
         });
+      }
+    }
+
+    // Production tick — process training queues, spawn completed units
+    for (const w of worlds) {
+      if (!w._productionQueue || w._productionQueue.length === 0) continue;
+      const first = w._productionQueue[0];
+      first.remaining -= dt;
+      if (first.remaining <= 0) {
+        w._productionQueue.shift();
+        const wi = worlds.indexOf(w);
+        _spawnTrainedUnit(wi, first.typeDef);
+        // Refresh panel if open
+        if (_prodPanel && _activeBarracksIdx === wi) _buildProductionPanel(wi);
+      }
+    }
+
+    // Animate spawning ships (scale up from 0)
+    for (const ship of WAR_FLEET) {
+      if (ship.userData && ship.userData._spawning) {
+        ship.userData._spawnTimer -= dt;
+        const t = 1 - Math.max(0, ship.userData._spawnTimer) / 0.5;
+        const s = 0.01 + t * 0.99;
+        ship.scale.set(s, s, s);
+        if (ship.userData._spawnTimer <= 0) {
+          ship.userData._spawning = false;
+          ship.scale.set(1, 1, 1);
+        }
       }
     }
 
