@@ -187,7 +187,7 @@
 
   /**
    * Gothic Cyberpunk Tower
-   * Composite: box base + narrowing tiers + pointed spire cap + buttress wings
+   * Composite: box base + narrowing tiers + pointed spire cap + buttress wings + procedural art maps
    */
   function buildGothicTower(height, width, mat, accentMat, rng) {
     const group = new T.Group();
@@ -195,10 +195,13 @@
     let currentY = 0;
     let currentW = width;
 
+    // Apply procedural art material if available
+    const artMat = window.ProceduralArtEngine ? window.ProceduralArtEngine.createArtMaterial(0x1a1a2e, { hasWindows: true, emissiveColor: '#00ffcc' }) : mat;
+
     for (let t = 0; t < tiers; t++) {
       const tierH = height / tiers * (1 + (rng() - 0.5) * 0.3);
       const geo = new T.BoxGeometry(currentW, tierH, currentW);
-      const mesh = new T.Mesh(geo, mat);
+      const mesh = new T.Mesh(geo, artMat);
       mesh.position.y = currentY + tierH / 2;
       group.add(mesh);
 
@@ -217,26 +220,23 @@
 
     // Pointed spire cap
     const spire = new T.Mesh(
-      new T.ConeGeometry(currentW * 0.4, height * 0.25, 4),
+      new T.ConeGeometry(currentW * 0.5, height * 0.25, 4),
       accentMat
     );
     spire.position.y = currentY + height * 0.125;
     group.add(spire);
 
-    // Buttress wings (2 sides)
-    if (rng() > 0.4) {
-      for (let s = 0; s < 2; s++) {
-        const buttress = new T.Mesh(
-          new T.BoxGeometry(0.5, height * 0.4, width * 0.15), mat
-        );
-        buttress.position.set(
-          (s === 0 ? 1 : -1) * (width * 0.55),
-          height * 0.2,
-          0
-        );
-        buttress.rotation.z = (s === 0 ? -1 : 1) * 0.3;
-        group.add(buttress);
-      }
+    // Buttress wings
+    for (let s = 0; s < 2; s++) {
+      const buttress = new T.Mesh(
+        new T.BoxGeometry(0.8, height * 0.4, width * 0.2), artMat
+      );
+      buttress.position.set(
+        (s === 0 ? 1 : -1) * (width * 0.55),
+        height * 0.2,
+        0
+      );
+      group.add(buttress);
     }
 
     return group;
