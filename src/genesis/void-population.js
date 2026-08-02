@@ -3377,9 +3377,12 @@ export function install(Genesis) {
     }
     if (_spawnedCount > 0) console.log('[VoidPopulation] Spawned', _spawnedCount, 'Sovereign Void Realms');
 
-    // Install Master Art Pass V2 (Atmosphere, Rim Lights, Hover Traffic)
+    // Install Master Art Pass V2 & Omnibus (Atmosphere, SSAO, Galactic Overlay, Sound Drone)
     if (window.GodforgeArtPassV2) {
       try { window.GodforgeArtPassV2.install(scene); } catch(e) { console.warn('[VoidPopulation] ArtPassV2 install failed:', e && e.message); }
+    }
+    if (window.GodforgeArtPassOmnibus) {
+      try { window.GodforgeArtPassOmnibus.install(scene); } catch(e) { console.warn('[VoidPopulation] ArtPassOmnibus install failed:', e && e.message); }
     }
 
     // Install RTS Subsystem & AI Faction Commanders
