@@ -154,11 +154,55 @@
     }
   }
 
+  // ─── DIRECT PLAYER COMMAND CONTROLS ─────────────────────────────────
+
+  const SELECTED_NPCS = new Set();
+
+  function selectNPC(npc) {
+    if (!npc) return;
+    SELECTED_NPCS.add(npc);
+    if (!npc.userData.badgeRing) {
+      const ringMat = new T.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
+      const ring = new T.Mesh(new T.TorusGeometry(0.6, 0.08, 8, 16), ringMat);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.1;
+      npc.add(ring);
+      npc.userData.badgeRing = ring;
+    }
+  }
+
+  function clearNPCSelection() {
+    for (const npc of SELECTED_NPCS) {
+      if (npc.userData.badgeRing) {
+        npc.remove(npc.userData.badgeRing);
+        npc.userData.badgeRing = null;
+      }
+    }
+    SELECTED_NPCS.clear();
+  }
+
+  function commandNPCsTo(point) {
+    if (!point) return;
+    for (const npc of SELECTED_NPCS) {
+      npc.userData.targetPos = point.clone();
+      npc.userData.state = 'commanded';
+      console.log('[AdvancedNPCEngine] Commanded NPC to move to', point);
+    }
+  }
+
   // ─── INITIALIZER ─────────────────────────────────────────────────────
 
   function install(scene) {
     if (!scene) return;
     spawnNPCPopulation(scene, 60);
+
+    // Listen for right-click to move commanded NPCs
+    window.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (SELECTED_NPCS.size > 0 && window.__godforgeLastRaycastPoint) {
+        commandNPCsTo(window.__godforgeLastRaycastPoint);
+      }
+    });
   }
 
   function tick(dt) {
@@ -168,7 +212,11 @@
   window.AdvancedNPCEngine = {
     install,
     tick,
-    createHumanoidRig
+    createHumanoidRig,
+    selectNPC,
+    clearNPCSelection,
+    commandNPCsTo,
+    ADVANCED_NPCS
   };
 
   console.log('[AdvancedNPCEngine] Advanced Procedural 3D Animated NPC Engine loaded.');
