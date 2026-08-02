@@ -3384,6 +3384,9 @@ export function install(Genesis) {
     if (window.GodforgeArtPassOmnibus) {
       try { window.GodforgeArtPassOmnibus.install(scene); } catch(e) { console.warn('[VoidPopulation] ArtPassOmnibus install failed:', e && e.message); }
     }
+    if (window.StoryQuestSystem) {
+      try { window.StoryQuestSystem.install(); } catch(e) { console.warn('[VoidPopulation] StoryQuestSystem install failed:', e && e.message); }
+    }
 
     // Install RTS Subsystem & AI Faction Commanders
     if (window.RTSSubsystem && camera) {
