@@ -74,41 +74,48 @@
         const randomRange = (min, max) => Math.random() * (max - min) + min;
 
         // --- Central Genesis Tower ---
-        const towerGroup = new THREE.Group();
-        // Base
-        addMesh(cylGeo, stoneMat, towerGroup, 0, 10, 0, 30, 20, 30);
-        // Mid tier
-        addMesh(cylGeo, basaltMat, towerGroup, 0, 35, 0, 20, 30, 20);
-        // Spire
-        addMesh(coneGeo, stoneMat, towerGroup, 0, 70, 0, 15, 40, 15, 0, Math.PI/4, 0);
-        
-        // Flying Buttresses
-        for (let i = 0; i < 6; i++) {
-            const angle = (i / 6) * Math.PI * 2;
-            const bGroup = new THREE.Group();
-            bGroup.rotation.y = angle;
-            
-            // Arch (using box)
-            addMesh(boxGeo, stoneMat, bGroup, 0, 30, 20, 2, 40, 10, -Math.PI/6, 0, 0);
-            addMesh(cylGeo, basaltMat, bGroup, 0, 10, 25, 4, 20, 4);
-            
-            towerGroup.add(bGroup);
+        const towerGroup = new THREE.Group();        // --- Mega Genesis Spire (Height 120) ---
+        // Base Tier Ziggurat
+        addMesh(boxGeo, basaltMat, towerGroup, 0, 10, 0, 45, 20, 45);
+        addMesh(boxGeo, goldMat, towerGroup, 0, 20.5, 0, 47, 1, 47);
+
+        // Tier 2 Gothic Colonnade
+        addMesh(cylGeo, stoneMat, towerGroup, 0, 35, 0, 32, 30, 32);
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2;
+          addMesh(cylGeo, goldMat, towerGroup, Math.cos(a) * 17, 35, Math.sin(a) * 17, 2, 30, 2);
         }
 
-        // Apex Energy Core & Rings
+        // Tier 3 Spire Octagon
+        addMesh(cylGeo, basaltMat, towerGroup, 0, 65, 0, 20, 30, 20);
+
+        // Tier 4 Needle Spire Cap
+        addMesh(coneGeo, stoneMat, towerGroup, 0, 95, 0, 14, 40, 14, 0, Math.PI / 4, 0);
+
+        // Flying Buttress Ribs (8-Way Radial)
+        for (let i = 0; i < 8; i++) {
+          const angle = (i / 8) * Math.PI * 2;
+          const bGroup = new THREE.Group();
+          bGroup.rotation.y = angle;
+          addMesh(boxGeo, stoneMat, bGroup, 0, 40, 22, 2.5, 45, 12, -Math.PI / 5, 0, 0);
+          addMesh(cylGeo, goldMat, bGroup, 0, 15, 28, 3, 25, 3);
+          towerGroup.add(bGroup);
+        }
+
+        // Apex Singularity Core & Dual Orbiting Energy Toruses
         const apexGroup = new THREE.Group();
-        apexGroup.position.set(0, 95, 0);
-        const core = addMesh(sphereGeo, energyMat, apexGroup, 0, 0, 0, 4, 4, 4);
-        
-        const ring1 = addMesh(torusGeo, goldMat, apexGroup, 0, 0, 0, 6, 6, 6, Math.PI/2, 0, 0);
-        const ring2 = addMesh(torusGeo, goldMat, apexGroup, 0, 0, 0, 8, 8, 8, 0, Math.PI/4, 0);
-        
+        apexGroup.position.set(0, 120, 0);
+        const core = addMesh(sphereGeo, energyMat, apexGroup, 0, 0, 0, 6, 6, 6);
+
+        const ring1 = addMesh(torusGeo, goldMat, apexGroup, 0, 0, 0, 9, 9, 9, Math.PI / 2, 0, 0);
+        const ring2 = addMesh(torusGeo, goldMat, apexGroup, 0, 0, 0, 12, 12, 12, 0, Math.PI / 4, 0);
+
         updatables.push((time) => {
-            ring1.rotation.y = time * 1.5;
-            ring1.rotation.x = Math.PI/2 + Math.sin(time) * 0.2;
-            ring2.rotation.x = time * -1.2;
-            ring2.rotation.y = time * 0.8;
-            core.scale.setScalar(4 + Math.sin(time * 5) * 0.5);
+          ring1.rotation.y = time * 2.0;
+          ring1.rotation.x = Math.PI / 2 + Math.sin(time) * 0.3;
+          ring2.rotation.x = time * -1.8;
+          ring2.rotation.y = time * 1.2;
+          core.scale.setScalar(5 + Math.sin(time * 6) * 0.8);
         });
 
         towerGroup.add(apexGroup);
