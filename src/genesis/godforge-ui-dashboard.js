@@ -210,28 +210,45 @@
   function createTopBar() {
     if (document.getElementById('gf-top-bar')) return;
 
-    const bar = document.createElement('div');
-    bar.id = 'gf-top-bar';
-    bar.innerHTML = `
-      <span class="gf-badge-plt">PLT CORE</span>
-      <div class="gf-stat-item" style="color: #ffd700;">
-        <span>💰 PROFIT:</span>
-        <span class="gf-stat-val" id="gf-val-profit">14,250</span>
-      </div>
-      <div class="gf-stat-item" style="color: #ff66cc;">
-        <span>🌸 LOVE:</span>
-        <span class="gf-stat-val" id="gf-val-love">8,920</span>
-      </div>
-      <div class="gf-stat-item" style="color: #00ffcc;">
-        <span>⚖️ TAX:</span>
-        <span class="gf-stat-val" id="gf-val-tax">2,100</span>
-      </div>
-      <div style="width: 1px; height: 18px; background: rgba(255,255,255,0.15);"></div>
-      <button id="gf-warroom-btn" onclick="window.toggleGodforgeWarRoom()">
-        <span>⚔️ WAR ROOM</span>
-      </button>
-    `;
-    document.body.appendChild(bar);
+    // Top bar is now driven by rts-ui-core.js — this module only handles the War Room modal.
+    // If rts-ui-core is not installed, create a minimal fallback:
+    if (!window.RTSUICore) {
+      const bar = document.createElement('div');
+      bar.id = 'gf-top-bar';
+      Object.assign(bar.style, {
+        position: 'fixed', top: '16px', left: '50%', transform: 'translateX(-50%)',
+        display: 'flex', alignItems: 'center', gap: '20px',
+        background: 'rgba(6, 10, 20, 0.82)', border: '1px solid rgba(0, 255, 204, 0.35)',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(14px)',
+        padding: '8px 24px', borderRadius: '40px', zIndex: '100',
+        fontFamily: 'var(--gf-font-main)', pointerEvents: 'auto'
+      });
+      bar.innerHTML = [
+        '<span class="gf-badge-plt">PLT CORE</span>',
+        '<div class="gf-stat-item" style="color:#ffd700;"><span>💰 PROFIT:</span><span class="gf-stat-val" id="gf-val-profit">0</span></div>',
+        '<div class="gf-stat-item" style="color:#ff66cc;"><span>🌸 LOVE:</span><span class="gf-stat-val" id="gf-val-love">0</span></div>',
+        '<div class="gf-stat-item" style="color:#00ffcc;"><span>⚖️ TAX:</span><span class="gf-stat-val" id="gf-val-tax">0</span></div>',
+        '<div style="width:1px;height:18px;background:rgba(255,255,255,.15);"></div>',
+        '<button id="gf-warroom-btn" onclick="window.toggleGodforgeWarRoom()"><span>⚔️ WAR ROOM</span></button>'
+      ].join('');
+      document.body.appendChild(bar);
+    } else {
+      // rts-ui-core already created the top bar — just add the WAR ROOM button
+      const hud = document.getElementById('rts-economy-hud');
+      if (hud && !document.getElementById('gf-warroom-btn')) {
+        const btn = document.createElement('button');
+        btn.id = 'gf-warroom-btn';
+        btn.innerHTML = '<span>⚔️ WAR ROOM</span>';
+        Object.assign(btn.style, {
+          background: 'linear-gradient(135deg, rgba(0,255,204,.2), rgba(0,150,255,.2))',
+          border: '1px solid #00ffcc', color: '#ffffff', padding: '6px 16px',
+          borderRadius: '20px', fontFamily: 'Outfit, sans-serif', fontSize: '12px',
+          fontWeight: '700', letterSpacing: '1px', cursor: 'pointer'
+        });
+        btn.onclick = window.toggleGodforgeWarRoom;
+        hud.appendChild(btn);
+      }
+    }
   }
 
   // ─── WAR ROOM DASHBOARD MODAL ───────────────────────────────────────

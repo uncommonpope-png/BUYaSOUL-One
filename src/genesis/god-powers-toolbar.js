@@ -96,7 +96,14 @@
       scene.add(flash);
 
       setTimeout(() => { scene.remove(flash); }, 150);
-      console.log('[GodPowers] Executed Lightning Strike at', raycastPoint);
+      
+      if (window.RTSEngineCore) {
+        const hits = window.RTSEngineCore.getEntitiesInRadius(raycastPoint, 8);
+        hits.forEach(ent => ent.takeDamage(500));
+        console.log(`[GodPowers] Lightning struck ${hits.length} entities.`);
+      } else {
+        console.log('[GodPowers] Executed Lightning Strike at', raycastPoint);
+      }
 
     } else if (activePower === 'meteor') {
       // ☄️ Meteor Disaster
@@ -113,9 +120,83 @@
         if (meteor.position.y <= raycastPoint.y + 3) {
           clearInterval(fallInterval);
           scene.remove(meteor);
-          console.log('[GodPowers] Meteor Impact!');
+          
+          if (window.RTSEngineCore) {
+            const hits = window.RTSEngineCore.getEntitiesInRadius(raycastPoint, 20);
+            hits.forEach(ent => ent.takeDamage(800));
+            console.log('[GodPowers] Meteor crushed ' + hits.length + ' entities.');
+          }
         }
       }, 16);
+
+    } else if (activePower === 'blood_rain') {
+      // 🌧️ Blood Rain — healing rain: heals all allies in 15u radius
+      const rain = new T.Mesh(
+        new T.CircleGeometry(15, 24),
+        new T.MeshBasicMaterial({ color: 0xff66aa, transparent: true, opacity: 0.15, side: T.DoubleSide, depthWrite: false })
+      );
+      rain.position.copy(raycastPoint);
+      rain.position.y = 0.2;
+      rain.rotation.x = -Math.PI / 2;
+      scene.add(rain);
+      setTimeout(() => { scene.remove(rain); }, 2000);
+
+      if (window.RTSEngineCore) {
+        const hits = window.RTSEngineCore.getEntitiesInRadius(raycastPoint, 15);
+        hits.forEach(ent => {
+          if (!ent.isDead && ent.hp < ent.maxHp) {
+            ent.hp = Math.min(ent.maxHp, ent.hp + 100);
+            // Heal visual
+            if (ent.mesh) {
+              ent.mesh.traverse((c) => {
+                if (c.isMesh && c.material && c.material.emissive) {
+                  c.material.emissive.setHex(0x66ff66);
+                  setTimeout(() => { if (c && c.material) c.material.emissive.setHex(0x000000); }, 300);
+                }
+              });
+            }
+          }
+        });
+        console.log('[GodPowers] Blood Rain healed ' + hits.length + ' allies.');
+      }
+
+    } else if (activePower === 'madness') {
+      // 🌀 Madness — drive enemies in 12u radius to attack each other for 8s
+      if (window.RTSEngineCore) {
+        const hits = window.RTSEngineCore.getEntitiesInRadius(raycastPoint, 12);
+        hits.forEach(ent => {
+          if (!ent.isDead && ent.type === 'unit' && ent.faction !== 'imperium') {
+            ent._madnessUntil = Date.now() + 8000;
+            ent._originalFaction = ent.faction;
+            ent.faction = 'madness';
+            // Visual: purple tint
+            if (ent.mesh) {
+              ent.mesh.traverse((c) => {
+                if (c.isMesh && c.material && c.material.emissive) {
+                  c.material.emissive.setHex(0xcc00ff);
+                }
+              });
+            }
+          }
+        });
+        console.log('[GodPowers] Madness afflicted ' + hits.length + ' enemies.');
+      }
+
+    } else if (activePower === 'grant_giant') {
+      // 👑 Grant Giant — make selected entities +200% size, +200% HP
+      const sel = window.RTSUICore ? window.RTSUICore.getSelection() : (window.RTSEngineCore ? window.RTSEngineCore.ENTITIES : null);
+      if (!sel) return;
+      const ids = sel instanceof Set ? sel : new Set(sel);
+      ids.forEach(id => {
+        const ent = window.RTSEngineCore.getEntity(id);
+        if (ent && !ent.isDead && ent.mesh) {
+          ent.maxHp *= 3;
+          ent.hp = ent.maxHp;
+          ent.mesh.scale.setScalar(3);
+          ent.radius *= 3;
+          console.log('[GodPowers] Granted Giant to entity', ent.id);
+        }
+      });
     }
   }
 
@@ -130,11 +211,37 @@
       }
     });
 
+    // Madness faction reversion tick
+    if (window.RTSInputRouter && window.RTSInputRouter.registerKeyHandler) {
+      // Tick madness status (called every frame by void-population tick chain)
+    }
+
     console.log('[GodPowers] WorldBox Divine God Powers Toolbar active.');
+  }
+
+  function tick() {
+    // Revert madness-faction units after 8 seconds
+    if (!window.RTSEngineCore) return;
+    const now = Date.now();
+    for (const ent of window.RTSEngineCore.ENTITIES.values()) {
+      if (ent._madnessUntil && now > ent._madnessUntil) {
+        if (ent._originalFaction) ent.faction = ent._originalFaction;
+        ent._madnessUntil = null;
+        ent._originalFaction = null;
+        if (ent.mesh) {
+          ent.mesh.traverse((c) => {
+            if (c.isMesh && c.material && c.material.emissive) {
+              c.material.emissive.setHex(0x000000);
+            }
+          });
+        }
+      }
+    }
   }
 
   window.GodPowersEngine = {
     install,
-    executePowerAt
+    executePowerAt,
+    tick
   };
 })();

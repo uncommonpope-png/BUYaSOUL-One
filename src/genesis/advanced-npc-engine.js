@@ -1,19 +1,15 @@
 /**
  * advanced-npc-engine.js
- * BUYASOUL CPL / GODFORGE — Advanced Procedural NPC Life Engine
+ * BUYASOUL CPL / GODFORGE — RTS Unit Visuals & Spawner
  * 
- * Specs:
- *   1. 3D Modular Humanoid & Alien Cybernetic NPC Rigs (Head, Torso, Arms, Legs).
- *   2. Procedural Skeletal Walking, Idle Sway, Working & Combat Animations.
- *   3. AI Steering Behaviors (Wandering, Path Following, Fleeing, Interacting).
- *   4. Interactive Dialogue & Trade Overhead Badges.
+ * Re-architected to use RTSEngineCore for movement, collision, and combat.
+ * This file now only handles Mesh generation, Limb Animations, and Selection UI.
  */
 
 (function() {
   'use strict';
 
   const T = window.THREE;
-  const ADVANCED_NPCS = [];
 
   // ─── PROCEDURAL 3D HUMANOID RIG CREATOR ──────────────────────────────
 
@@ -74,22 +70,13 @@
     rightLegGroup.add(rightLeg);
     group.add(rightLegGroup);
 
-    // Overhead Interactive Badge Ring
-    const badge = new T.Mesh(new T.TorusGeometry(0.4, 0.05, 8, 16), jointMat);
-    badge.rotation.x = Math.PI / 2;
-    badge.position.y = 2.9;
-    group.add(badge);
-
     group.userData = {
       leftArmGroup,
       rightArmGroup,
       leftLegGroup,
       rightLegGroup,
       head,
-      walkPhase: Math.random() * Math.PI * 2,
-      state: 'wandering', // 'wandering' | 'talking' | 'working'
-      targetPos: null,
-      speed: 3 + Math.random() * 2
+      walkPhase: Math.random() * Math.PI * 2
     };
 
     return group;
@@ -98,96 +85,125 @@
   // ─── ADVANCED NPC SPAWNER ────────────────────────────────────────────
 
   function spawnNPCPopulation(scene, count) {
-    count = count || 50;
+    count = count || 60;
     const group = new T.Group();
     group.name = 'advanced-npc-population';
 
     const colors = [0x00ffcc, 0xff0055, 0xffaa00, 0x0088ff, 0xaa00ff];
+    const factions = ['imperium', 'voidCovenant', 'bioHive'];
 
     for (let i = 0; i < count; i++) {
       const isAlien = Math.random() > 0.6;
       const color = colors[Math.floor(Math.random() * colors.length)];
-      const npc = createHumanoidRig(color, isAlien);
+      const faction = factions[Math.floor(Math.random() * factions.length)];
+      
+      const npcMesh = createHumanoidRig(color, isAlien);
 
       // Distribute across city / marketplace radius
-      const radius = 50 + Math.random() * 350;
+      const radius = 50 + Math.random() * 200;
       const angle = Math.random() * Math.PI * 2;
-      npc.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+      npcMesh.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
 
-      group.add(npc);
-      ADVANCED_NPCS.push(npc);
+      group.add(npcMesh);
+
+      // Register with Core Engine
+      if (window.RTSEngineCore) {
+        window.RTSEngineCore.registerEntity(npcMesh, 'unit', faction, 50, 1.2);
+      }
     }
 
     scene.add(group);
-    console.log('[AdvancedNPCEngine] Spawned', count, '3D Procedural Animated NPCs.');
+    console.log('[AdvancedNPCEngine] Spawned and Registered', count, 'RTS Units.');
   }
 
-  // ─── PROCEDURAL ANIMATION & AI STEERING TICK ─────────────────────────
+  // ─── PROCEDURAL ANIMATION TICK ───────────────────────────────────────
 
-  function tickNPCs(dt) {
-    for (const npc of ADVANCED_NPCS) {
-      const ud = npc.userData;
+  function tickAnimations(dt) {
+    if (!window.RTSEngineCore) return;
 
-      // 1. Procedural Walk & Limb Animation
-      ud.walkPhase += dt * ud.speed * 2.5;
-      const swing = Math.sin(ud.walkPhase) * 0.6;
+    for (const ent of window.RTSEngineCore.ENTITIES.values()) {
+      if (ent.type !== 'unit' || ent.isDead || !ent.mesh || !ent.mesh.userData.walkPhase !== undefined) continue;
 
-      ud.leftLegGroup.rotation.x = swing;
-      ud.rightLegGroup.rotation.x = -swing;
-      ud.leftArmGroup.rotation.x = -swing * 0.8;
-      ud.rightArmGroup.rotation.x = swing * 0.8;
+      const ud = ent.mesh.userData;
+      if (!ud || ud.walkPhase === undefined) continue;
 
-      // 2. AI Steering Target Selection
-      if (!ud.targetPos || npc.position.distanceTo(ud.targetPos) < 2) {
-        const radius = 50 + Math.random() * 350;
-        const angle = Math.random() * Math.PI * 2;
-        ud.targetPos = new T.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+      // Only swing limbs if moving
+      if (ent.state === 'moving') {
+        ud.walkPhase += dt * ent.speed * 2.5;
+        const swing = Math.sin(ud.walkPhase) * 0.8;
+
+        ud.leftLegGroup.rotation.x = swing;
+        ud.rightLegGroup.rotation.x = -swing;
+        ud.leftArmGroup.rotation.x = -swing * 0.8;
+        ud.rightArmGroup.rotation.x = swing * 0.8;
+      } else if (ent.state === 'attacking') {
+        // Attack swing (simple chop with right arm)
+        ud.walkPhase += dt * 10;
+        ud.rightArmGroup.rotation.x = Math.sin(ud.walkPhase) * 1.5;
+        ud.leftArmGroup.rotation.x = 0;
+        ud.leftLegGroup.rotation.x = 0;
+        ud.rightLegGroup.rotation.x = 0;
+      } else {
+        // Reset to idle pose
+        ud.leftLegGroup.rotation.x = 0;
+        ud.rightLegGroup.rotation.x = 0;
+        ud.leftArmGroup.rotation.x = 0;
+        ud.rightArmGroup.rotation.x = 0;
       }
-
-      // Move toward target
-      const dir = new T.Vector3().subVectors(ud.targetPos, npc.position);
-      dir.y = 0;
-      dir.normalize();
-
-      npc.position.add(dir.multiplyScalar(ud.speed * dt));
-      npc.lookAt(ud.targetPos.x, npc.position.y, ud.targetPos.z);
     }
   }
 
   // ─── DIRECT PLAYER COMMAND CONTROLS ─────────────────────────────────
 
-  const SELECTED_NPCS = new Set();
+  const SELECTED_ENTITIES = new Set();
 
-  function selectNPC(npc) {
-    if (!npc) return;
-    SELECTED_NPCS.add(npc);
-    if (!npc.userData.badgeRing) {
+  function selectEntity(mesh) {
+    if (!mesh || !mesh.userData.entityId) return;
+    const ent = window.RTSEngineCore.getEntity(mesh.userData.entityId);
+    if (!ent || ent.isDead) return;
+
+    SELECTED_ENTITIES.add(ent.id);
+
+    if (!mesh.userData.badgeRing) {
       const ringMat = new T.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
-      const ring = new T.Mesh(new T.TorusGeometry(0.6, 0.08, 8, 16), ringMat);
+      const ring = new T.Mesh(new T.TorusGeometry(ent.radius + 0.2, 0.08, 8, 16), ringMat);
       ring.rotation.x = Math.PI / 2;
       ring.position.y = 0.1;
-      npc.add(ring);
-      npc.userData.badgeRing = ring;
+      mesh.add(ring);
+      mesh.userData.badgeRing = ring;
     }
   }
 
-  function clearNPCSelection() {
-    for (const npc of SELECTED_NPCS) {
-      if (npc.userData.badgeRing) {
-        npc.remove(npc.userData.badgeRing);
-        npc.userData.badgeRing = null;
+  function clearSelection() {
+    for (const entId of SELECTED_ENTITIES) {
+      const ent = window.RTSEngineCore.getEntity(entId);
+      if (ent && ent.mesh && ent.mesh.userData.badgeRing) {
+        ent.mesh.remove(ent.mesh.userData.badgeRing);
+        ent.mesh.userData.badgeRing = null;
       }
     }
-    SELECTED_NPCS.clear();
+    SELECTED_ENTITIES.clear();
   }
 
-  function commandNPCsTo(point) {
-    if (!point) return;
-    for (const npc of SELECTED_NPCS) {
-      npc.userData.targetPos = point.clone();
-      npc.userData.state = 'commanded';
-      console.log('[AdvancedNPCEngine] Commanded NPC to move to', point);
+  function commandSelectedTo(point, targetEntityId = null) {
+    if (!point && !targetEntityId) return;
+    
+    for (const entId of SELECTED_ENTITIES) {
+      const ent = window.RTSEngineCore.getEntity(entId);
+      if (!ent || ent.isDead) continue;
+
+      if (targetEntityId && targetEntityId !== ent.id) {
+        // Attack Target
+        ent.targetId = targetEntityId;
+        ent.state = 'moving'; // It will figure out if it needs to move in tick
+      } else {
+        // Move to point
+        ent.targetPos = point.clone();
+        ent.state = 'moving';
+        ent.targetId = null;
+      }
     }
+    console.log(`[AdvancedNPCEngine] Commanded ${SELECTED_ENTITIES.size} units.`);
   }
 
   // ─── INITIALIZER ─────────────────────────────────────────────────────
@@ -196,28 +212,41 @@
     if (!scene) return;
     spawnNPCPopulation(scene, 60);
 
-    // Listen for right-click to move commanded NPCs
-    window.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      if (SELECTED_NPCS.size > 0 && window.__godforgeLastRaycastPoint) {
-        commandNPCsTo(window.__godforgeLastRaycastPoint);
-      }
-    });
+    // Register right-click command with the unified input router
+    if (window.RTSInputRouter) {
+      window.RTSInputRouter.registerRightClick(60, function(ctx) {
+        if (SELECTED_ENTITIES.size === 0) return false;
+        if (!ctx.point) return false;
+        if (window.RTSEngineCore) {
+          const clickRadius = 2.0;
+          const hits = window.RTSEngineCore.getEntitiesInRadius(ctx.point, clickRadius);
+          let targetId = null;
+          if (hits.length > 0) {
+            targetId = hits[0].id;
+          }
+          commandSelectedTo(ctx.point, targetId);
+        }
+        return true; // consumed
+      });
+      console.log('[AdvancedNPCEngine] Right-click handler registered with input router.');
+    }
+
+    window.AdvancedNPCEngine.selectNPC = selectEntity;
+    window.AdvancedNPCEngine.clearNPCSelection = clearSelection;
   }
 
   function tick(dt) {
-    tickNPCs(dt || 0.016);
+    tickAnimations(dt || 0.016);
   }
 
   window.AdvancedNPCEngine = {
     install,
     tick,
     createHumanoidRig,
-    selectNPC,
-    clearNPCSelection,
-    commandNPCsTo,
-    ADVANCED_NPCS
+    selectNPC: selectEntity,
+    clearNPCSelection: clearSelection,
+    commandNPCsTo: commandSelectedTo
   };
 
-  console.log('[AdvancedNPCEngine] Advanced Procedural 3D Animated NPC Engine loaded.');
+  console.log('[AdvancedNPCEngine] RTS Unit Visuals engine loaded (hooked to Core).');
 })();

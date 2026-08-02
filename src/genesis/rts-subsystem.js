@@ -623,22 +623,53 @@
       return;
     }
 
-    createSelectionBoxOverlay();
     createHUD();
 
-    // Mouse events
-    window.addEventListener('mousedown', (e) => startSelectionBox(e));
-    window.addEventListener('mousemove', (e) => updateSelectionBox(e));
-    window.addEventListener('mouseup', (e) => endSelectionBox(e, camera));
-    window.addEventListener('contextmenu', (e) => {
-      if (selectedUnits.length > 0) {
-        handleRightClick(e, camera, scene);
-      }
-    });
-
-    // Keyboard
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    // Register with the unified input router (replaces old duplicated listeners)
+    if (window.RTSInputRouter) {
+      // Box selection
+      window.RTSInputRouter.registerBoxSelector(function(ctx) {
+        const minX = ctx.rect.left, maxX = ctx.rect.right;
+        const minY = ctx.rect.top, maxY = ctx.rect.bottom;
+        if (!ctx.shiftKey) clearSelection();
+        for (const unit of allUnits) {
+          if (!unit.mesh || unit.faction !== 'player') continue;
+          const screenPos = unit.mesh.position.clone().project(camera);
+          const sx = (screenPos.x + 1) / 2 * window.innerWidth;
+          const sy = (-screenPos.y + 1) / 2 * window.innerHeight;
+          if (sx >= minX && sx <= maxX && sy >= minY && sy <= maxY) {
+            selectUnit(unit);
+            if (selectedUnits.length >= RTS_CFG.MAX_SELECTION) break;
+          }
+        }
+        console.log('[RTS] Box Selected', selectedUnits.length, 'units.');
+      });
+      // Right-click commands (move/attack with formation)
+      window.RTSInputRouter.registerRightClick(50, function(ctx) {
+        if (selectedUnits.length === 0) return false;
+        const targetPos = ctx.point;
+        if (!targetPos) return false;
+        let command;
+        const enemyMeshes = allUnits.filter(u => u.mesh && u.faction !== 'player').map(u => u.mesh);
+        if (ctx.hits && ctx.hits.length > 0) {
+          let hitObj = ctx.hits[0].object;
+          while (hitObj && !hitObj._rtsUnit) hitObj = hitObj.parent;
+          if (hitObj && hitObj._rtsUnit) command = { type: 'attack', target: hitObj._rtsUnit };
+        }
+        if (!command) command = { type: 'move', target: targetPos.clone() };
+        issueFormationCommand(selectedUnits, command, scene);
+        return true; // consumed
+      });
+      // Hotkeys
+      window.RTSInputRouter.registerKeyHandler(50, function(key, e) {
+        if (key === 'a') { attackMoveMode = true; document.body.style.cursor = 'crosshair'; return true; }
+        if (key === 's') { for (const unit of selectedUnits) unit.order = null; return true; }
+        if (key === 'h') { for (const unit of selectedUnits) unit.order = { type: 'hold' }; return true; }
+        if (key === 'p') { for (const unit of selectedUnits) { if (unit.mesh) unit.order = { type: 'patrol', patrolStart: unit.mesh.position.clone() }; } return true; }
+        return false;
+      });
+      window.addEventListener('keyup', function(e) { if (e.key.toLowerCase() === 'a') { attackMoveMode = false; document.body.style.cursor = ''; } });
+    }
 
     console.log('[RTS] Subsystem installed — drag-select, right-click commands, A/S/H/P keys active');
   }

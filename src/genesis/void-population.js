@@ -3393,6 +3393,60 @@ export function install(Genesis) {
     if (window.StarCraftAsymmetricEngine) {
       try { window.StarCraftAsymmetricEngine.install(scene); } catch(e) { console.warn('[VoidPopulation] StarCraftAsymmetricEngine install failed:', e && e.message); }
     }
+    if (window.RTSEngineCore) {
+      try { window.RTSEngineCore.install(scene); } catch(e) { console.warn('[VoidPopulation] RTSEngineCore install failed:', e && e.message); }
+    }
+    if (window.RTSNavGrid) {
+      try { window.RTSNavGrid.install({ cellSize: 5 }); } catch(e) { console.warn('[VoidPopulation] RTSNavGrid install failed:', e && e.message); }
+    }
+    if (window.RTSInputRouter) {
+      try { window.RTSInputRouter.install({ scene: scene, camera: camera }); } catch(e) { console.warn('[VoidPopulation] RTSInputRouter install failed:', e && e.message); }
+    }
+    if (window.RTSUICore) {
+      try { window.RTSUICore.install(); } catch(e) { console.warn('[VoidPopulation] RTSUICore install failed:', e && e.message); }
+    }
+    
+    if (window.RTSEconomySystem) {
+      try { window.RTSEconomySystem.install(scene); } catch(e) { console.warn('[VoidPopulation] RTSEconomySystem install failed:', e && e.message); }
+    }
+    
+    if (window.RTSUIEngine) {
+      try { window.RTSUIEngine.install(scene, camera); } catch(e) { console.warn('[VoidPopulation] RTSUIEngine install failed:', e && e.message); }
+    }
+    if (window.RTSBaseBuilder) {
+      try { window.RTSBaseBuilder.install({ scene: scene, camera: camera }); } catch(e) { console.warn('[VoidPopulation] RTSBaseBuilder install failed:', e && e.message); }
+    }
+
+    // Phase 5: Register Grand Tower as a town hall (harvest drop-off point)
+    // and mark enemy bases in the nav grid
+    if (window.RTSEngineCore) {
+      for (let i = 0; i < worlds.length; i++) {
+        const w = worlds[i];
+        if (!w || !w.city) continue;
+        const wt = TYPES[i] || w.type;
+        // Register city center as building
+        let ent = window.RTSEngineCore.registerEntity(w.city, 'building', 'imperium', 5000, 45);
+        if (ent) {
+          // Grand Tower + New City = player town halls (harvest drop-off)
+          if (wt === 'grandtower' || wt === 'cplclone') {
+            ent.isTownHall = true;
+          }
+          // Mark nav grid for this building
+          if (window.RTSNavGrid) {
+            window.RTSNavGrid.blockCircle(w.position.x, w.position.z, 50, true);
+          }
+        }
+      }
+      console.log('[VoidPopulation] Registered Grand Tower + city centers as town halls.');
+    }
+    
+    if (window.DivineTerrainSculptor) {
+      try { window.DivineTerrainSculptor.install(scene, camera); } catch(e) { console.warn('[VoidPopulation] DivineTerrainSculptor install failed:', e && e.message); }
+    }
+    
+    if (window.RTSAIDirector) {
+      try { window.RTSAIDirector.install(scene); } catch(e) { console.warn('[VoidPopulation] RTSAIDirector install failed:', e && e.message); }
+    }
     if (window.AdvancedNPCEngine) {
       try { window.AdvancedNPCEngine.install(scene); } catch(e) { console.warn('[VoidPopulation] AdvancedNPCEngine install failed:', e && e.message); }
     }
@@ -3408,6 +3462,16 @@ export function install(Genesis) {
     // Install Terminal Sanctum in Central Pyramid (0,0,0)
     if (window.TerminalSanctum) {
       try { window.TerminalSanctum.install(scene); } catch(e) { console.warn('[VoidPopulation] TerminalSanctum install failed:', e && e.message); }
+    }
+
+    // Register sovereign city centers as town halls (harvest drop-off points)
+    if (window.RTSEngineCore && window._allSovereignCities) {
+      window._allSovereignCities.forEach((city) => {
+        if (!city) return;
+        const ent = window.RTSEngineCore.registerEntity(city, 'building', 'imperium', 4000, 30);
+        if (ent) ent.isTownHall = true;
+      });
+      console.log('[VoidPopulation] Registered ' + (window._allSovereignCities.length) + ' sovereign city centers as town halls.');
     }
 
     console.log('[VoidPopulation] Spawned', WORLD_COUNT, 'Lost Worlds + war fleet at distances', MIN_DIST, '-', MAX_DIST, 'units');
@@ -3728,8 +3792,32 @@ export function install(Genesis) {
     if (window.StarCraftAsymmetricEngine && window.StarCraftAsymmetricEngine.tick) {
       window.StarCraftAsymmetricEngine.tick(dt);
     }
+    if (window.RTSEngineCore && window.RTSEngineCore.tick) {
+      window.RTSEngineCore.tick(dt);
+    }
+    
+    if (window.RTSEconomySystem && window.RTSEconomySystem.tick) {
+      window.RTSEconomySystem.tick(dt);
+    }
+    
+    if (window.RTSUIEngine && window.RTSUIEngine.tick) {
+      window.RTSUIEngine.tick(dt);
+    }
+    if (window.RTSUICore && window.RTSUICore.tick) {
+      window.RTSUICore.tick(dt);
+    }
+    if (window.RTSBaseBuilder && window.RTSBaseBuilder.tick) {
+      window.RTSBaseBuilder.tick(dt);
+    }
+    if (window.GodPowersEngine && window.GodPowersEngine.tick) {
+      window.GodPowersEngine.tick(dt);
+    }
     if (window.AdvancedNPCEngine && window.AdvancedNPCEngine.tick) {
       window.AdvancedNPCEngine.tick(dt);
+    }
+    
+    if (window.RTSAIDirector && window.RTSAIDirector.tick) {
+      window.RTSAIDirector.tick(dt);
     }
 
     // Tick RTS Subsystem & AI Factions
