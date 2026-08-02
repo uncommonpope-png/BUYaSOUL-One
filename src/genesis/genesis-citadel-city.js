@@ -384,6 +384,11 @@
             }
         };
 
+        // Register as a Destructible Base in the RTS Engine
+        if (window.RTSEngineCore) {
+            window.RTSEngineCore.registerEntity(group, 'building', 'imperium', 5000, 45);
+        }
+
         return group;
     };
 })();

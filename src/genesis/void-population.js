@@ -2590,117 +2590,86 @@ export function install(Genesis) {
     }
   }
 
-  // Selection event handlers
+  // Selection event handlers — routed through RTSInputRouter (single input path)
   function _cmdPointerDown(e) {
-    if (!camera || !scene) return;
-    if (e.button !== 0) return;
-    _selPointerDown = true;
-    _selStartX = e.clientX;
-    _selStartY = e.clientY;
-    _selDragged = false;
+    // No-op: the unified input router owns drag tracking. Kept for compatibility.
   }
 
   function _cmdPointerMove(e) {
-    if (!_selPointerDown) return;
-    const dx = e.clientX - _selStartX;
-    const dy = e.clientY - _selStartY;
-    if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
-    _selDragged = true;
-    if (!_selRectEl) {
-      _selRectEl = document.createElement('div');
-      _selRectEl.style.cssText = 'position:fixed;border:1px solid #00ffaa;background:rgba(0,255,170,0.08);pointer-events:none;z-index:100;';
-      document.body.appendChild(_selRectEl);
-    }
-    const left = Math.min(_selStartX, e.clientX);
-    const top = Math.min(_selStartY, e.clientY);
-    _selRectEl.style.cssText = 'position:fixed;left:' + left + 'px;top:' + top + 'px;width:' + Math.abs(dx) + 'px;height:' + Math.abs(dy) + 'px;border:1px solid #00ffaa;background:rgba(0,255,170,0.08);pointer-events:none;z-index:100;display:block;';
+    // No-op: the unified input router owns the drag box.
   }
 
   function _cmdPointerUp(e) {
-    if (!_selPointerDown) return;
-    _selPointerDown = false;
-    if (_selRectEl) { _selRectEl.style.display = 'none'; _selRectEl.style.width = '0px'; _selRectEl.style.height = '0px'; }
-    if (e.button !== 0) return;
+    // No-op: split into _cmdBoxSelect + _cmdSingleClick below (router dispatched).
+  }
 
-    // Check if click was on a tower building or barracks
-    if (!_selDragged && camera && worldRoot) {
-      const ndc = new T.Vector2(((e.clientX - (e.target && e.target.getBoundingClientRect ? e.target.getBoundingClientRect().left : 0)) / (e.target && e.target.clientWidth || window.innerWidth)) * 2 - 1, -((e.clientY - (e.target && e.target.getBoundingClientRect ? e.target.getBoundingClientRect().top : 0)) / (e.target && e.target.clientHeight || window.innerHeight)) * 2 + 1);
-      const ray = new T.Raycaster();
-      ray.setFromCamera(ndc, camera);
-      const hits = ray.intersectObjects(worldRoot.children, true);
-      for (const hit of hits) {
-        let obj = hit.object;
-        while (obj) {
-          if (obj.userData && obj.userData.isTowerBuilding) return;
-          if (obj.userData && obj.userData.isBarracks) {
-            _buildProductionPanel(obj.userData.worldIndex);
-            return;
-          }
-          obj = obj.parent;
-        }
+  // Box-select warships inside the drag rectangle (called by router's box selector)
+  function _cmdBoxSelect(ctx) {
+    if (!camera) return;
+    const rect = ctx.rect;
+    if (!ctx.shiftKey) _clearSelection();
+    for (const ship of WAR_FLEET) {
+      const sp = _shipToScreen(ship);
+      if (sp.x >= rect.left && sp.x <= rect.right && sp.y >= rect.top && sp.y <= rect.bottom) {
+        if (ctx.shiftKey && SELECTED_SHIPS.has(ship)) { SELECTED_SHIPS.delete(ship); _removeSelRing(ship); }
+        else { SELECTED_SHIPS.add(ship); _addSelRing(ship); }
       }
-    }
-
-    if (_selDragged) {
-      // Drag-box select
-      if (!e.shiftKey) _clearSelection();
-      const left = Math.min(_selStartX, e.clientX), right = Math.max(_selStartX, e.clientX);
-      const top = Math.min(_selStartY, e.clientY), bottom = Math.max(_selStartY, e.clientY);
-      for (const ship of WAR_FLEET) {
-        const sp = _shipToScreen(ship);
-        if (sp.x >= left && sp.x <= right && sp.y >= top && sp.y <= bottom) {
-          if (e.shiftKey && SELECTED_SHIPS.has(ship)) { SELECTED_SHIPS.delete(ship); _removeSelRing(ship); }
-          else { SELECTED_SHIPS.add(ship); _addSelRing(ship); }
-        }
-      }
-    } else {
-      // Single click — raycast for ship
-      if (!e.shiftKey) _clearSelection();
-      const vw = window.innerWidth, vh = window.innerHeight;
-      const ndc = new T.Vector2((e.clientX / vw) * 2 - 1, -(e.clientY / vh) * 2 + 1);
-      const ray = new T.Raycaster();
-      ray.setFromCamera(ndc, camera);
-      const hits = ray.intersectObjects(scene.children, true);
-      let hitShip = null;
-      for (const hit of hits) {
-        let obj = hit.object;
-        while (obj) {
-          if (obj.userData && obj.userData.isWarship && obj.userData.hp > 0) { hitShip = obj; break; }
-          obj = obj.parent;
-        }
-        if (hitShip) break;
-      }
-      if (hitShip) { SELECTED_SHIPS.add(hitShip); _addSelRing(hitShip); }
     }
   }
 
+  // Single click — towers/barracks + warship select (called by router left-click)
+  function _cmdSingleClick(ctx) {
+    if (!camera || !worldRoot) return;
+    const e = ctx.e;
+    // Barracks / tower click via router-provided hits
+    const hits = ctx.hits || [];
+    for (const hit of hits) {
+      let obj = hit.object;
+      while (obj) {
+        if (obj.userData && obj.userData.isTowerBuilding) return true;
+        if (obj.userData && obj.userData.isBarracks) {
+          _buildProductionPanel(obj.userData.worldIndex);
+          return true;
+        }
+        obj = obj.parent;
+      }
+    }
+    // Single click — select warship
+    if (!ctx.shiftKey) _clearSelection();
+    let hitShip = null;
+    for (const hit of hits) {
+      let obj = hit.object;
+      while (obj) {
+        if (obj.userData && obj.userData.isWarship && obj.userData.hp > 0) { hitShip = obj; break; }
+        obj = obj.parent;
+      }
+      if (hitShip) break;
+    }
+    if (hitShip) { SELECTED_SHIPS.add(hitShip); _addSelRing(hitShip); }
+    return false;
+  }
+
   function _cmdContextMenu(e) {
-    if (!camera || !scene) return;
-    e.preventDefault();
+    // No-op: moved to _cmdRightClick (router dispatched).
+  }
+
+  // Right-click — rally point or warship commands (called by router right-click)
+  function _cmdRightClick(ctx) {
+    if (!camera || !scene) return false;
+    const e = ctx.e;
 
     // If barracks panel is active, set rally point
     if (_activeBarracksIdx >= 0) {
-      const plane = new T.Plane(new T.Vector3(0, 1, 0), 0);
-      const pos = new T.Vector3();
-      const vw2 = window.innerWidth, vh2 = window.innerHeight;
-      const ndc2 = new T.Vector2((e.clientX / vw2) * 2 - 1, -(e.clientY / vh2) * 2 + 1);
-      const ray2 = new T.Raycaster();
-      ray2.setFromCamera(ndc2, camera);
-      ray2.ray.intersectPlane(plane, pos);
-      if (pos) {
-        _setRallyPoint(_activeBarracksIdx, pos);
+      if (ctx.point) {
+        _setRallyPoint(_activeBarracksIdx, ctx.point);
         _closeProductionPanel();
       }
-      return;
+      return true;
     }
 
-    if (SELECTED_SHIPS.size === 0) return;
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const ndc = new T.Vector2((e.clientX / vw) * 2 - 1, -(e.clientY / vh) * 2 + 1);
-    const ray = new T.Raycaster();
-    ray.setFromCamera(ndc, camera);
-    const hits = ray.intersectObjects(scene.children, true);
+    if (SELECTED_SHIPS.size === 0) return false;
     let hitEnemy = null;
+    const hits = ctx.hits || [];
     for (const hit of hits) {
       let obj = hit.object;
       while (obj) {
@@ -2712,14 +2681,10 @@ export function install(Genesis) {
     const policy = e.shiftKey ? CMD_POLICY.QUEUE : CMD_POLICY.REPLACE;
     if (hitEnemy) {
       for (const ship of SELECTED_SHIPS) _issueCommand(ship, { type: CMD.ATTACK, target: hitEnemy, policy });
-    } else {
-      const plane = new T.Plane(new T.Vector3(0, 1, 0), 0);
-      const pos = new T.Vector3();
-      ray.ray.intersectPlane(plane, pos);
-      if (pos) {
-        for (const ship of SELECTED_SHIPS) _issueCommand(ship, { type: CMD.MOVE, targetPos: pos.clone(), policy });
-      }
+    } else if (ctx.point) {
+      for (const ship of SELECTED_SHIPS) _issueCommand(ship, { type: CMD.MOVE, targetPos: ctx.point.clone(), policy });
     }
+    return true;
   }
 
   // ====== END COMMAND SYSTEM ======
@@ -3213,14 +3178,13 @@ export function install(Genesis) {
       }
     }
 
-    // Wire command system event handlers (selection + right-click commands)
-    if (!window.__cmdSystemWired) {
+    // Wire command system through the unified input router (single input path)
+    if (!window.__cmdSystemWired && window.RTSInputRouter) {
       window.__cmdSystemWired = true;
-      window.addEventListener('pointerdown', _cmdPointerDown);
-      window.addEventListener('pointermove', _cmdPointerMove);
-      window.addEventListener('pointerup', _cmdPointerUp);
-      window.addEventListener('contextmenu', _cmdContextMenu);
-      console.log('[CommandSystem] Selection + right-click command handlers wired.');
+      window.RTSInputRouter.registerBoxSelector(_cmdBoxSelect);
+      window.RTSInputRouter.registerLeftClick(40, _cmdSingleClick);
+      window.RTSInputRouter.registerRightClick(40, _cmdRightClick);
+      console.log('[CommandSystem] Warship selection + commands registered via input router.');
     }
 
     // Clean previous
@@ -3465,13 +3429,13 @@ export function install(Genesis) {
     }
 
     // Register sovereign city centers as town halls (harvest drop-off points)
-    if (window.RTSEngineCore && window._allSovereignCities) {
-      window._allSovereignCities.forEach((city) => {
+    if (window.RTSEngineCore && _allSovereignCities && _allSovereignCities.length) {
+      _allSovereignCities.forEach((city) => {
         if (!city) return;
         const ent = window.RTSEngineCore.registerEntity(city, 'building', 'imperium', 4000, 30);
         if (ent) ent.isTownHall = true;
       });
-      console.log('[VoidPopulation] Registered ' + (window._allSovereignCities.length) + ' sovereign city centers as town halls.');
+      console.log('[VoidPopulation] Registered ' + _allSovereignCities.length + ' sovereign city centers as town halls.');
     }
 
     console.log('[VoidPopulation] Spawned', WORLD_COUNT, 'Lost Worlds + war fleet at distances', MIN_DIST, '-', MAX_DIST, 'units');

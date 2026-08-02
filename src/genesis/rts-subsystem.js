@@ -660,6 +660,28 @@
         issueFormationCommand(selectedUnits, command, scene);
         return true; // consumed
       });
+      // Single-click unit selection (ground click clears)
+      window.RTSInputRouter.registerLeftClick(50, function(ctx) {
+        // Only consume if we actually clicked an RTS unit — else let later handlers run
+        let hitUnit = null;
+        if (ctx.hits && ctx.hits.length > 0) {
+          for (const hit of ctx.hits) {
+            let obj = hit.object;
+            while (obj) {
+              if (obj._rtsUnit) { hitUnit = obj._rtsUnit; break; }
+              obj = obj.parent;
+            }
+            if (hitUnit) break;
+          }
+        }
+        if (!hitUnit) {
+          if (!ctx.shiftKey) clearSelection();
+          return false;
+        }
+        if (!ctx.shiftKey) clearSelection();
+        selectUnit(hitUnit);
+        return true;
+      });
       // Hotkeys
       window.RTSInputRouter.registerKeyHandler(50, function(key, e) {
         if (key === 'a') { attackMoveMode = true; document.body.style.cursor = 'crosshair'; return true; }

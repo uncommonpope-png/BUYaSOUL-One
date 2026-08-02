@@ -228,7 +228,30 @@
         }
         return true; // consumed
       });
-      console.log('[AdvancedNPCEngine] Right-click handler registered with input router.');
+      // Single-click NPC selection
+      window.RTSInputRouter.registerLeftClick(60, function(ctx) {
+        if (!ctx.hits || ctx.hits.length === 0) {
+          if (!ctx.shiftKey) clearSelection();
+          return false;
+        }
+        let hitNPC = null;
+        for (const hit of ctx.hits) {
+          let obj = hit.object;
+          while (obj) {
+            // Match NPC entities (entityId set) but skip RTS units (_rtsUnit set)
+            if (obj.userData && obj.userData.entityId && !obj._rtsUnit && !obj.userData.isWarship) { hitNPC = obj; break; }
+            obj = obj.parent;
+          }
+          if (hitNPC) break;
+        }
+        if (hitNPC) {
+          if (!ctx.shiftKey) clearSelection();
+          selectEntity(hitNPC);
+          return true; // consumed
+        }
+        return false;
+      });
+      console.log('[AdvancedNPCEngine] Right-click + click handlers registered with input router.');
     }
 
     window.AdvancedNPCEngine.selectNPC = selectEntity;

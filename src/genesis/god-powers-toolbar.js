@@ -205,15 +205,22 @@
   function install(scene) {
     createGodPowersToolbarUI();
 
-    window.addEventListener('pointerdown', (e) => {
-      if (e.button === 0 && activePower && window.__godforgeLastRaycastPoint) {
-        executePowerAt(window.__godforgeLastRaycastPoint, scene);
-      }
-    });
-
-    // Madness faction reversion tick
-    if (window.RTSInputRouter && window.RTSInputRouter.registerKeyHandler) {
-      // Tick madness status (called every frame by void-population tick chain)
+    // Register left-click via the unified input router (consumes click when a power is active)
+    if (window.RTSInputRouter) {
+      window.RTSInputRouter.registerLeftClick(5, function(ctx) {
+        if (activePower && ctx.point) {
+          executePowerAt(ctx.point, scene);
+          return true; // consumed — don't also select units
+        }
+        return false;
+      });
+    } else {
+      // Fallback if router not present
+      window.addEventListener('pointerdown', (e) => {
+        if (e.button === 0 && activePower && window.__godforgeLastRaycastPoint) {
+          executePowerAt(window.__godforgeLastRaycastPoint, scene);
+        }
+      });
     }
 
     console.log('[GodPowers] WorldBox Divine God Powers Toolbar active.');

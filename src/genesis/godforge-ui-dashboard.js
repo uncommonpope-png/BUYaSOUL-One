@@ -245,7 +245,10 @@
           borderRadius: '20px', fontFamily: 'Outfit, sans-serif', fontSize: '12px',
           fontWeight: '700', letterSpacing: '1px', cursor: 'pointer'
         });
-        btn.onclick = window.toggleGodforgeWarRoom;
+        btn.onclick = function() {
+          if (window.toggleGodforgeWarRoom) window.toggleGodforgeWarRoom();
+          else if (window.GodforgeUI) window.GodforgeUI.toggleWarRoom && window.GodforgeUI.toggleWarRoom();
+        };
         hud.appendChild(btn);
       }
     }

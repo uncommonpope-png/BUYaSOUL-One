@@ -1,10 +1,10 @@
 /**
  * rts-ui-engine.js
- * BUYASOUL CPL / GODFORGE — RTS UI & Selection
+ * BUYASOUL CPL / GODFORGE — RTS UI Engine
  * 
  * Provides:
- *   1. Screen-space drag selection box (green).
- *   2. 3D Health bars above all registered entities.
+ *   1. 3D Health bars above all registered entities.
+ *   (Drag selection box moved to rts-input-router.js — single input path.)
  */
 
 (function() {
@@ -66,13 +66,12 @@
     }
   }
 
-  // --- SELECTION BOX (moved to RTSInputRouter — this module only does health bars) ---
+  // --- (Drag selection moved to rts-input-router.js — this module only does health bars) ---
 
   function install(scene, camera) {
     SCENE = scene;
     CAMERA = camera;
-    initSelectionBox();
-    console.log('[RTS UI] UI Engine Installed (Selection Box, Health Bars).');
+    console.log('[RTS UI] UI Engine Installed (Health Bars).');
   }
 
   function tick(dt) {

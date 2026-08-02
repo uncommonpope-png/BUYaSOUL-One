@@ -100,6 +100,15 @@
     console.log('[StarCraftAsymmetric] Bio-Creep Matrix deployed at', position);
   }
 
+  function isOnCreep(position) {
+    if (!creepPlane) return false;
+    const dx = position.x - creepPlane.position.x;
+    const dz = position.z - creepPlane.position.z;
+    const distSq = dx * dx + dz * dz;
+    const radius = creepPlane.geometry.parameters.radius;
+    return distSq <= radius * radius;
+  }
+
   // ─── INITIALIZER ─────────────────────────────────────────────────────
 
   function install(scene) {
@@ -120,6 +129,7 @@
     tick,
     applyProtossShield,
     spawnBioCreep,
+    isOnCreep,
     FACTION_MECHANICS
   };
 })();
