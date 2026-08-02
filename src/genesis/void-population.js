@@ -3387,6 +3387,9 @@ export function install(Genesis) {
     if (window.StoryQuestSystem) {
       try { window.StoryQuestSystem.install(); } catch(e) { console.warn('[VoidPopulation] StoryQuestSystem install failed:', e && e.message); }
     }
+    if (window.GodPowersEngine) {
+      try { window.GodPowersEngine.install(scene); } catch(e) { console.warn('[VoidPopulation] GodPowersEngine install failed:', e && e.message); }
+    }
 
     // Install RTS Subsystem & AI Faction Commanders
     if (window.RTSSubsystem && camera) {
