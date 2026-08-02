@@ -3752,6 +3752,42 @@ export function install(Genesis) {
 
     // Separator
     html += '<div style="border-top:1px solid rgba(255,255,255,0.1);margin:6px 0;"></div>';
+    html += '<div style="font-size:10px;color:#ff44aa;text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;text-align:center;">🏛️ Sovereign Realms</div>';
+
+    const sovereignRealms = [
+      { name: 'Shattered Front', x: 900, y: 0, z: 300, color: '#ff4444' },
+      { name: 'Obsidian Spire', x: 400, y: 0, z: 0, color: '#ff6600' },
+      { name: 'Resonant Veil', x: -600, y: 0, z: 400, color: '#00ffcc' },
+      { name: 'Solar Forge', x: -900, y: 0, z: -300, color: '#ffaa00' },
+      { name: 'Bioluminescent Hive', x: 1200, y: 0, z: -500, color: '#00ff88' },
+      { name: 'Neon Zenith', x: 600, y: 0, z: -800, color: '#ff00ff' },
+      { name: 'Iron Foundry', x: -800, y: 0, z: -600, color: '#ff6600' },
+      { name: 'Aetherium Skylands', x: 1500, y: 0, z: 0, color: '#4488ff' },
+      { name: 'Elysian Vault', x: 1000, y: 0, z: -1200, color: '#ffdd44' },
+      { name: 'Astral Spire', x: 0, y: 0, z: 1200, color: '#00ffcc' },
+      { name: 'Quantum Rift', x: -1200, y: 0, z: -1200, color: '#8800ff' },
+      { name: 'Chronos Temple', x: 300, y: 0, z: -1500, color: '#ffdd88' },
+      { name: 'Glacial Matrix', x: -1500, y: 0, z: 300, color: '#aaddff' },
+      { name: 'Abyssal Trench', x: 0, y: -40, z: -1800, color: '#00ff66' },
+      { name: 'Hyperion Array', x: -1000, y: 0, z: 1500, color: '#ffff00' },
+      { name: 'Titan Graveyard', x: 1800, y: 0, z: 600, color: '#ff8800' },
+      { name: 'Rift Warzone', x: 800, y: 0, z: 1000, color: '#4488ff' },
+      { name: 'Vortex Siege', x: -1600, y: 0, z: -800, color: '#cc4444' },
+      { name: 'Genesis Citadel', x: 0, y: 0, z: -2200, color: '#ffcc44' },
+      { name: 'Omega Crucible', x: 2000, y: 0, z: 0, color: '#44aaff' }
+    ];
+
+    for (let i = 0; i < sovereignRealms.length; i++) {
+      const r = sovereignRealms[i];
+      const dist = Math.round(Math.sqrt(r.x*r.x + r.z*r.z));
+      html += '<div onclick="window.__voidJumpPos(' + r.x + ',' + (r.y+20) + ',' + r.z + ')" style="padding:6px 8px;margin-bottom:4px;background:rgba(255,255,255,0.04);border:1px solid ' + r.color + '44;border-radius:6px;cursor:pointer;font-size:11px;color:#fff;display:flex;justify-content:space-between;align-items:center;transition:background 0.2s;" onmouseover="this.style.background=\'rgba(255,255,255,0.12)\'" onmouseout="this.style.background=\'rgba(255,255,255,0.04)\'">';
+      html += '<span style="color:' + r.color + ';">' + r.name + '</span>';
+      html += '<span style="font-size:9px;color:#888;">' + dist + 'u</span>';
+      html += '</div>';
+    }
+
+    // Separator
+    html += '<div style="border-top:1px solid rgba(255,255,255,0.1);margin:6px 0;"></div>';
     html += '<div style="font-size:10px;color:#66ffff;text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;text-align:center;">⚡ Lost Worlds</div>';
 
     for (let i = 0; i < worlds.length; i++) {
@@ -3764,12 +3800,21 @@ export function install(Genesis) {
       html += '<span style="font-size:9px;color:#666;">' + dist + 'u</span>';
       html += '</div>';
     }
-    html += '<div style="font-size:9px;color:#555;text-align:center;margin-top:8px;">Click world to jump · Click ground to teleport</div>';
+    html += '<div style="font-size:9px;color:#555;text-align:center;margin-top:8px;">Click realm/world to jump</div>';
     panel.innerHTML = html;
     document.body.appendChild(panel);
-    // Wire jump function
+    // Wire jump functions
     if (typeof window !== 'undefined') {
       window.__voidJump = (i) => jumpToWorld(i);
+      window.__voidJumpPos = (x, y, z) => {
+        const PlayerCam = window.Genesis && window.Genesis.PlayerCam;
+        if (PlayerCam && PlayerCam.teleportTo) {
+          PlayerCam.teleportTo({ x, y, z });
+        } else if (camera) {
+          camera.position.set(x + 40, y + 25, z + 40);
+          camera.lookAt(x, y, z);
+        }
+      };
     }
   }
 
