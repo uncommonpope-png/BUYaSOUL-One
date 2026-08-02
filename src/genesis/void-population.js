@@ -3377,6 +3377,11 @@ export function install(Genesis) {
     }
     if (_spawnedCount > 0) console.log('[VoidPopulation] Spawned', _spawnedCount, 'Sovereign Void Realms');
 
+    // Install Master Art Pass V2 (Atmosphere, Rim Lights, Hover Traffic)
+    if (window.GodforgeArtPassV2) {
+      try { window.GodforgeArtPassV2.install(scene); } catch(e) { console.warn('[VoidPopulation] ArtPassV2 install failed:', e && e.message); }
+    }
+
     // Install RTS Subsystem & AI Faction Commanders
     if (window.RTSSubsystem && camera) {
       try { window.RTSSubsystem.install(camera, scene); } catch(e) { console.warn('[VoidPopulation] RTS install failed:', e && e.message); }
@@ -3699,6 +3704,11 @@ export function install(Genesis) {
     // Engine Optimizer LOD + GPU safeguard tick
     if (window.EngineOptimizer && camera) {
       window.EngineOptimizer.tick(camera.position);
+    }
+
+    // Tick Master Art Pass V2 (Hover traffic animation)
+    if (window.GodforgeArtPassV2 && window.GodforgeArtPassV2.tick) {
+      window.GodforgeArtPassV2.tick(dt);
     }
 
     // Tick RTS Subsystem & AI Factions
