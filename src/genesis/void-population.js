@@ -3377,9 +3377,12 @@ export function install(Genesis) {
     }
     if (_spawnedCount > 0) console.log('[VoidPopulation] Spawned', _spawnedCount, 'Sovereign Void Realms');
 
-    // Install RTS Subsystem
+    // Install RTS Subsystem & AI Faction Commanders
     if (window.RTSSubsystem && camera) {
       try { window.RTSSubsystem.install(camera, scene); } catch(e) { console.warn('[VoidPopulation] RTS install failed:', e && e.message); }
+    }
+    if (window.RTSAIFaction) {
+      try { window.RTSAIFaction.install(scene); } catch(e) { console.warn('[VoidPopulation] RTSAIFaction install failed:', e && e.message); }
     }
 
     // Install Terminal Sanctum in Central Pyramid (0,0,0)
@@ -3698,6 +3701,14 @@ export function install(Genesis) {
       window.EngineOptimizer.tick(camera.position);
     }
 
+    // Tick RTS Subsystem & AI Factions
+    if (window.RTSSubsystem && window.RTSSubsystem.tick) {
+      window.RTSSubsystem.tick(dt);
+    }
+    if (window.RTSAIFaction && window.RTSAIFaction.tick) {
+      window.RTSAIFaction.tick(dt);
+    }
+    
     // RTS Subsystem tick
     if (window.RTSSubsystem) {
       try { window.RTSSubsystem.tick(dt, scene); } catch(e) { /* silent */ }
