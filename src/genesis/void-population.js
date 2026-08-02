@@ -3393,6 +3393,9 @@ export function install(Genesis) {
     if (window.StarCraftAsymmetricEngine) {
       try { window.StarCraftAsymmetricEngine.install(scene); } catch(e) { console.warn('[VoidPopulation] StarCraftAsymmetricEngine install failed:', e && e.message); }
     }
+    if (window.AdvancedNPCEngine) {
+      try { window.AdvancedNPCEngine.install(scene); } catch(e) { console.warn('[VoidPopulation] AdvancedNPCEngine install failed:', e && e.message); }
+    }
 
     // Install RTS Subsystem & AI Faction Commanders
     if (window.RTSSubsystem && camera) {
@@ -3724,6 +3727,9 @@ export function install(Genesis) {
     }
     if (window.StarCraftAsymmetricEngine && window.StarCraftAsymmetricEngine.tick) {
       window.StarCraftAsymmetricEngine.tick(dt);
+    }
+    if (window.AdvancedNPCEngine && window.AdvancedNPCEngine.tick) {
+      window.AdvancedNPCEngine.tick(dt);
     }
 
     // Tick RTS Subsystem & AI Factions
