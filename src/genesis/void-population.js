@@ -3358,6 +3358,7 @@ export function install(Genesis) {
       { fn: 'spawnVortexSiege',        ref: '_vortexSiege',        opts: { offsetX: -1600, offsetZ: -800 },   name: 'Vortex Siege' },
       { fn: 'spawnGenesisCitadel',     ref: '_genesisCitadel',     opts: { offsetX: 0, offsetZ: -2200 },      name: 'Genesis Citadel' },
       { fn: 'spawnOmegaCrucible',      ref: '_omegaCrucible',      opts: { offsetX: 2000, offsetZ: 0 },       name: 'Omega Crucible' },
+      { fn: 'spawnSovereignMarketplace', ref: '_sovereignMarketplace', opts: { offsetX: -400, offsetZ: -900 }, name: 'Sovereign Marketplace' },
     ];
 
     let _spawnedCount = 0;
@@ -3779,7 +3780,8 @@ export function install(Genesis) {
       { name: 'Rift Warzone', x: 800, y: 0, z: 1000, color: '#4488ff' },
       { name: 'Vortex Siege', x: -1600, y: 0, z: -800, color: '#cc4444' },
       { name: 'Genesis Citadel', x: 0, y: 0, z: -2200, color: '#ffcc44' },
-      { name: 'Omega Crucible', x: 2000, y: 0, z: 0, color: '#44aaff' }
+      { name: 'Omega Crucible', x: 2000, y: 0, z: 0, color: '#44aaff' },
+      { name: 'Sovereign Marketplace', x: -400, y: 0, z: -900, color: '#ffd700' }
     ];
 
     for (let i = 0; i < sovereignRealms.length; i++) {
