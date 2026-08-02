@@ -957,12 +957,13 @@
     </script>
 
     <script src="./cpl-config.js"></script>
+    <script src="src/genesis/alien-warzone-city.js"></script>
 
     <script type="importmap">
         {
             "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+                "three": "./node_modules/three/build/three.module.js",
+                "three/addons/": "./node_modules/three/examples/jsm/"
             }
         }
     </script>
@@ -8278,7 +8279,7 @@ if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) {
         // Craig (2026-07-16): rigged OUR OWN characters in Blender headless (npc_bruno / npc_sudo)
         // and drop them into the walker pool so the city populates with animated NPCs we made.
         // NPC RIG enabled by default — the city comes alive, NPCs walk and animate.
-        window.__GENESIS_NPC_RIG = (typeof window.__GENESIS_NPC_RIG === 'boolean') ? window.__GENESIS_NPC_RIG : true;
+        window.__GENESIS_NPC_RIG = (typeof window.__GENESIS_NPC_RIG === 'boolean') ? window.__GENESIS_NPC_RIG : false;
         if (window.__GENESIS_NPC_RIG === true) {
             walkerRigUrls.push('assets/npc-rigs/npc_bruno.glb', 'assets/npc-rigs/npc_sudo.glb');
         }

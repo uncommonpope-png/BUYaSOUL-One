@@ -162,6 +162,8 @@ export function install(Genesis) {
   const worldRoot = new T.Group();
   worldRoot.name = 'void-population';
 
+  let _warzoneCity = null;
+
   // Portal connections between worlds
   const PORTALS = [];
 
@@ -3314,6 +3316,15 @@ export function install(Genesis) {
     // Build travel panel for easy navigation
     buildTravelPanel();
 
+    // Spawn sovereign cities
+    if (typeof window.spawnWarzoneCity === 'function') {
+      try {
+        const warzoneCity = window.spawnWarzoneCity(scene, { offsetX: 900, offsetZ: 300 });
+        _warzoneCity = warzoneCity;
+        console.log('[VoidPopulation] Shattered Front warzone spawned');
+      } catch (e) { console.warn('[VoidPopulation] Shattered Front spawn failed:', e && e.message); }
+    }
+
     console.log('[VoidPopulation] Spawned', WORLD_COUNT, 'Lost Worlds + war fleet at distances', MIN_DIST, '-', MAX_DIST, 'units');
     return { built: true, worlds: worlds.length };
   }
@@ -3611,9 +3622,17 @@ export function install(Genesis) {
     if (voidCosmosApi && voidCosmosApi.tickCosmos) {
       voidCosmosApi.tickCosmos(dt);
     }
+
+    // Update Warzone City (RTS simulation)
+    if (_warzoneCity && _warzoneCity.userData && _warzoneCity.userData.update) {
+      _warzoneCity.userData.update(performance.now() / 1000, dt);
+    }
   }
 
   function dispose() {
+    if (_warzoneCity && _warzoneCity.parent) _warzoneCity.parent.remove(_warzoneCity);
+    _warzoneCity = null;
+
     if (worldRoot.parent) worldRoot.parent.remove(worldRoot);
     if (voidCosmosApi && voidCosmosApi.disposeCosmos) {
       voidCosmosApi.disposeCosmos();
