@@ -36,6 +36,7 @@ const blockedByTestUrls = new Set();
 
 const server = http.createServer((req, res) => {
   try {
+    console.error('[server req]', req.url);
     const url = new URL(req.url, 'http://127.0.0.1');
     let rel = decodeURIComponent(url.pathname);
     if (rel === '/') rel = '/index.html';
@@ -138,12 +139,12 @@ function isAllowedRequestFailure(entry) {
     await page.route('**/*', async (route) => {
       const url = route.request().url();
       const parsed = new URL(url);
-      if (url.startsWith(knownOptionalAvatarUrl)) {
-        blockedHeavyRoutes.push({ url, reason: 'known-optional-avatar' });
+      if (parsed.hostname !== '127.0.0.1' && parsed.hostname !== 'localhost') {
+        blockedHeavyRoutes.push({ url, reason: 'external-block' });
         blockedByTestUrls.add(url);
         return route.abort('blockedbyclient');
       }
-      if (parsed.hostname === '127.0.0.1' && /\.(?:glb|mp4|webm)$/i.test(parsed.pathname) && parsed.pathname !== allowedLocalGlbPath) {
+      if (/\.(?:glb|mp4|webm)$/i.test(parsed.pathname) && parsed.pathname !== allowedLocalGlbPath) {
         blockedHeavyRoutes.push(url);
         blockedByTestUrls.add(url);
         return route.abort('blockedbyclient');

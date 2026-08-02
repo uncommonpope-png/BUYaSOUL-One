@@ -163,6 +163,26 @@ export function install(Genesis) {
   worldRoot.name = 'void-population';
 
   let _warzoneCity = null;
+  let _obsidianSpire = null;
+  let _resonantVeil = null;
+  let _solarForge = null;
+  let _bioluminescentHive = null;
+  let _neonZenith = null;
+  let _ironFoundry = null;
+  let _aetheriumSkylands = null;
+  let _elysianVault = null;
+  let _astralSpire = null;
+  let _quantumRift = null;
+  let _chronosTemple = null;
+  let _glacialMatrix = null;
+  let _abyssalTrench = null;
+  let _hyperionArray = null;
+  let _titanGraveyard = null;
+  let _riftWarzone = null;
+  let _vortexSiege = null;
+  let _genesisCitadel = null;
+  let _omegaCrucible = null;
+  const _allSovereignCities = [];
 
   // Portal connections between worlds
   const PORTALS = [];
@@ -3316,13 +3336,49 @@ export function install(Genesis) {
     // Build travel panel for easy navigation
     buildTravelPanel();
 
-    // Spawn sovereign cities
-    if (typeof window.spawnWarzoneCity === 'function') {
-      try {
-        const warzoneCity = window.spawnWarzoneCity(scene, { offsetX: 900, offsetZ: 300 });
-        _warzoneCity = warzoneCity;
-        console.log('[VoidPopulation] Shattered Front warzone spawned');
-      } catch (e) { console.warn('[VoidPopulation] Shattered Front spawn failed:', e && e.message); }
+    // Spawn sovereign cities (20 Realms — Lego snap-on pattern)
+    const _sovereignCityDefs = [
+      { fn: 'spawnWarzoneCity',        ref: '_warzoneCity',        opts: { offsetX: 900, offsetZ: 300 },      name: 'Shattered Front' },
+      { fn: 'spawnObsidianSpire',      ref: '_obsidianSpire',      opts: { offsetX: 400, offsetZ: 0 },        name: 'Obsidian Spire' },
+      { fn: 'spawnResonantVeil',       ref: '_resonantVeil',       opts: { offsetX: -600, offsetZ: 400 },     name: 'Resonant Veil' },
+      { fn: 'spawnSolarForge',         ref: '_solarForge',         opts: { offsetX: -900, offsetZ: -300 },    name: 'Solar Forge' },
+      { fn: 'spawnBioluminescentHive', ref: '_bioluminescentHive', opts: { offsetX: 1200, offsetZ: -500 },    name: 'Bioluminescent Hive' },
+      { fn: 'spawnNeonZenith',         ref: '_neonZenith',         opts: { offsetX: 600, offsetZ: -800 },     name: 'Neon Zenith' },
+      { fn: 'spawnIronFoundry',        ref: '_ironFoundry',        opts: { offsetX: -800, offsetZ: -600 },    name: 'Iron Foundry' },
+      { fn: 'spawnAetheriumSkylands',  ref: '_aetheriumSkylands',  opts: { offsetX: 1500, offsetZ: 0 },       name: 'Aetherium Skylands' },
+      { fn: 'spawnElysianVault',       ref: '_elysianVault',       opts: { offsetX: 1000, offsetZ: -1200 },   name: 'Elysian Vault' },
+      { fn: 'spawnAstralSpire',        ref: '_astralSpire',        opts: { offsetX: 0, offsetZ: 1200 },       name: 'Astral Spire' },
+      { fn: 'spawnQuantumRift',        ref: '_quantumRift',        opts: { offsetX: -1200, offsetZ: -1200 },  name: 'Quantum Rift' },
+      { fn: 'spawnChronosTemple',      ref: '_chronosTemple',      opts: { offsetX: 300, offsetZ: -1500 },    name: 'Chronos Temple' },
+      { fn: 'spawnGlacialMatrix',      ref: '_glacialMatrix',      opts: { offsetX: -1500, offsetZ: 300 },    name: 'Glacial Matrix' },
+      { fn: 'spawnAbyssalTrench',      ref: '_abyssalTrench',      opts: { offsetX: 0, offsetZ: -1800 },      name: 'Abyssal Trench' },
+      { fn: 'spawnHyperionArray',      ref: '_hyperionArray',      opts: { offsetX: -1000, offsetZ: 1500 },   name: 'Hyperion Array' },
+      { fn: 'spawnTitanGraveyard',     ref: '_titanGraveyard',     opts: { offsetX: 1800, offsetZ: 600 },     name: 'Titan Graveyard' },
+      { fn: 'spawnRiftWarzone',        ref: '_riftWarzone',        opts: { offsetX: 800, offsetZ: 1000 },     name: 'Rift Warzone' },
+      { fn: 'spawnVortexSiege',        ref: '_vortexSiege',        opts: { offsetX: -1600, offsetZ: -800 },   name: 'Vortex Siege' },
+      { fn: 'spawnGenesisCitadel',     ref: '_genesisCitadel',     opts: { offsetX: 0, offsetZ: -2200 },      name: 'Genesis Citadel' },
+      { fn: 'spawnOmegaCrucible',      ref: '_omegaCrucible',      opts: { offsetX: 2000, offsetZ: 0 },       name: 'Omega Crucible' },
+    ];
+
+    let _spawnedCount = 0;
+    for (const def of _sovereignCityDefs) {
+      if (typeof window[def.fn] === 'function') {
+        try {
+          const cityGroup = window[def.fn](scene, def.opts);
+          _allSovereignCities.push(cityGroup);
+          _spawnedCount++;
+          // Register with Engine Optimizer for LOD management
+          if (window.EngineOptimizer && cityGroup && cityGroup.position) {
+            window.EngineOptimizer.registerCity(cityGroup, cityGroup.position);
+          }
+        } catch (e) { console.warn('[VoidPopulation] ' + def.name + ' spawn failed:', e && e.message); }
+      }
+    }
+    if (_spawnedCount > 0) console.log('[VoidPopulation] Spawned', _spawnedCount, 'Sovereign Void Realms');
+
+    // Install RTS Subsystem
+    if (window.RTSSubsystem && camera) {
+      try { window.RTSSubsystem.install(camera, scene); } catch(e) { console.warn('[VoidPopulation] RTS install failed:', e && e.message); }
     }
 
     console.log('[VoidPopulation] Spawned', WORLD_COUNT, 'Lost Worlds + war fleet at distances', MIN_DIST, '-', MAX_DIST, 'units');
@@ -3623,14 +3679,31 @@ export function install(Genesis) {
       voidCosmosApi.tickCosmos(dt);
     }
 
-    // Update Warzone City (RTS simulation)
-    if (_warzoneCity && _warzoneCity.userData && _warzoneCity.userData.update) {
-      _warzoneCity.userData.update(performance.now() / 1000, dt);
+    // Update all Sovereign Void Realms
+    const _tickTime = performance.now() / 1000;
+    for (const cityGroup of _allSovereignCities) {
+      if (cityGroup && cityGroup.userData && cityGroup.userData.update) {
+        try { cityGroup.userData.update(_tickTime, dt); } catch(e) { /* silent */ }
+      }
+    }
+
+    // Engine Optimizer LOD + GPU safeguard tick
+    if (window.EngineOptimizer && camera) {
+      window.EngineOptimizer.tick(camera.position);
+    }
+
+    // RTS Subsystem tick
+    if (window.RTSSubsystem) {
+      try { window.RTSSubsystem.tick(dt, scene); } catch(e) { /* silent */ }
     }
   }
 
   function dispose() {
-    if (_warzoneCity && _warzoneCity.parent) _warzoneCity.parent.remove(_warzoneCity);
+    // Dispose all sovereign cities
+    for (const cityGroup of _allSovereignCities) {
+      if (cityGroup && cityGroup.parent) cityGroup.parent.remove(cityGroup);
+    }
+    _allSovereignCities.length = 0;
     _warzoneCity = null;
 
     if (worldRoot.parent) worldRoot.parent.remove(worldRoot);

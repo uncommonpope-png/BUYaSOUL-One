@@ -1,5 +1,32 @@
 'use strict';
 const { chromium } = require('playwright');
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+const root = path.resolve(__dirname, '..');
+const mime = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+  '.mp4': 'video/mp4', '.webm': 'video/webm', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.wasm': 'application/wasm'
+};
+
+const server = http.createServer((req, res) => {
+  try {
+    const url = new URL(req.url, 'http://127.0.0.1');
+    let rel = decodeURIComponent(url.pathname);
+    if (rel === '/') rel = '/index.html';
+    const file = path.resolve(root, '.' + rel);
+    if (!file.toLowerCase().startsWith(root.toLowerCase())) { res.writeHead(403); return res.end('forbidden'); }
+    if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end('not found'); }
+    res.writeHead(200, { 'Content-Type': mime[path.extname(file).toLowerCase()] || 'application/octet-stream', 'Cache-Control': 'no-store' });
+    fs.createReadStream(file).pipe(res);
+  } catch (error) {
+    res.writeHead(500);
+    res.end(String(error));
+  }
+});
 
 async function boot(page, url) {
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -9,8 +36,11 @@ async function boot(page, url) {
 }
 
 async function main() {
+  await new Promise((resolve, reject) => server.listen(8088, '127.0.0.1', (error) => error ? reject(error) : resolve()));
   const browser = await chromium.launch();
   const page = await browser.newPage();
+  page.on('console', msg => console.log('PAGE LOG:', msg.text()));
+  page.on('pageerror', err => console.error('PAGE ERROR:', err.stack || err.message));
   const url = `http://127.0.0.1:8088/index.html?phaseBatch=${Date.now()}`;
 
   await boot(page, url);
@@ -84,10 +114,12 @@ async function main() {
 
   console.log(JSON.stringify(report, null, 2));
   await browser.close();
+  server.close();
   if (!report.ok) process.exit(1);
 }
 
 main().catch((e) => {
   console.error(e && e.stack ? e.stack : e);
+  server.close();
   process.exit(1);
 });
