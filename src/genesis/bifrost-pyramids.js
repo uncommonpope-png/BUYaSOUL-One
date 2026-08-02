@@ -87,6 +87,30 @@ export function installPyramidion(Genesis) {
     mesh.position.y = height / 2;
     group.add(mesh);
 
+    // If Grounded Pyramid (index === 0 at center 0,0,0), add 4 cardinal portal archways & Inner Sanctum floor
+    if (index === 0) {
+      const archMat = new T.MeshStandardMaterial({ color: 0x223344, roughness: 0.3, metalness: 0.8, emissive: 0x00aaff, emissiveIntensity: 0.4 });
+      const archDirections = [0, Math.PI / 2, Math.PI, Math.PI * 1.5];
+      const archRadius = pyramidRadius * 0.7;
+
+      for (let a = 0; a < archDirections.length; a++) {
+        const angle = archDirections[a];
+        const arch = new T.Mesh(new T.TorusGeometry(12, 1.8, 8, 16, Math.PI), archMat);
+        arch.position.set(Math.cos(angle) * archRadius, 12, Math.sin(angle) * archRadius);
+        arch.rotation.y = -angle + Math.PI / 2;
+        group.add(arch);
+      }
+
+      // Inner Sanctum floor ring
+      const innerFloor = new T.Mesh(
+        new T.CircleGeometry(archRadius + 10, 32),
+        new T.MeshStandardMaterial({ color: 0x050a15, roughness: 0.8, metalness: 0.2, emissive: 0x003366, emissiveIntensity: 0.3 })
+      );
+      innerFloor.rotation.x = -Math.PI / 2;
+      innerFloor.position.y = 0.1;
+      group.add(innerFloor);
+    }
+
     // Halo ring
     const ringGeo = new T.TorusGeometry(pyramidRadius * 1.1, 0.8, 8, 32);
     const ringMat = new T.MeshBasicMaterial({

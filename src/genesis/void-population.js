@@ -3381,6 +3381,11 @@ export function install(Genesis) {
       try { window.RTSSubsystem.install(camera, scene); } catch(e) { console.warn('[VoidPopulation] RTS install failed:', e && e.message); }
     }
 
+    // Install Terminal Sanctum in Central Pyramid (0,0,0)
+    if (window.TerminalSanctum) {
+      try { window.TerminalSanctum.install(scene); } catch(e) { console.warn('[VoidPopulation] TerminalSanctum install failed:', e && e.message); }
+    }
+
     console.log('[VoidPopulation] Spawned', WORLD_COUNT, 'Lost Worlds + war fleet at distances', MIN_DIST, '-', MAX_DIST, 'units');
     return { built: true, worlds: worlds.length };
   }
