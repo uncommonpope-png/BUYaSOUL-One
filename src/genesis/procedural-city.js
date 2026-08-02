@@ -41,15 +41,47 @@
       return (typeof window !== 'undefined') && window.THREE;
     }
 
-    // Build a single block/tower mesh. r128/r160 safe (BoxGeometry, MeshStandard).
+    // Build a single composite procedural tower/building with greebles and set-backs
     function makeBlock(x, z, w, d, h, color, yBase) {
       if (!THREEOK()) return null;
       const T = window.THREE;
-      const geo = new T.BoxGeometry(w, h, d);
-      const mat = new T.MeshStandardMaterial({ color: color || 0x222233, roughness: 0.85, metalness: 0.1, emissive: 0x05060a });
-      const mesh = new T.Mesh(geo, mat);
-      mesh.position.set(x, (yBase || 0) + h / 2, z);
-      mesh.castShadow = true; mesh.receiveShadow = true;
+      
+      let mesh;
+      const mat = new T.MeshStandardMaterial({ color: color || 0x222233, roughness: 0.7, metalness: 0.3, emissive: 0x080c18 });
+      const accentMat = new T.MeshBasicMaterial({ color: 0x00ffcc, wireframe: false });
+      
+      // If ProceduralArchitecture engine is loaded, use composite typologies!
+      if (window.ProceduralArchitecture) {
+        const PA = window.ProceduralArchitecture;
+        const styleRoll = (x * 37 + z * 17) % 3;
+        const rng = PA.mulberry32(Math.abs(Math.floor(x * 100 + z * 10)));
+        
+        if (styleRoll === 0) {
+          mesh = PA.buildGothicTower(h, w, mat, accentMat, rng);
+        } else if (styleRoll === 1) {
+          mesh = PA.buildArcologyTower(h, w, mat, accentMat, rng);
+        } else {
+          mesh = PA.buildIndustrialZiggurat(h, w, mat, accentMat, rng);
+        }
+        
+        // Add rooftop and facade greebles
+        PA.addGreebles(mesh, h, w, styleRoll, mat, rng);
+        mesh.position.set(x, yBase || 0, z);
+      } else {
+        // Fallback: Box with roof spire
+        mesh = new T.Group();
+        const geo = new T.BoxGeometry(w, h, d);
+        const bMesh = new T.Mesh(geo, mat);
+        bMesh.position.y = h / 2;
+        mesh.add(bMesh);
+        
+        // Spire cap
+        const spire = new T.Mesh(new T.ConeGeometry(w * 0.3, h * 0.3, 4), accentMat);
+        spire.position.y = h + h * 0.15;
+        mesh.add(spire);
+        mesh.position.set(x, yBase || 0, z);
+      }
+      
       return mesh;
     }
 
