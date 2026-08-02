@@ -3390,6 +3390,9 @@ export function install(Genesis) {
     if (window.GodPowersEngine) {
       try { window.GodPowersEngine.install(scene); } catch(e) { console.warn('[VoidPopulation] GodPowersEngine install failed:', e && e.message); }
     }
+    if (window.StarCraftAsymmetricEngine) {
+      try { window.StarCraftAsymmetricEngine.install(scene); } catch(e) { console.warn('[VoidPopulation] StarCraftAsymmetricEngine install failed:', e && e.message); }
+    }
 
     // Install RTS Subsystem & AI Faction Commanders
     if (window.RTSSubsystem && camera) {
@@ -3718,6 +3721,9 @@ export function install(Genesis) {
     // Tick Master Art Pass V2 (Hover traffic animation)
     if (window.GodforgeArtPassV2 && window.GodforgeArtPassV2.tick) {
       window.GodforgeArtPassV2.tick(dt);
+    }
+    if (window.StarCraftAsymmetricEngine && window.StarCraftAsymmetricEngine.tick) {
+      window.StarCraftAsymmetricEngine.tick(dt);
     }
 
     // Tick RTS Subsystem & AI Factions
