@@ -60,7 +60,7 @@
       pointerEvents: 'auto'
     });
     hudEl.innerHTML = [
-      '<span style="background:linear-gradient(135deg,rgba(255,204,0,.2),rgba(255,102,0,.2));border:1px solid #ffd700;color:#ffd700;padding:2px 8px;border-radius:12px;font-size:11px;">PLT CORE</span>',
+      '<span style="background:linear-gradient(135deg,rgba(255,204,0,.25),rgba(255,102,0,.25));border:1px solid #ffd700;color:#ffd700;padding:4px 12px;border-radius:14px;font-size:12px;font-weight:800;letter-spacing:1px;">PLT CORE</span>',
       stat('profit', '💰 PROFIT', '#ffd700'),
       stat('love', '🌸 LOVE', '#ff66cc'),
       stat('tax', '⚖️ TAX', '#00ffcc'),
@@ -82,9 +82,9 @@
   }
 
   function stat(id, label, color) {
-    return '<div class="gf-stat-item" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;letter-spacing:.5px;color:' + color + ';">' +
-      '<span>' + label + ':</span>' +
-      '<span class="gf-stat-val" id="rts-hud-' + id + '" style="font-family:ui-monospace,monospace;font-weight:700;font-size:14px;">0</span></div>';
+    return '<div class="gf-stat-item" style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;letter-spacing:.5px;color:' + color + ';text-shadow:0 0 12px ' + color + '55;">' +
+      '<span style="opacity:0.92;">' + label + ':</span>' +
+      '<span class="gf-stat-val" id="rts-hud-' + id + '" style="font-family:ui-monospace,monospace;font-weight:800;font-size:16px;color:#fff;">0</span></div>';
   }
 
   function readResources() {

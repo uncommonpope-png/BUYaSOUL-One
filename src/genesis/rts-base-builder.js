@@ -68,8 +68,8 @@
     buildMenu.id = 'rts-build-menu';
     Object.assign(buildMenu.style, {
       position: 'fixed',
-      right: '20px',
-      bottom: '90px',
+      top: '96px',
+      right: '300px',
       display: 'flex',
       flexDirection: 'column',
       gap: '6px',

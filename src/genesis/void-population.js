@@ -3871,23 +3871,23 @@ export function install(Genesis) {
     if (document.getElementById('void-travel-panel')) return;
     const panel = document.createElement('div');
     panel.id = 'void-travel-panel';
-    panel.style.cssText = 'position:fixed;top:50%;right:20px;transform:translateY(-50%);width:220px;background:rgba(5,5,20,0.92);border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:14px;z-index:35;font-family:monospace;pointer-events:auto;max-height:80vh;overflow-y:auto;';
+    panel.style.cssText = 'position:fixed;top:72px;right:20px;width:264px;background:rgba(6,10,22,0.88);border:1px solid rgba(102,255,255,0.22);border-radius:16px;padding:16px;z-index:35;font-family:Outfit,system-ui,sans-serif;pointer-events:auto;max-height:calc(100vh - 340px);overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,0.55),0 0 24px rgba(80,200,255,0.08);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);scrollbar-width:thin;scrollbar-color:rgba(102,255,255,0.35) transparent;';
 
     // Grand Tower — highlighted first
-    let html = '<div style="font-size:11px;color:#ffcc44;text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;text-align:center;">🏰 GRAND TOWER</div>';
+    let html = '<div style="font-size:12px;color:#ffcc44;text-transform:uppercase;letter-spacing:3px;margin-bottom:10px;text-align:center;font-weight:700;">🏰 GRAND TOWER</div>';
     const towerWorld = worlds.find(w => w.type === 'grandtower');
     if (towerWorld) {
       const towerIdx = worlds.indexOf(towerWorld);
       const dist = Math.round(towerWorld.position.length());
-      html += '<div onclick="window.__voidJump(' + towerIdx + ')" style="padding:8px 10px;margin-bottom:8px;background:rgba(255,204,68,0.12);border:1px solid #ffcc44;border-radius:8px;cursor:pointer;font-size:12px;color:#fff;display:flex;justify-content:space-between;align-items:center;transition:background 0.2s;font-weight:bold;" onmouseover="this.style.background=\'rgba(255,204,68,0.25)\'" onmouseout="this.style.background=\'rgba(255,204,68,0.12)\'">';
+      html += '<div onclick="window.__voidJump(' + towerIdx + ')" style="padding:10px 12px;margin-bottom:10px;background:linear-gradient(135deg,rgba(255,204,68,0.16),rgba(255,204,68,0.05));border:1px solid rgba(255,204,68,0.55);border-radius:10px;cursor:pointer;font-size:13px;color:#fff;display:flex;justify-content:space-between;align-items:center;transition:all 0.2s;font-weight:700;box-shadow:0 2px 12px rgba(255,204,68,0.12);" onmouseover="this.style.background=\'linear-gradient(135deg,rgba(255,204,68,0.3),rgba(255,204,68,0.1))\'" onmouseout="this.style.background=\'linear-gradient(135deg,rgba(255,204,68,0.16),rgba(255,204,68,0.05))\'">';
       html += '<span style="color:#ffcc44;">🏰 Grand Tower</span>';
-      html += '<span style="font-size:10px;color:#ffcc44aa;">' + dist + 'u</span>';
+      html += '<span style="font-size:11px;color:#ffcc44cc;font-weight:600;">' + dist + 'u</span>';
       html += '</div>';
     }
 
     // Separator
-    html += '<div style="border-top:1px solid rgba(255,255,255,0.1);margin:6px 0;"></div>';
-    html += '<div style="font-size:10px;color:#ff44aa;text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;text-align:center;">🏛️ Sovereign Realms</div>';
+    html += '<div style="border-top:1px solid rgba(255,255,255,0.12);margin:10px 0;"></div>';
+    html += '<div style="font-size:11px;color:#ff88cc;text-transform:uppercase;letter-spacing:3px;margin-bottom:8px;text-align:center;font-weight:700;">🏛️ Sovereign Realms</div>';
 
     const sovereignRealms = [
       { name: 'Shattered Front', x: 900, y: 0, z: 300, color: '#ff4444' },
@@ -3916,27 +3916,27 @@ export function install(Genesis) {
     for (let i = 0; i < sovereignRealms.length; i++) {
       const r = sovereignRealms[i];
       const dist = Math.round(Math.sqrt(r.x*r.x + r.z*r.z));
-      html += '<div onclick="window.__voidJumpPos(' + r.x + ',' + (r.y+20) + ',' + r.z + ')" style="padding:6px 8px;margin-bottom:4px;background:rgba(255,255,255,0.04);border:1px solid ' + r.color + '44;border-radius:6px;cursor:pointer;font-size:11px;color:#fff;display:flex;justify-content:space-between;align-items:center;transition:background 0.2s;" onmouseover="this.style.background=\'rgba(255,255,255,0.12)\'" onmouseout="this.style.background=\'rgba(255,255,255,0.04)\'">';
-      html += '<span style="color:' + r.color + ';">' + r.name + '</span>';
-      html += '<span style="font-size:9px;color:#888;">' + dist + 'u</span>';
+      html += '<div onclick="window.__voidJumpPos(' + r.x + ',' + (r.y+20) + ',' + r.z + ')" style="padding:8px 10px;margin-bottom:5px;background:rgba(255,255,255,0.05);border:1px solid ' + r.color + '55;border-radius:8px;cursor:pointer;font-size:12.5px;color:#fff;display:flex;justify-content:space-between;align-items:center;gap:8px;transition:all 0.2s;line-height:1.3;" onmouseover="this.style.background=\'rgba(255,255,255,0.14)\';this.style.borderColor=\'' + r.color + '\'" onmouseout="this.style.background=\'rgba(255,255,255,0.05)\';this.style.borderColor=\'' + r.color + '55\'">';
+      html += '<span style="color:' + r.color + ';font-weight:600;white-space:normal;flex:1;min-width:0;overflow-wrap:break-word;">' + r.name + '</span>';
+      html += '<span style="font-size:10.5px;color:#99aabb;flex-shrink:0;">' + dist + 'u</span>';
       html += '</div>';
     }
 
     // Separator
-    html += '<div style="border-top:1px solid rgba(255,255,255,0.1);margin:6px 0;"></div>';
-    html += '<div style="font-size:10px;color:#66ffff;text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;text-align:center;">⚡ Lost Worlds</div>';
+    html += '<div style="border-top:1px solid rgba(255,255,255,0.12);margin:10px 0;"></div>';
+    html += '<div style="font-size:11px;color:#66ffff;text-transform:uppercase;letter-spacing:3px;margin-bottom:8px;text-align:center;font-weight:700;">⚡ Lost Worlds</div>';
 
     for (let i = 0; i < worlds.length; i++) {
       const w = worlds[i];
       if (w.type === 'grandtower') continue; // skip tower, already shown above
       const color = '#' + (TYPE_COLORS[w.type] || 0x66ffff).toString(16).padStart(6, '0');
       const dist = Math.round(w.position.length());
-      html += '<div onclick="window.__voidJump(' + i + ')" style="padding:6px 8px;margin-bottom:4px;background:rgba(255,255,255,0.04);border:1px solid ' + color + '33;border-radius:6px;cursor:pointer;font-size:11px;color:#fff;display:flex;justify-content:space-between;align-items:center;transition:background 0.2s;" onmouseover="this.style.background=\'rgba(255,255,255,0.1)\'" onmouseout="this.style.background=\'rgba(255,255,255,0.04)\'">';
-      html += '<span style="color:' + color + ';">' + w.name + '</span>';
-      html += '<span style="font-size:9px;color:#666;">' + dist + 'u</span>';
+      html += '<div onclick="window.__voidJump(' + i + ')" style="padding:7px 10px;margin-bottom:5px;background:rgba(255,255,255,0.04);border:1px solid ' + color + '44;border-radius:8px;cursor:pointer;font-size:12px;color:#fff;display:flex;justify-content:space-between;align-items:center;gap:8px;transition:all 0.2s;line-height:1.3;" onmouseover="this.style.background=\'rgba(255,255,255,0.12)\'" onmouseout="this.style.background=\'rgba(255,255,255,0.04)\'">';
+      html += '<span style="color:' + color + ';white-space:normal;flex:1;min-width:0;overflow-wrap:break-word;">' + w.name + '</span>';
+      html += '<span style="font-size:10px;color:#778899;flex-shrink:0;">' + dist + 'u</span>';
       html += '</div>';
     }
-    html += '<div style="font-size:9px;color:#555;text-align:center;margin-top:8px;">Click realm/world to jump</div>';
+    html += '<div style="font-size:10px;color:#8899aa;text-align:center;margin-top:10px;letter-spacing:1px;">Click a realm or world to jump</div>';
     panel.innerHTML = html;
     document.body.appendChild(panel);
     // Wire jump functions

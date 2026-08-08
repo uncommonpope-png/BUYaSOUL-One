@@ -23,7 +23,8 @@
     Object.assign(bar.style, {
       position: 'fixed',
       bottom: '20px',
-      right: '20px',
+      left: '50%',
+      transform: 'translateX(-50%)',
       background: 'rgba(6, 10, 20, 0.92)',
       border: '1px solid #ffcc00',
       boxShadow: '0 8px 32px rgba(255, 204, 0, 0.3)',
