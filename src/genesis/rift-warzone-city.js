@@ -13,10 +13,10 @@
         var updatables = [];
 
         var materials = {
-            green: new THREE.MeshStandardMaterial({ color: 0x445544, roughness: 0.9, metalness: 0.1 }),
-            armor: new THREE.MeshStandardMaterial({ color: 0x667766, roughness: 0.8, metalness: 0.3 }),
-            steel: new THREE.MeshStandardMaterial({ color: 0x778899, roughness: 0.5, metalness: 0.7 }),
-            flesh: new THREE.MeshStandardMaterial({ color: 0x553344, roughness: 0.9, metalness: 0.0 }),
+            green: (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({ color: 0x445544, roughness: 0.9, metalness: 0.1 }),
+            armor: (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({ color: 0x667766, roughness: 0.8, metalness: 0.3 }),
+            steel: (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({ color: 0x778899, roughness: 0.5, metalness: 0.7 }),
+            flesh: (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({ color: 0x553344, roughness: 0.9, metalness: 0.0 }),
             energy: new THREE.MeshBasicMaterial({ color: 0x4488ff })
         };
 

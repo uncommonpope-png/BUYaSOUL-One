@@ -21,12 +21,12 @@
     };
 
     // Materials
-    const matMetal = new THREE.MeshStandardMaterial({ color: colors.metal, roughness: 0.7, metalness: 0.8 });
+    const matMetal = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({ color: colors.metal, roughness: 0.7, metalness: 0.8 });
     const matGlitch = new THREE.MeshBasicMaterial({ color: colors.glitch });
     const matVoid = new THREE.MeshBasicMaterial({ color: colors.voidPurple });
     const matVoidTrans = new THREE.MeshBasicMaterial({ color: colors.voidPurple, transparent: true, opacity: 0.5 });
-    const matStatic = new THREE.MeshStandardMaterial({ color: colors.staticGray, roughness: 0.9 });
-    const matGhost = new THREE.MeshStandardMaterial({ color: colors.metal, transparent: true, opacity: 0.3, wireframe: true });
+    const matStatic = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({ color: colors.staticGray, roughness: 0.9 });
+    const matGhost = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({ color: colors.metal, transparent: true, opacity: 0.3, wireframe: true });
 
     const islands = [];
     const islandCount = 7;

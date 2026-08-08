@@ -10,13 +10,13 @@
     const cityGroup = new THREE.Group();
     cityGroup.position.set(offsetX, offsetY, offsetZ);
 
-    const darkChromeMat = new THREE.MeshStandardMaterial({
+    const darkChromeMat = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
       color: 0x1a1a2e,
       metalness: 0.8,
       roughness: 0.2
     });
     
-    const darkBaseMat = new THREE.MeshStandardMaterial({
+    const darkBaseMat = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
       color: 0x0a0a1a,
       metalness: 0.9,
       roughness: 0.1

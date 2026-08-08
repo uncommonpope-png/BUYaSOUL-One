@@ -155,6 +155,38 @@ export function install(Genesis) {
   const T = window.THREE;
   if (!T) return null;
 
+  // Low-GPU material fallback: on weak GPUs (maxFragUniforms < 2048, Intel HD,
+  // software WebGL) three.js bakes every visible light into shader uniforms —
+  // 400+ lights overflow MAX_FRAGMENT_UNIFORM_VECTORS(1024) → shader compile
+  // fails → buildings render black/invisible. Unlit MeshBasicMaterial keeps the
+  // emissive hue and ALWAYS compiles. Set by index.html boot.
+  const __lowGPU = !!(typeof window !== 'undefined' && window.__GENESIS_LOW_GPU);
+  function _std(config) {
+    if (!__lowGPU) return new T.MeshStandardMaterial(config);
+    config = config || {};
+    const c = (config.emissive != null) ? config.emissive : (config.color != null ? config.color : 0xffffff);
+    return new T.MeshBasicMaterial({
+      color: c,
+      transparent: !!config.transparent,
+      opacity: (config.opacity != null) ? config.opacity : 1,
+      side: (config.side != null) ? config.side : T.FrontSide,
+      depthWrite: (config.depthWrite !== false),
+      wireframe: !!config.wireframe,
+      fog: (config.fog !== false)
+    });
+  }
+  // Point-light factory that registers with the LightingManager so the hard cap
+  // (8 active point lights) tames the 400+ light scene. On low GPUs lights are
+  // decorative-only and get pruned first by capCheck.
+  function _mkLight(color, intensity, distance, owner) {
+    const l = new T.PointLight(color, intensity, distance);
+    const LM = window.Genesis && window.Genesis.LightingManager;
+    if (LM && LM.register) {
+      LM.register(l, { owner: owner || 'void', decorative: true, priority: 5, cost: 1 });
+    }
+    return l;
+  }
+
   let scene = null;
   let camera = null;
   let voidCosmosApi = null;
@@ -221,7 +253,7 @@ export function install(Genesis) {
 
     // Ground platform — disc showing the world's footprint
     const platGeo = new T.CylinderGeometry(80, 90, 2, 24);
-    const platMat = new T.MeshStandardMaterial({ color: 0x0a0a1a, emissive: color, emissiveIntensity: 0.08, metalness: 0.8, roughness: 0.4 });
+    const platMat = _std({ color: 0x0a0a1a, emissive: color, emissiveIntensity: 0.08, metalness: 0.8, roughness: 0.4 });
     const plat = new T.Mesh(platGeo, platMat);
     plat.position.y = -1;
     plat.receiveShadow = true;
@@ -253,7 +285,7 @@ export function install(Genesis) {
 
     // Top orb
     const orbGeo = new T.SphereGeometry(8, 16, 12);
-    const orbMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2.0, transparent: true, opacity: 0.9 });
+    const orbMat = _std({ color, emissive: color, emissiveIntensity: 2.0, transparent: true, opacity: 0.9 });
     const orb = new T.Mesh(orbGeo, orbMat);
     orb.position.y = beamH + 10;
     group.add(orb);
@@ -273,7 +305,7 @@ export function install(Genesis) {
     group.add(halo2);
 
     // Point light — visible from far
-    const light = new T.PointLight(color, 3.0, 200);
+    const light = _mkLight(color, 3.0, 200);
     light.position.y = beamH + 10;
     group.add(light);
 
@@ -309,7 +341,7 @@ export function install(Genesis) {
     // Ground
     const ground = new T.Mesh(
       new T.PlaneGeometry(400, 400),
-      new T.MeshStandardMaterial({ color: 0x080818, roughness: 0.9 })
+      _std({ color: 0x080818, roughness: 0.9 })
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = 0.5;
@@ -324,7 +356,7 @@ export function install(Genesis) {
     group.add(grid);
 
     // Roads — wider, more detailed
-    const roadMat = new T.MeshStandardMaterial({ color: 0x111122, roughness: 0.8 });
+    const roadMat = _std({ color: 0x111122, roughness: 0.8 });
     for (let i = -100; i <= 100; i += 16) {
       const r1 = new T.Mesh(new T.BoxGeometry(200, 0.06, 3), roadMat);
       r1.position.set(0, 0.6, i);
@@ -353,7 +385,7 @@ export function install(Genesis) {
         const d2 = 2 + rng() * 5;
         const bColor = rng() > 0.6 ? d.color : 0x222244;
         const geo = new T.BoxGeometry(w, h, d2);
-        const mat = new T.MeshStandardMaterial({
+        const mat = _std({
           color: bColor, emissive: d.eColor, emissiveIntensity: 0.08,
           metalness: 0.7, roughness: 0.3
         });
@@ -367,7 +399,7 @@ export function install(Genesis) {
         if (h > 6) {
           for (let wy = 2; wy < h - 1; wy += 2.5) {
             const wGeo = new T.BoxGeometry(w * 0.7, 0.3, 0.05);
-            const wMat = new T.MeshStandardMaterial({ color: d.color, emissive: d.color, emissiveIntensity: 0.4 });
+            const wMat = _std({ color: d.color, emissive: d.color, emissiveIntensity: 0.4 });
             const win = new T.Mesh(wGeo, wMat);
             win.position.set(x, wy, z + d2 / 2 + 0.03);
             group.add(win);
@@ -377,7 +409,7 @@ export function install(Genesis) {
         // Cap on tall buildings
         if (h > 15 && rng() > 0.5) {
           const cGeo = new T.BoxGeometry(w + 0.3, 0.3, d2 + 0.3);
-          const cMat = new T.MeshStandardMaterial({ color: d.color, emissive: d.color, emissiveIntensity: 0.5 });
+          const cMat = _std({ color: d.color, emissive: d.color, emissiveIntensity: 0.5 });
           const cap = new T.Mesh(cGeo, cMat);
           cap.position.set(x, h + 0.15, z);
           group.add(cap);
@@ -388,7 +420,7 @@ export function install(Genesis) {
           const spireH = 3 + rng() * 8;
           const spire = new T.Mesh(
             new T.CylinderGeometry(0.1, 0.3, spireH, 4),
-            new T.MeshStandardMaterial({ color: d.color, emissive: d.color, emissiveIntensity: 0.6 })
+            _std({ color: d.color, emissive: d.color, emissiveIntensity: 0.6 })
           );
           spire.position.set(x, h + spireH / 2, z);
           group.add(spire);
@@ -415,7 +447,7 @@ export function install(Genesis) {
     }
 
     // Outer ring buildings
-    const ringMat = new T.MeshStandardMaterial({ color: 0x222244, emissive: 0x110022, emissiveIntensity: 0.1, metalness: 0.6, roughness: 0.4 });
+    const ringMat = _std({ color: 0x222244, emissive: 0x110022, emissiveIntensity: 0.1, metalness: 0.6, roughness: 0.4 });
     const ringCounts = [{ r: 120, count: 20, skip: 0.4 }, { r: 160, count: 28, skip: 0.5 }, { r: 200, count: 35, skip: 0.6 }];
     for (const rc of ringCounts) {
       for (let i = 0; i < rc.count; i++) {
@@ -459,7 +491,7 @@ export function install(Genesis) {
     poiGroup.add(poiRing);
 
     // Point light
-    const poiLight = new T.PointLight(color, 1.0, 30);
+    const poiLight = _mkLight(color, 1.0, 30);
     poiGroup.add(poiLight);
 
     group.add(poiGroup);
@@ -507,7 +539,7 @@ export function install(Genesis) {
 
     // Portal frame — torus
     const frameGeo = new T.TorusGeometry(6, 0.5, 8, 32);
-    const frameMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.5, metalness: 0.8, roughness: 0.2 });
+    const frameMat = _std({ color, emissive: color, emissiveIntensity: 0.5, metalness: 0.8, roughness: 0.2 });
     const frame = new T.Mesh(frameGeo, frameMat);
     frame.rotation.y = Math.PI / 2;
     group.add(frame);
@@ -539,7 +571,7 @@ export function install(Genesis) {
     group.add(label);
 
     // Point light
-    const light = new T.PointLight(color, 1.5, 40);
+    const light = _mkLight(color, 1.5, 40);
     group.add(light);
 
     return group;
@@ -551,7 +583,7 @@ export function install(Genesis) {
 
     // Quest marker — floating diamond
     const diamondGeo = new T.OctahedronGeometry(2, 0);
-    const diamondMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.0, metalness: 0.8, roughness: 0.2 });
+    const diamondMat = _std({ color, emissive: color, emissiveIntensity: 1.0, metalness: 0.8, roughness: 0.2 });
     const diamond = new T.Mesh(diamondGeo, diamondMat);
     diamond.position.y = 20;
     diamond.rotation.y = Math.PI / 4;
@@ -566,7 +598,7 @@ export function install(Genesis) {
     group.add(ring);
 
     // Point light
-    const light = new T.PointLight(color, 0.8, 20);
+    const light = _mkLight(color, 0.8, 20);
     light.position.y = 20;
     group.add(light);
 
@@ -623,7 +655,7 @@ export function install(Genesis) {
       // Body
       const torso = new T.Mesh(
         new T.BoxGeometry(0.5, 0.7, 0.25),
-        new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.1 })
+        _std({ color, emissive: color, emissiveIntensity: 0.1 })
       );
       torso.position.y = 1.0;
       torso.castShadow = true;
@@ -632,7 +664,7 @@ export function install(Genesis) {
       // Head
       const head = new T.Mesh(
         new T.SphereGeometry(0.18, 8, 8),
-        new T.MeshStandardMaterial({ color: 0xffddcc })
+        _std({ color: 0xffddcc })
       );
       head.position.y = 1.55;
       head.castShadow = true;
@@ -642,7 +674,7 @@ export function install(Genesis) {
       [-0.06, 0.06].forEach(xo => {
         const eye = new T.Mesh(
           new T.SphereGeometry(0.03, 6, 6),
-          new T.MeshStandardMaterial({ color: 0x222222 })
+          _std({ color: 0x222222 })
         );
         eye.position.set(xo, 1.58, 0.15);
         denizen.add(eye);
@@ -652,7 +684,7 @@ export function install(Genesis) {
       [-0.38, 0.38].forEach(xo => {
         const arm = new T.Mesh(
           new T.BoxGeometry(0.12, 0.5, 0.12),
-          new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.05 })
+          _std({ color, emissive: color, emissiveIntensity: 0.05 })
         );
         arm.position.set(xo, 0.9, 0);
         arm.castShadow = true;
@@ -663,7 +695,7 @@ export function install(Genesis) {
       [-0.12, 0.12].forEach(xo => {
         const leg = new T.Mesh(
           new T.BoxGeometry(0.14, 0.6, 0.14),
-          new T.MeshStandardMaterial({ color: 0x333366 })
+          _std({ color: 0x333366 })
         );
         leg.position.set(xo, 0.3, 0);
         leg.castShadow = true;
@@ -707,7 +739,7 @@ export function install(Genesis) {
     // Ground platform
     const ground = new T.Mesh(
       new T.CircleGeometry(150, 32),
-      new T.MeshStandardMaterial({ color: 0x080818, roughness: 0.9, side: T.DoubleSide })
+      _std({ color: 0x080818, roughness: 0.9, side: T.DoubleSide })
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = 0.5;
@@ -726,7 +758,7 @@ export function install(Genesis) {
     // Road grid — 7x7 like CPL
     const gridSize = 7;
     const spacing = 14;
-    const roadMat = new T.MeshStandardMaterial({ color: 0x0a0a22, roughness: 0.8 });
+    const roadMat = _std({ color: 0x0a0a22, roughness: 0.8 });
     for (let i = 0; i < gridSize; i++) {
       const offset = (i - Math.floor(gridSize / 2)) * spacing;
       const r1 = new T.Mesh(new T.BoxGeometry(90, 0.06, 2.5), roadMat);
@@ -780,7 +812,7 @@ export function install(Genesis) {
           // Cylinder tower
           mesh = new T.Mesh(
             new T.CylinderGeometry(w * 0.5, w * 0.6, h, 8),
-            new T.MeshStandardMaterial({ color: bColor, emissive: eColor, emissiveIntensity: d.emitIntensity, metalness: 0.7, roughness: 0.3 })
+            _std({ color: bColor, emissive: eColor, emissiveIntensity: d.emitIntensity, metalness: 0.7, roughness: 0.3 })
           );
         } else if (shape < 0.30 && h > 12) {
           // Tapered (ziggurat) — 3 tiers
@@ -791,7 +823,7 @@ export function install(Genesis) {
             const th = h / 3;
             const tier = new T.Mesh(
               new T.BoxGeometry(tw, th, td),
-              new T.MeshStandardMaterial({ color: bColor, emissive: eColor, emissiveIntensity: d.emitIntensity * (1 - t * 0.2), metalness: 0.6, roughness: 0.3 })
+              _std({ color: bColor, emissive: eColor, emissiveIntensity: d.emitIntensity * (1 - t * 0.2), metalness: 0.6, roughness: 0.3 })
             );
             tier.position.y = th / 2 + t * th;
             tier.castShadow = true;
@@ -810,7 +842,7 @@ export function install(Genesis) {
             const th = h / 2;
             const tier = new T.Mesh(
               new T.BoxGeometry(tw, th, td),
-              new T.MeshStandardMaterial({ color: bColor, emissive: eColor, emissiveIntensity: d.emitIntensity, metalness: 0.6, roughness: 0.3 })
+              _std({ color: bColor, emissive: eColor, emissiveIntensity: d.emitIntensity, metalness: 0.6, roughness: 0.3 })
             );
             tier.position.y = th / 2 + t * th;
             tier.castShadow = true;
@@ -824,7 +856,7 @@ export function install(Genesis) {
           // Default box
           mesh = new T.Mesh(
             new T.BoxGeometry(w, h, d2),
-            new T.MeshStandardMaterial({ color: bColor, emissive: eColor, emissiveIntensity: d.emitIntensity, metalness: 0.7, roughness: 0.3 })
+            _std({ color: bColor, emissive: eColor, emissiveIntensity: d.emitIntensity, metalness: 0.7, roughness: 0.3 })
           );
         }
         mesh.position.set(x, h / 2, z);
@@ -836,7 +868,7 @@ export function install(Genesis) {
         if (h > 5) {
           for (let wy = 1.5; wy < h - 1; wy += 2.5) {
             const wGeo = new T.BoxGeometry(w * 0.6, 0.2, 0.05);
-            const wMat = new T.MeshStandardMaterial({ color: eColor, emissive: eColor, emissiveIntensity: 0.6 });
+            const wMat = _std({ color: eColor, emissive: eColor, emissiveIntensity: 0.6 });
             const win = new T.Mesh(wGeo, wMat);
             win.position.set(x, wy, z + d2 / 2 + 0.03);
             group.add(win);
@@ -849,7 +881,7 @@ export function install(Genesis) {
         // Cap on tall buildings
         if (h > 12 && rng() > 0.4) {
           const cGeo = new T.BoxGeometry(w + 0.3, 0.3, d2 + 0.3);
-          const cMat = new T.MeshStandardMaterial({ color: eColor, emissive: eColor, emissiveIntensity: 0.7 });
+          const cMat = _std({ color: eColor, emissive: eColor, emissiveIntensity: 0.7 });
           const cap = new T.Mesh(cGeo, cMat);
           cap.position.set(x, h + 0.15, z);
           group.add(cap);
@@ -860,7 +892,7 @@ export function install(Genesis) {
           const spireH = 2 + rng() * 6;
           const spire = new T.Mesh(
             new T.CylinderGeometry(0.08, 0.25, spireH, 4),
-            new T.MeshStandardMaterial({ color: eColor, emissive: eColor, emissiveIntensity: 0.8 })
+            _std({ color: eColor, emissive: eColor, emissiveIntensity: 0.8 })
           );
           spire.position.set(x, h + spireH / 2, z);
           group.add(spire);
@@ -900,7 +932,7 @@ export function install(Genesis) {
         const ci = Math.floor(rng() * LM_COLORS.length);
         const mesh = new T.Mesh(
           new T.BoxGeometry(w, h, w),
-          new T.MeshStandardMaterial({ color: 0x222244, emissive: LM_COLORS[ci], emissiveIntensity: 0.06, metalness: 0.6, roughness: 0.4 })
+          _std({ color: 0x222244, emissive: LM_COLORS[ci], emissiveIntensity: 0.06, metalness: 0.6, roughness: 0.4 })
         );
         mesh.position.set(x, h / 2, z);
         mesh.castShadow = true;
@@ -919,7 +951,7 @@ export function install(Genesis) {
 
     // Top orb
     const orbGeo = new T.SphereGeometry(6, 16, 12);
-    const orbMat = new T.MeshStandardMaterial({ color: accentColor, emissive: accentColor, emissiveIntensity: 2.0, transparent: true, opacity: 0.9 });
+    const orbMat = _std({ color: accentColor, emissive: accentColor, emissiveIntensity: 2.0, transparent: true, opacity: 0.9 });
     const orb = new T.Mesh(orbGeo, orbMat);
     orb.position.y = beamH + 8;
     group.add(orb);
@@ -932,7 +964,7 @@ export function install(Genesis) {
     group.add(halo);
 
     // Point light
-    const light = new T.PointLight(accentColor, 2.0, 150);
+    const light = _mkLight(accentColor, 2.0, 150);
     light.position.y = beamH + 8;
     group.add(light);
 
@@ -1006,7 +1038,7 @@ export function install(Genesis) {
     }
     terrainGeo.setAttribute('color', new T.BufferAttribute(tColors, 3));
 
-    const terrainMat = new T.MeshStandardMaterial({
+    const terrainMat = _std({
       vertexColors: true,
       emissive: color,
       emissiveIntensity: 0.02,
@@ -1021,7 +1053,7 @@ export function install(Genesis) {
     // ── WATER POOL (reflective disc at tower base) ──
     const waterGeo = new T.CircleGeometry(30, 48);
     waterGeo.rotateX(-Math.PI / 2);
-    const waterMat = new T.MeshStandardMaterial({
+    const waterMat = _std({
       color: 0x1a3366,
       emissive: 0x2244aa,
       emissiveIntensity: 0.15,
@@ -1067,7 +1099,7 @@ export function install(Genesis) {
       const tw = towerW * (1.4 - t * 0.25);
       const th = 30;
       const ty = t * th + th / 2 + 2;
-      const tierMat = new T.MeshStandardMaterial({
+      const tierMat = _std({
         color: t === 0 ? 0x0f0f2a : 0x161640,
         emissive: color,
         emissiveIntensity: 0.06 + t * 0.02,
@@ -1095,7 +1127,7 @@ export function install(Genesis) {
           const angle = (b / 4) * Math.PI * 2;
           const buttress = new T.Mesh(
             new T.ConeGeometry(3, 25, 4),
-            new T.MeshStandardMaterial({ color: 0x1a1a3a, emissive: color, emissiveIntensity: 0.1, metalness: 0.7, roughness: 0.3 })
+            _std({ color: 0x1a1a3a, emissive: color, emissiveIntensity: 0.1, metalness: 0.7, roughness: 0.3 })
           );
           buttress.position.set(Math.cos(angle) * (tw / 2 + 4), 12, Math.sin(angle) * (tw / 2 + 4));
           buttress.rotation.z = -Math.cos(angle) * 0.3;
@@ -1117,7 +1149,7 @@ export function install(Genesis) {
       const fw = towerW * taper;
       const isCyl = i % 3 === 1; // every 3rd floor is a cylinder
 
-      const floorMat = new T.MeshStandardMaterial({
+      const floorMat = _std({
         color: isCyl ? 0x181838 : 0x1a1a3a,
         emissive: color,
         emissiveIntensity: 0.06 + (i / midCount) * 0.08,
@@ -1144,7 +1176,7 @@ export function install(Genesis) {
       // Window glow strips — all 4 faces
       for (let wy = 0; wy < 3; wy++) {
         const wGeo = new T.BoxGeometry(fw * 0.5, 0.25, 0.05);
-        const wMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.6 });
+        const wMat = _std({ color, emissive: color, emissiveIntensity: 0.6 });
         const wyPos = y - midFloorH / 2 + 4 + wy * 5;
         // Front/back
         const w1 = new T.Mesh(wGeo, wMat);
@@ -1177,7 +1209,7 @@ export function install(Genesis) {
     const deckR = towerW * 0.9;
     const deck = new T.Mesh(
       new T.CylinderGeometry(deckR + 8, deckR + 5, 4, 24),
-      new T.MeshStandardMaterial({ color: 0x1a1a3a, emissive: color, emissiveIntensity: 0.12, metalness: 0.7, roughness: 0.3 })
+      _std({ color: 0x1a1a3a, emissive: color, emissiveIntensity: 0.12, metalness: 0.7, roughness: 0.3 })
     );
     deck.position.y = deckY;
     deck.castShadow = true;
@@ -1197,7 +1229,7 @@ export function install(Genesis) {
     const spireBase = towerW * 0.6;
     const spire = new T.Mesh(
       new T.ConeGeometry(spireBase, spireH, 8),
-      new T.MeshStandardMaterial({ color: 0x181838, emissive: color, emissiveIntensity: 0.1, metalness: 0.7, roughness: 0.3 })
+      _std({ color: 0x181838, emissive: color, emissiveIntensity: 0.1, metalness: 0.7, roughness: 0.3 })
     );
     spire.position.y = deckY + spireH / 2 + 2;
     spire.castShadow = true;
@@ -1214,7 +1246,7 @@ export function install(Genesis) {
 
     // ── CROWN (orb + tilted halos at top) ──
     const orbGeo = new T.SphereGeometry(14, 16, 12);
-    const orbMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 3.0, transparent: true, opacity: 0.95 });
+    const orbMat = _std({ color, emissive: color, emissiveIntensity: 3.0, transparent: true, opacity: 0.95 });
     const orb = new T.Mesh(orbGeo, orbMat);
     orb.position.y = crownY;
     orb.userData.isGrandTowerOrb = true;
@@ -1257,12 +1289,12 @@ export function install(Genesis) {
     group.add(halo3);
 
     // Crown point light — bright, visible from far
-    const crownLight = new T.PointLight(color, 6.0, 500);
+    const crownLight = _mkLight(color, 6.0, 500);
     crownLight.position.y = crownY;
     group.add(crownLight);
 
     // Second light lower
-    const midLight = new T.PointLight(color, 2.0, 200);
+    const midLight = _mkLight(color, 2.0, 200);
     midLight.position.y = towerH / 2;
     group.add(midLight);
 
@@ -1305,7 +1337,7 @@ export function install(Genesis) {
       if (b.h > 10) {
         for (let wy = 4; wy < b.h - 2; wy += 5) {
           const wGeo = new T.BoxGeometry(b.w * 0.5, 0.3, 0.05);
-          const wMat = new T.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.6 });
+          const wMat = _std({ color: accent, emissive: accent, emissiveIntensity: 0.6 });
           const w1 = new T.Mesh(wGeo, wMat);
           w1.position.set(bx, wy, bz + (b.d || b.w) / 2 + 0.03);
           g.add(w1);
@@ -1316,7 +1348,7 @@ export function install(Genesis) {
       }
       if (b.h > 14 && rng() > 0.4) {
         const capGeo = new T.BoxGeometry(b.w + 0.5, 0.4, (b.d || b.w) + 0.5);
-        const capMat = new T.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.7 });
+        const capMat = _std({ color: accent, emissive: accent, emissiveIntensity: 0.7 });
         const cap = new T.Mesh(capGeo, capMat);
         cap.position.set(bx, b.h + 2.2, bz);
         g.add(cap);
@@ -1325,7 +1357,7 @@ export function install(Genesis) {
         const spireH = 4 + rng() * 8;
         const spire = new T.Mesh(
           new T.CylinderGeometry(0.1, 0.35, spireH, 4),
-          new T.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.8 })
+          _std({ color: accent, emissive: accent, emissiveIntensity: 0.8 })
         );
         spire.position.set(bx, b.h + spireH / 2 + 2, bz);
         g.add(spire);
@@ -1371,7 +1403,7 @@ export function install(Genesis) {
         const bz = cz + (rng() - 0.5) * 35;
         const isColored = rng() > 0.4;
         const bColor = isColored ? d.accent : 0x222244;
-        const mat = new T.MeshStandardMaterial({
+        const mat = _std({
           color: bColor, emissive: d.accent, emissiveIntensity: isColored ? 0.12 : 0.05, metalness: 0.7, roughness: 0.3
         });
 
@@ -1392,7 +1424,7 @@ export function install(Genesis) {
         } else if (b.shape === 'circle') {
           mesh = new T.Mesh(new T.CylinderGeometry(b.w * 0.5, b.w * 0.5, b.h, 16), mat);
         } else if (b.shape === 'thick') {
-          mesh = new T.Mesh(new T.BoxGeometry(b.w, b.h, b.d), new T.MeshStandardMaterial({
+          mesh = new T.Mesh(new T.BoxGeometry(b.w, b.h, b.d), _std({
             color: 0x333355, emissive: d.accent, emissiveIntensity: 0.1, metalness: 0.8, roughness: 0.2
           }));
         } else if (b.shape === 'ziggurat') {
@@ -1404,7 +1436,7 @@ export function install(Genesis) {
             const th = b.h / 3;
             const tier = new T.Mesh(
               new T.BoxGeometry(tw, th, td),
-              new T.MeshStandardMaterial({ color: bColor, emissive: d.accent, emissiveIntensity: 0.08 + t * 0.03, metalness: 0.6, roughness: 0.3 })
+              _std({ color: bColor, emissive: d.accent, emissiveIntensity: 0.08 + t * 0.03, metalness: 0.6, roughness: 0.3 })
             );
             tier.position.y = th / 2 + t * th;
             tier.castShadow = true;
@@ -1428,7 +1460,7 @@ export function install(Genesis) {
             const th = b.h / 2;
             const tier = new T.Mesh(
               new T.BoxGeometry(tw, th, td),
-              new T.MeshStandardMaterial({ color: bColor, emissive: d.accent, emissiveIntensity: 0.1, metalness: 0.6, roughness: 0.3 })
+              _std({ color: bColor, emissive: d.accent, emissiveIntensity: 0.1, metalness: 0.6, roughness: 0.3 })
             );
             tier.position.y = th / 2 + t * th;
             tier.castShadow = true;
@@ -1447,7 +1479,7 @@ export function install(Genesis) {
           chimneyGroup.add(new T.Mesh(new T.BoxGeometry(b.w, b.h, b.d), mat));
           const chimney = new T.Mesh(
             new T.CylinderGeometry(1.5, 2, 10, 6),
-            new T.MeshStandardMaterial({ color: 0x444466, emissive: d.accent, emissiveIntensity: 0.15 })
+            _std({ color: 0x444466, emissive: d.accent, emissiveIntensity: 0.15 })
           );
           chimney.position.set(b.w * 0.3, b.h / 2 + 5, 0);
           chimneyGroup.add(chimney);
@@ -1492,7 +1524,7 @@ export function install(Genesis) {
     }
 
     // ── ROAD GRID ──
-    const roadMat = new T.MeshStandardMaterial({ color: 0x0a0a22, roughness: 0.8 });
+    const roadMat = _std({ color: 0x0a0a22, roughness: 0.8 });
     for (let i = -80; i <= 80; i += 16) {
       const r1 = new T.Mesh(new T.BoxGeometry(160, 0.06, 2.5), roadMat);
       r1.position.set(0, 0.6, i);
@@ -1674,7 +1706,7 @@ export function install(Genesis) {
   function createInvertedPyramids(posOffset) {
     const count = 16;
     const geo = new T.ConeGeometry(3, 6, 4);
-    const mat = new T.MeshStandardMaterial({
+    const mat = _std({
       color: 0x4488ff, emissive: 0x4488ff, emissiveIntensity: 0.3,
       transparent: true, opacity: 0.7, metalness: 0.3, roughness: 0.4
     });
@@ -1735,10 +1767,10 @@ export function install(Genesis) {
     const g = new T.Group();
     g.position.copy(pos);
 
-    const stoneMat = new T.MeshStandardMaterial({ color: 0x665544, roughness: 0.8, metalness: 0.2 });
-    const roofMat = new T.MeshStandardMaterial({ color: 0x884422, roughness: 0.9, metalness: 0.1 });
-    const glowMat = new T.MeshStandardMaterial({ color: 0xffaa44, emissive: 0xffaa44, emissiveIntensity: 0.3 });
-    const windowMat = new T.MeshStandardMaterial({ color: 0xffdd88, emissive: 0xff8800, emissiveIntensity: 0.5 });
+    const stoneMat = _std({ color: 0x665544, roughness: 0.8, metalness: 0.2 });
+    const roofMat = _std({ color: 0x884422, roughness: 0.9, metalness: 0.1 });
+    const glowMat = _std({ color: 0xffaa44, emissive: 0xffaa44, emissiveIntensity: 0.3 });
+    const windowMat = _std({ color: 0xffdd88, emissive: 0xff8800, emissiveIntensity: 0.5 });
 
     const W = 70;
     const wallH = 25;
@@ -1797,7 +1829,7 @@ export function install(Genesis) {
 
     // Keep upper tier
     const uw = kw * 0.7, ud = kd * 0.7, uh = 12;
-    const upper = new T.Mesh(new T.BoxGeometry(uw, uh, ud), new T.MeshStandardMaterial({ color: 0x776655, roughness: 0.7 }));
+    const upper = new T.Mesh(new T.BoxGeometry(uw, uh, ud), _std({ color: 0x776655, roughness: 0.7 }));
     upper.position.set(0, kh + uh/2, 0);
     upper.castShadow = true;
     g.add(upper);
@@ -1817,7 +1849,7 @@ export function install(Genesis) {
     }
 
     // Keep crown beacon
-    const crown = new T.Mesh(new T.SphereGeometry(2, 12, 12), new T.MeshStandardMaterial({
+    const crown = new T.Mesh(new T.SphereGeometry(2, 12, 12), _std({
       color: 0xffaa44, emissive: 0xffaa44, emissiveIntensity: 1.5
     }));
     crown.position.set(0, kh + uh + 11, 0);
@@ -1863,7 +1895,7 @@ export function install(Genesis) {
     // ── Ground platform ──
     const ground = new T.Mesh(
       new T.CircleGeometry(90, 32),
-      new T.MeshStandardMaterial({ color: 0x443322, roughness: 0.9 })
+      _std({ color: 0x443322, roughness: 0.9 })
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.5;
@@ -1899,11 +1931,11 @@ export function install(Genesis) {
     const tiers = 5;
     const archCount = 32;
 
-    const stoneMat = new T.MeshStandardMaterial({ color: 0xccbb99, roughness: 0.7, metalness: 0.1 });
-    const darkStoneMat = new T.MeshStandardMaterial({ color: 0x887766, roughness: 0.8, metalness: 0.05 });
-    const floorMat = new T.MeshStandardMaterial({ color: 0x554433, roughness: 0.9 });
-    const marbleMat = new T.MeshStandardMaterial({ color: 0xeeddcc, roughness: 0.4, metalness: 0.2, emissive: 0x443322, emissiveIntensity: 0.05 });
-    const torchMat = new T.MeshStandardMaterial({ color: 0xff6633, emissive: 0xff4400, emissiveIntensity: 2.0 });
+    const stoneMat = _std({ color: 0xccbb99, roughness: 0.7, metalness: 0.1 });
+    const darkStoneMat = _std({ color: 0x887766, roughness: 0.8, metalness: 0.05 });
+    const floorMat = _std({ color: 0x554433, roughness: 0.9 });
+    const marbleMat = _std({ color: 0xeeddcc, roughness: 0.4, metalness: 0.2, emissive: 0x443322, emissiveIntensity: 0.05 });
+    const torchMat = _std({ color: 0xff6633, emissive: 0xff4400, emissiveIntensity: 2.0 });
 
     // 1. Arena floor
     const floor = new T.Mesh(new T.CircleGeometry(innerRadius - 0.5, 64), floorMat);
@@ -1915,7 +1947,7 @@ export function install(Genesis) {
     // 2. Inner wall
     const innerWall = new T.Mesh(
       new T.CylinderGeometry(innerRadius, innerRadius, 1.5, 64, 1, true),
-      new T.MeshStandardMaterial({ color: 0xaa9988, roughness: 0.8, side: T.DoubleSide })
+      _std({ color: 0xaa9988, roughness: 0.8, side: T.DoubleSide })
     );
     innerWall.position.y = 0.75;
     innerWall.castShadow = true;
@@ -1971,7 +2003,7 @@ export function install(Genesis) {
 
       const panel = new T.Mesh(
         new T.PlaneGeometry(archWidth * 0.8, 3),
-        new T.MeshStandardMaterial({ color: 0xbbaa99, roughness: 0.8, side: T.DoubleSide })
+        _std({ color: 0xbbaa99, roughness: 0.8, side: T.DoubleSide })
       );
       panel.position.set(Math.cos(midAngle) * (wallRadius + 0.1), wallHeight - 2.5, Math.sin(midAngle) * (wallRadius + 0.1));
       panel.rotation.y = -midAngle;
@@ -2026,7 +2058,7 @@ export function install(Genesis) {
     // 9. Ground disc
     const groundDisc = new T.Mesh(
       new T.CircleGeometry(outerRadius + 5, 64),
-      new T.MeshStandardMaterial({ color: 0x2a2a3a, roughness: 0.9 })
+      _std({ color: 0x2a2a3a, roughness: 0.9 })
     );
     groundDisc.rotation.x = -Math.PI / 2;
     groundDisc.position.y = -0.5;
@@ -2098,9 +2130,9 @@ export function install(Genesis) {
     const accentColor = isImperium ? 0xff3355 : 0xffcc44;
     const emissiveColor = isImperium ? 0x440066 : 0x004488;
 
-    const bodyMat = new T.MeshStandardMaterial({ color: bodyColor, emissive: emissiveColor, emissiveIntensity: 0.3, metalness: 0.6, roughness: 0.3 });
-    const accentMat = new T.MeshStandardMaterial({ color: accentColor, emissive: accentColor, emissiveIntensity: 0.1, metalness: 0.4, roughness: 0.5 });
-    const cockpitMat = new T.MeshStandardMaterial({ color: 0x88ddff, emissive: 0x00aaff, emissiveIntensity: 0.5, transparent: true, opacity: 0.7 });
+    const bodyMat = _std({ color: bodyColor, emissive: emissiveColor, emissiveIntensity: 0.3, metalness: 0.6, roughness: 0.3 });
+    const accentMat = _std({ color: accentColor, emissive: accentColor, emissiveIntensity: 0.1, metalness: 0.4, roughness: 0.5 });
+    const cockpitMat = _std({ color: 0x88ddff, emissive: 0x00aaff, emissiveIntensity: 0.5, transparent: true, opacity: 0.7 });
 
     // Fuselage
     if (isImperium) {
@@ -2151,7 +2183,7 @@ export function install(Genesis) {
     g.add(cockpit);
 
     // Engine glow
-    const engineMat = new T.MeshStandardMaterial({
+    const engineMat = _std({
       color: isImperium ? 0xff4400 : 0x00aaff,
       emissive: isImperium ? 0xff2200 : 0x0088ff,
       emissiveIntensity: 2.0
@@ -2261,7 +2293,7 @@ export function install(Genesis) {
     if (len < 1) return;
     dir.normalize();
 
-    const boltMat = new T.MeshStandardMaterial({
+    const boltMat = _std({
       color: origin.userData.faction === 'imperium' ? 0xff2244 : 0x44ddff,
       emissive: origin.userData.faction === 'imperium' ? 0xff0044 : 0x00aaff,
       emissiveIntensity: 3.0
@@ -2735,21 +2767,21 @@ export function install(Genesis) {
     const accent = new T.Color(color);
 
     // Main body
-    const bodyMat = new T.MeshStandardMaterial({ color: 0x1a1a3a, emissive: color, emissiveIntensity: 0.08, metalness: 0.7, roughness: 0.3 });
+    const bodyMat = _std({ color: 0x1a1a3a, emissive: color, emissiveIntensity: 0.08, metalness: 0.7, roughness: 0.3 });
     const body = new T.Mesh(new T.BoxGeometry(16, 8, 12), bodyMat);
     body.position.y = 4;
     body.castShadow = true;
     g.add(body);
 
     // Roof
-    const roofMat = new T.MeshStandardMaterial({ color: 0x2a2a4a, emissive: color, emissiveIntensity: 0.05, metalness: 0.6, roughness: 0.4 });
+    const roofMat = _std({ color: 0x2a2a4a, emissive: color, emissiveIntensity: 0.05, metalness: 0.6, roughness: 0.4 });
     const roof = new T.Mesh(new T.ConeGeometry(9, 4, 4), roofMat);
     roof.position.y = 10;
     roof.castShadow = true;
     g.add(roof);
 
     // Door glow
-    const doorMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.5 });
+    const doorMat = _std({ color, emissive: color, emissiveIntensity: 0.5 });
     const door = new T.Mesh(new T.BoxGeometry(2, 3, 0.2), doorMat);
     door.position.set(0, 1.5, 6.1);
     g.add(door);
@@ -2788,9 +2820,9 @@ export function install(Genesis) {
     const color = typeDef.color;
     const g = new T.Group();
 
-    const bodyMat = new T.MeshStandardMaterial({ color: 0x1a1a3a, emissive: color, emissiveIntensity: 0.2, metalness: 0.6, roughness: 0.3 });
-    const accentMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.1, metalness: 0.4, roughness: 0.5 });
-    const cockpitMat = new T.MeshStandardMaterial({ color: 0x88ddff, emissive: 0x00aaff, emissiveIntensity: 0.5, transparent: true, opacity: 0.7 });
+    const bodyMat = _std({ color: 0x1a1a3a, emissive: color, emissiveIntensity: 0.2, metalness: 0.6, roughness: 0.3 });
+    const accentMat = _std({ color, emissive: color, emissiveIntensity: 0.1, metalness: 0.4, roughness: 0.5 });
+    const cockpitMat = _std({ color: 0x88ddff, emissive: 0x00aaff, emissiveIntensity: 0.5, transparent: true, opacity: 0.7 });
 
     if (typeDef.id === 'scout') {
       // Small, fast, angular
@@ -2837,7 +2869,7 @@ export function install(Genesis) {
     g.add(cockpit);
 
     // Engine glow
-    const engineMat = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 2.0 });
+    const engineMat = _std({ color, emissive: color, emissiveIntensity: 2.0 });
     for (let s = -1; s <= 1; s += 2) {
       const e = new T.Mesh(new T.SphereGeometry(0.15, 6, 6), engineMat);
       e.position.set(s * 0.25, 0, -1.5);

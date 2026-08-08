@@ -25,20 +25,20 @@
             ember: 0xff6600
         };
 
-        const obsidianMaterial = new THREE.MeshStandardMaterial({
+        const obsidianMaterial = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
             color: colors.obsidian,
             roughness: 0.2,
             metalness: 0.8,
             emissive: 0x0a0014
         });
 
-        const darkPurpleMaterial = new THREE.MeshStandardMaterial({
+        const darkPurpleMaterial = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
             color: colors.darkPurple,
             roughness: 0.3,
             metalness: 0.6
         });
 
-        const lavaMaterial = new THREE.MeshStandardMaterial({
+        const lavaMaterial = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
             color: colors.lava,
             emissive: colors.lava,
             emissiveIntensity: 0.8,

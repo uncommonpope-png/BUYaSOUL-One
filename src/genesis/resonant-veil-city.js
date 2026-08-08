@@ -15,11 +15,11 @@
         const animatedObjects = [];
 
         // Materials
-        const crystalMat = new THREE.MeshStandardMaterial({ color: 0xddddff, roughness: 0.1, metalness: 0.7, transparent: true, opacity: 0.85 });
+        const crystalMat = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({ color: 0xddddff, roughness: 0.1, metalness: 0.7, transparent: true, opacity: 0.85 });
         const harmonicMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc });
-        const resonanceMat = new THREE.MeshStandardMaterial({ color: 0x8844ff, roughness: 0.2, metalness: 0.5, emissive: 0x331166 });
-        const voidMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1, emissive: 0x222222 });
-        const roseMat = new THREE.MeshStandardMaterial({ color: 0xff44aa, roughness: 0.3, emissive: 0x551133 });
+        const resonanceMat = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({ color: 0x8844ff, roughness: 0.2, metalness: 0.5, emissive: 0x331166 });
+        const voidMat = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({ color: 0xffffff, roughness: 0.1, emissive: 0x222222 });
+        const roseMat = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({ color: 0xff44aa, roughness: 0.3, emissive: 0x551133 });
         
         const materials = [crystalMat, resonanceMat, voidMat, roseMat];
 

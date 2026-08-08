@@ -20,19 +20,19 @@
     const colorBronze = 0x442200;
     const colorWhiteHot = 0xffffff;
 
-    const matCopper = new THREE.MeshStandardMaterial({
+    const matCopper = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
       color: colorCopper,
       roughness: 0.2,
       metalness: 0.9
     });
     
-    const matBronze = new THREE.MeshStandardMaterial({
+    const matBronze = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
       color: colorBronze,
       roughness: 0.4,
       metalness: 0.8
     });
 
-    const matSolarGold = new THREE.MeshStandardMaterial({
+    const matSolarGold = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
       color: colorSolarGold,
       roughness: 0.1,
       metalness: 1.0

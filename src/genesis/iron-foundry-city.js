@@ -16,10 +16,10 @@
         cityGroup.scale.setScalar(options.scale);
         
         // --- Materials ---
-        const matSteel = new THREE.MeshStandardMaterial({ color: 0x555566, metalness: 0.7, roughness: 0.6 });
+        const matSteel = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({ color: 0x555566, metalness: 0.7, roughness: 0.6 });
         const matHazard = new THREE.MeshBasicMaterial({ color: 0xff6600 });
-        const matRust = new THREE.MeshStandardMaterial({ color: 0x884422, metalness: 0.4, roughness: 0.8 });
-        const matDarkIron = new THREE.MeshStandardMaterial({ color: 0x333344, metalness: 0.8, roughness: 0.5 });
+        const matRust = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({ color: 0x884422, metalness: 0.4, roughness: 0.8 });
+        const matDarkIron = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({ color: 0x333344, metalness: 0.8, roughness: 0.5 });
         const matMolten = new THREE.MeshBasicMaterial({ color: 0xffaa44 });
         
         // --- Geometries ---

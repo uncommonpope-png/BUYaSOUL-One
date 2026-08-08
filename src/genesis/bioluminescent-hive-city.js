@@ -24,13 +24,13 @@
         };
 
         // Materials
-        const organicMat = new THREE.MeshStandardMaterial({
+        const organicMat = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
             color: palette.darkOrganic,
             roughness: 0.3,
             metalness: 0.1
         });
 
-        const chitinMat = new THREE.MeshStandardMaterial({
+        const chitinMat = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
             color: palette.chitin,
             roughness: 0.6,
             metalness: 0.2,

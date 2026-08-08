@@ -1035,6 +1035,56 @@
     <script type="module">
         import * as THREE from 'three';
         window.THREE = THREE; // expose for Act VI BODY graft modules (procedural-city/player-cam)
+
+        // ─── LOW-GPU DETECTION + MATERIAL FACTORY (restored from backup-c783d60) ───
+        // Three.js bakes every visible light into shader uniforms. With 400+ lights
+        // (20 sovereign realms + warzone + main city), fragment shaders exceed
+        // MAX_FRAGMENT_UNIFORM_VECTORS(1024) on weak GPUs → materials fail to compile
+        // → buildings render black/invisible. Fall back to unlit MeshBasicMaterial so
+        // void buildings ALWAYS render (emissive color drives the visible hue).
+        try {
+            const test = document.createElement('canvas');
+            const gl = test.getContext('webgl') || test.getContext('experimental-webgl');
+            let low = false;
+            if (gl) {
+              const rendererStr = String(gl.getParameter(gl.RENDERER) || '');
+              const maxFrag = gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS) || 1024;
+              const isIntelHD = /Intel HD Graphics|Intel.*HD Graphics 4|Software WebGL|SwiftShader|WebKit WebGL/i.test(rendererStr);
+              const lowUniforms = maxFrag < 2048;
+              low = isIntelHD || lowUniforms;
+              console.log('[GPU] renderer=' + rendererStr + ' maxFragUniforms=' + maxFrag + ' lowGpu=' + low);
+            }
+            window.__GENESIS_LOW_GPU = low;
+          } catch (_) { window.__GENESIS_LOW_GPU = false; }
+
+        // Material factory: use MeshPhysicalMaterial only when the GPU can handle it.
+        window.__genesisPhysMat = function (config) {
+          if (window.__GENESIS_LOW_GPU) {
+            const { transmission, thickness, ior, attenuationColor, attenuationDistance, clearcoat, clearcoatRoughness, iridescence, iridescenceIOR, iridescenceThicknessRange, specularIntensity, specularColor, ...rest } = config || {};
+            return new THREE.MeshStandardMaterial(rest);
+          }
+          return new THREE.MeshPhysicalMaterial(config || {});
+        };
+        // Uniform-safety: on low GPU, fall back ALL standard materials to unlit so
+        // shaders compile regardless of light count.
+        window.__genesisStd = function (config) {
+          if (window.__GENESIS_LOW_GPU) {
+            config = config || {};
+            const c = (config.emissive != null) ? config.emissive : (config.color != null ? config.color : 0xffffff);
+            return new THREE.MeshBasicMaterial({
+              color: c,
+              transparent: !!config.transparent,
+              opacity: (config.opacity != null) ? config.opacity : 1,
+              side: (config.side != null) ? config.side : THREE.FrontSide,
+              depthWrite: (config.depthWrite !== false),
+              wireframe: !!config.wireframe,
+              fog: (config.fog !== false)
+            });
+          }
+          return new THREE.MeshStandardMaterial(config || {});
+        };
+        // Light budget: keep point lights that the perf governor can see. On low GPU
+        // the LightingManager hard-caps active point lights at 8.
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         import { DragControls } from 'three/addons/controls/DragControls.js';
         import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';

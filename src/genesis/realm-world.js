@@ -105,6 +105,25 @@ export class Realm {
   _randInt(a, b){ return Math.floor(this._rand(a, b + 1)); }
   _choice(arr){ return arr[Math.floor(this._rng() * arr.length)]; }
 
+  // Low-GPU material fallback (see void-population._std): unlit MeshBasicMaterial
+  // keeps the emissive hue and always compiles under the 1024-uniform light cap.
+  _std(config) {
+    const T = this.THREE;
+    if (!T) return null;
+    if (!(typeof window !== 'undefined' && window.__GENESIS_LOW_GPU)) return new T.MeshStandardMaterial(config);
+    config = config || {};
+    const c = (config.emissive != null) ? config.emissive : (config.color != null ? config.color : 0xffffff);
+    return new T.MeshBasicMaterial({
+      color: c,
+      transparent: !!config.transparent,
+      opacity: (config.opacity != null) ? config.opacity : 1,
+      side: (config.side != null) ? config.side : T.FrontSide,
+      depthWrite: (config.depthWrite !== false),
+      wireframe: !!config.wireframe,
+      fog: (config.fog !== false)
+    });
+  }
+
   _generateDistricts() {
     const types = ['work','home','social','learn'];
     const colors = { work:0x00ffff, home:0xff66aa, social:0xffaa00, learn:0x00ff88 };
@@ -161,7 +180,7 @@ export class Realm {
         const w = this._rand(3, 6);
         const d2 = this._rand(3, 6);
         const geo = new this.THREE.BoxGeometry(w, h, d2);
-        const mat = new this.THREE.MeshStandardMaterial({
+        const mat = this._std({
           color: d.color, emissive: d.eColor, emissiveIntensity: 0.05,
           metalness: 0.7, roughness: 0.3
         });
@@ -173,7 +192,7 @@ export class Realm {
         if (h > 6) {
           for (let wy = 2; wy < h - 1; wy += 2.5) {
             const wGeo = new this.THREE.BoxGeometry(w * 0.8, 0.4, 0.06);
-            const wMat = new this.THREE.MeshStandardMaterial({ color: d.color, emissive: d.color, emissiveIntensity: 0.3 });
+            const wMat = this._std({ color: d.color, emissive: d.color, emissiveIntensity: 0.3 });
             const win = new this.THREE.Mesh(wGeo, wMat);
             win.position.set(x, wy, z + d2 / 2 + 0.03);
             this.root.add(win);
@@ -182,7 +201,7 @@ export class Realm {
         // Cap
         if (this._rng() > 0.5) {
           const cGeo = new this.THREE.BoxGeometry(w + 0.3, 0.3, d2 + 0.3);
-          const cMat = new this.THREE.MeshStandardMaterial({ color: d.color, emissive: d.color, emissiveIntensity: 0.5 });
+          const cMat = this._std({ color: d.color, emissive: d.color, emissiveIntensity: 0.5 });
           const cap = new this.THREE.Mesh(cGeo, cMat);
           cap.position.set(x, h + 0.15, z);
           this.root.add(cap);
@@ -192,7 +211,7 @@ export class Realm {
           const spireH = this._rand(3, 8);
           const spire = new this.THREE.Mesh(
             new this.THREE.CylinderGeometry(0.1, 0.3, spireH, 4),
-            new this.THREE.MeshStandardMaterial({ color: d.color, emissive: d.color, emissiveIntensity: 0.6 })
+            this._std({ color: d.color, emissive: d.color, emissiveIntensity: 0.6 })
           );
           spire.position.set(x, h + spireH / 2, z);
           this.root.add(spire);
@@ -201,7 +220,7 @@ export class Realm {
       }
     }
     // Outer ring buildings — scattered at larger radii like the cosmic library
-    const ringMat = new this.THREE.MeshStandardMaterial({ color: 0x222244, emissive: 0x110022, emissiveIntensity: 0.1, metalness: 0.6, roughness: 0.4 });
+    const ringMat = this._std({ color: 0x222244, emissive: 0x110022, emissiveIntensity: 0.1, metalness: 0.6, roughness: 0.4 });
     const ringCounts = [{ r: 100, count: 20, skip: 0.4 }, { r: 140, count: 28, skip: 0.5 }, { r: 180, count: 35, skip: 0.6 }];
     for (const ring of ringCounts) {
       for (let i = 0; i < ring.count; i++) {
@@ -221,7 +240,7 @@ export class Realm {
       }
     }
     // Roads — wider, longer grid
-    const roadMat = new this.THREE.MeshStandardMaterial({ color: 0x111122, roughness: 0.8 });
+    const roadMat = this._std({ color: 0x111122, roughness: 0.8 });
     for (let i = -90; i <= 90; i += 14) {
       const r1 = new this.THREE.Mesh(new this.THREE.BoxGeometry(180, 0.06, 3), roadMat);
       r1.position.set(0, 0.03, i); r1.receiveShadow = true; this.root.add(r1);
@@ -231,7 +250,7 @@ export class Realm {
     // Ground — large plane
     const ground = new this.THREE.Mesh(
       new this.THREE.PlaneGeometry(500, 500),
-      new this.THREE.MeshStandardMaterial({ color: 0x080818, roughness: 0.9 })
+      this._std({ color: 0x080818, roughness: 0.9 })
     );
     ground.rotation.x = -Math.PI / 2; ground.position.y = -0.01; ground.receiveShadow = true;
     this.root.add(ground);
@@ -261,25 +280,25 @@ export class Realm {
     const g = new this.THREE.Group();
     const colors = { profit: 0xffaa00, love: 0xff66aa, tax: 0x00ffcc };
     const c = colors[type] || 0xffffff;
-    const torso = new this.THREE.Mesh(new this.THREE.BoxGeometry(0.6, 0.8, 0.3), new this.THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.1 }));
+    const torso = new this.THREE.Mesh(new this.THREE.BoxGeometry(0.6, 0.8, 0.3), this._std({ color: c, emissive: c, emissiveIntensity: 0.1 }));
     torso.position.y = 1.2; torso.castShadow = true; g.add(torso);
-    const head = new this.THREE.Mesh(new this.THREE.SphereGeometry(0.22, 8, 8), new this.THREE.MeshStandardMaterial({ color: 0xffddcc }));
+    const head = new this.THREE.Mesh(new this.THREE.SphereGeometry(0.22, 8, 8), this._std({ color: 0xffddcc }));
     head.position.y = 1.85; head.castShadow = true; g.add(head);
     [-0.08, 0.08].forEach(xo => {
-      const eye = new this.THREE.Mesh(new this.THREE.SphereGeometry(0.04, 6, 6), new this.THREE.MeshStandardMaterial({ color: 0x222222 }));
+      const eye = new this.THREE.Mesh(new this.THREE.SphereGeometry(0.04, 6, 6), this._std({ color: 0x222222 }));
       eye.position.set(xo, 1.88, 0.18); g.add(eye);
     });
     const arms = [];
     [-0.45, 0.45].forEach(xo => {
-      const arm = new this.THREE.Mesh(new this.THREE.BoxGeometry(0.15, 0.6, 0.15), new this.THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.05 }));
+      const arm = new this.THREE.Mesh(new this.THREE.BoxGeometry(0.15, 0.6, 0.15), this._std({ color: c, emissive: c, emissiveIntensity: 0.05 }));
       arm.position.set(xo, 1.1, 0); arm.castShadow = true; g.add(arm); arms.push(arm);
     });
     const legs = [];
     [-0.15, 0.15].forEach(xo => {
-      const leg = new this.THREE.Mesh(new this.THREE.BoxGeometry(0.18, 0.7, 0.18), new this.THREE.MeshStandardMaterial({ color: 0x333366 }));
+      const leg = new this.THREE.Mesh(new this.THREE.BoxGeometry(0.18, 0.7, 0.18), this._std({ color: 0x333366 }));
       leg.position.set(xo, 0.35, 0); leg.castShadow = true; g.add(leg); legs.push(leg);
     });
-    const ring = new this.THREE.Mesh(new this.THREE.TorusGeometry(0.8, 0.03, 8, 32), new this.THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.5, transparent: true, opacity: 0 }));
+    const ring = new this.THREE.Mesh(new this.THREE.TorusGeometry(0.8, 0.03, 8, 32), this._std({ color: c, emissive: c, emissiveIntensity: 0.5, transparent: true, opacity: 0 }));
     ring.rotation.x = Math.PI / 2; ring.position.y = 0.05; g.add(ring);
     // Name label
     const nCanvas = document.createElement('canvas');

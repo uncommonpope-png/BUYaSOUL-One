@@ -13,22 +13,22 @@
         console.log('[Aetherium Skylands] City spawned at (' + offsetX + ', ' + offsetY + ', ' + offsetZ + ')');
 
         // --- Materials ---
-        const marbleMat = new THREE.MeshStandardMaterial({
+        const marbleMat = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
             color: 0xeeeeff,
             roughness: 0.3,
             metalness: 0.1
         });
-        const stoneMat = new THREE.MeshStandardMaterial({
+        const stoneMat = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
             color: 0x998877,
             roughness: 0.9,
             metalness: 0.0
         });
-        const goldMat = new THREE.MeshStandardMaterial({
+        const goldMat = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
             color: 0xffcc44,
             roughness: 0.2,
             metalness: 0.8
         });
-        const deepBlueMat = new THREE.MeshStandardMaterial({
+        const deepBlueMat = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
             color: 0x2233aa,
             roughness: 0.5,
             metalness: 0.2

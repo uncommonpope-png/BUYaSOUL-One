@@ -55,10 +55,10 @@
   function initMaterials() {
     if (MATS.chitin) return;
     
-    MATS.chitin = new THREE.MeshStandardMaterial({
+    MATS.chitin = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
       color: 0x2a1a0a, roughness: 0.6, metalness: 0.3,
     });
-    MATS.chitinWet = new THREE.MeshStandardMaterial({
+    MATS.chitinWet = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
       color: 0x1a1008, roughness: 0.2, metalness: 0.5,
     });
     MATS.crimsonEnergy = new THREE.MeshBasicMaterial({
@@ -67,17 +67,17 @@
     MATS.azureEnergy = new THREE.MeshBasicMaterial({
       color: 0x0088ff, transparent: true, opacity: 0.85,
     });
-    MATS.boneSpire = new THREE.MeshStandardMaterial({
+    MATS.boneSpire = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
       color: 0xc4b5a0, roughness: 0.8, metalness: 0.0,
     });
     MATS.crystalGrowth = window.__genesisPhysMat({
       color: 0x440066, roughness: 0.1, metalness: 0.2,
       transmission: 0.5, transparent: true, opacity: 0.7,
     });
-    MATS.burnedMetal = new THREE.MeshStandardMaterial({
+    MATS.burnedMetal = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
       color: 0x1a1a1a, roughness: 0.9, metalness: 0.7,
     });
-    MATS.scorchedEarth = new THREE.MeshStandardMaterial({
+    MATS.scorchedEarth = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
       color: 0x332211, roughness: 1.0, metalness: 0.0,
     });
     MATS.shieldDome = window.__genesisPhysMat({
@@ -171,7 +171,7 @@
     geo.computeVertexNormals();
     geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     
-    const mat = new THREE.MeshStandardMaterial({
+    const mat = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({
       vertexColors: true, roughness: 0.95, metalness: 0.05,
       side: THREE.DoubleSide
     });
@@ -457,8 +457,8 @@
     mech.position.set(x, 2.5, z);
     
     const bodyColor = faction === 'crimson' ? 0x440011 : 0x001144;
-    const bodyMat = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.4, metalness: 0.7 });
-    const jointMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.3, metalness: 0.9 });
+    const bodyMat = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({ color: bodyColor, roughness: 0.4, metalness: 0.7 });
+    const jointMat = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({ color: 0x222222, roughness: 0.3, metalness: 0.9 });
     const glowMat = faction === 'crimson' ? MATS.crimsonEnergy : MATS.azureEnergy;
     
     // Torso
@@ -526,7 +526,7 @@
     tank.position.set(x, 1, z);
     
     const bodyColor = faction === 'crimson' ? 0x33000a : 0x000a33;
-    const bodyMat = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.5, metalness: 0.8 });
+    const bodyMat = (window.__genesisStd || function(c){ return new THREE.MeshStandardMaterial(c); })({ color: bodyColor, roughness: 0.5, metalness: 0.8 });
     const glowMat = faction === 'crimson' ? MATS.crimsonEnergy : MATS.azureEnergy;
     
     // Hull
