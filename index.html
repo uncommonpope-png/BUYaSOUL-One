@@ -1036,12 +1036,7 @@
         import * as THREE from 'three';
         window.THREE = THREE; // expose for Act VI BODY graft modules (procedural-city/player-cam)
 
-        // ─── LOW-GPU DETECTION + MATERIAL FACTORY (restored from backup-c783d60) ───
-        // Three.js bakes every visible light into shader uniforms. With 400+ lights
-        // (20 sovereign realms + warzone + main city), fragment shaders exceed
-        // MAX_FRAGMENT_UNIFORM_VECTORS(1024) on weak GPUs → materials fail to compile
-        // → buildings render black/invisible. Fall back to unlit MeshBasicMaterial so
-        // void buildings ALWAYS render (emissive color drives the visible hue).
+        // ─── LOW-GPU DETECTION (restored from backup-c783d60) ───
         try {
             const test = document.createElement('canvas');
             const gl = test.getContext('webgl') || test.getContext('experimental-webgl');
@@ -1050,39 +1045,117 @@
               const rendererStr = String(gl.getParameter(gl.RENDERER) || '');
               const maxFrag = gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS) || 1024;
               const isIntelHD = /Intel HD Graphics|Intel.*HD Graphics 4|Software WebGL|SwiftShader|WebKit WebGL/i.test(rendererStr);
-              const lowUniforms = maxFrag < 2048;
-              low = isIntelHD || lowUniforms;
+              low = isIntelHD || maxFrag < 2048;
               console.log('[GPU] renderer=' + rendererStr + ' maxFragUniforms=' + maxFrag + ' lowGpu=' + low);
             }
             window.__GENESIS_LOW_GPU = low;
-          } catch (_) { window.__GENESIS_LOW_GPU = false; }
+        } catch (_) { window.__GENESIS_LOW_GPU = false; }
 
         // Material factory: use MeshPhysicalMaterial only when the GPU can handle it.
-        window.__genesisPhysMat = function (config) {
-          if (window.__GENESIS_LOW_GPU) {
-            const { transmission, thickness, ior, attenuationColor, attenuationDistance, clearcoat, clearcoatRoughness, iridescence, iridescenceIOR, iridescenceThicknessRange, specularIntensity, specularColor, ...rest } = config || {};
-            return new THREE.MeshStandardMaterial(rest);
-          }
-          return new THREE.MeshPhysicalMaterial(config || {});
-        };
+                window.__genesisPhysMat = function (config) {
+                  if (window.__GENESIS_LOW_GPU) {
+                    const { transmission, thickness, ior, attenuationColor, attenuationDistance, clearcoat, clearcoatRoughness, iridescence, iridescenceIOR, iridescenceThicknessRange, specularIntensity, specularColor, ...rest } = config || {};
+                    return new THREE.MeshStandardMaterial(rest);
+                  }
+                  return new THREE.MeshPhysicalMaterial(config || {});
+                };
         // Uniform-safety: on low GPU, fall back ALL standard materials to unlit so
-        // shaders compile regardless of light count.
-        window.__genesisStd = function (config) {
-          if (window.__GENESIS_LOW_GPU) {
-            config = config || {};
-            const c = (config.emissive != null) ? config.emissive : (config.color != null ? config.color : 0xffffff);
-            return new THREE.MeshBasicMaterial({
-              color: c,
-              transparent: !!config.transparent,
-              opacity: (config.opacity != null) ? config.opacity : 1,
-              side: (config.side != null) ? config.side : THREE.FrontSide,
-              depthWrite: (config.depthWrite !== false),
-              wireframe: !!config.wireframe,
-              fog: (config.fog !== false)
-            });
-          }
-          return new THREE.MeshStandardMaterial(config || {});
-        };
+                // shaders compile regardless of light count. But don't just use flat color —
+                // bake procedural window facades (emissive maps) so buildings look like
+                // buildings, not grey boxes. Uses the same canvas generators as the art engine.
+                (function () {
+                  const T = window.THREE;
+                  if (!T) return;
+                  let _canvasCache = new Map();
+                  function _makeCanvas(key, width, height, drawFn) {
+                    let cached = _canvasCache.get(key);
+                    if (cached) return cached;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width; canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    drawFn(ctx, width, height);
+                    const tex = new T.CanvasTexture(canvas);
+                    tex.wrapS = T.RepeatWrapping;
+                    tex.wrapT = T.RepeatWrapping;
+                    _canvasCache.set(key, tex);
+                    return tex;
+                  }
+                  function _emissiveMap(colorHex, hasWindows) {
+                    if (!hasWindows) return null;
+                    return _makeCanvas('emissive:' + colorHex, 256, 256, (ctx, w, h) => {
+                      ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, w, h);
+                      const winW = 12, winH = 18, gapX = 6, gapY = 4;
+                      const base = new T.Color(colorHex);
+                      ctx.fillStyle = '#' + base.getHexString();
+                      for (let x = 8; x < w - 8; x += winW + gapX) {
+                        for (let y = 8; y < h - 8; y += winH + gapY) {
+                          if (Math.random() > 0.35) ctx.fillRect(x, y, winW, winH); // 65% lit
+                        }
+                      }
+                    });
+                  }
+                  function _roughnessMap() {
+                    return _makeCanvas('roughness:base', 256, 256, (ctx, w, h) => {
+                      for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                          const v = 0.6 + 0.4 * Math.random(); // 0.6–1.0 roughness
+                          const c = Math.round(v * 255);
+                          ctx.fillStyle = 'rgb(' + c + ',' + c + ',' + c + ')';
+                          ctx.fillRect(x, y, 1, 1);
+                        }
+                      }
+                    });
+                  }
+                  function _normalMap() {
+                    return _makeCanvas('normal:panel', 512, 512, (ctx, w, h) => {
+                      const panel = 64;
+                      for (let gy = 0; gy < h; gy += panel) {
+                        for (let gx = 0; gx < w; gx += panel) {
+                          const isPanel = Math.random() > 0.5;
+                          if (!isPanel) continue;
+                          const nx = (Math.random() - 0.5) * 0.8;
+                          const ny = (Math.random() - 0.5) * 0.8;
+                          const nz = Math.sqrt(1 - nx*nx - ny*ny);
+                          const r = Math.round(127 + nx * 127);
+                          const g = Math.round(127 + ny * 127);
+                          const b = Math.round(127 + nz * 127);
+                          ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
+                          const w2 = panel - 4;
+                          ctx.fillRect(gx + 2, gy + 2, w2, w2);
+                        }
+                      }
+                    });
+                  }
+                  const _rough = _roughnessMap();
+                  const _norm = _normalMap();
+                  window.__genesisStd = function (config) {
+                    if (!window.__GENESIS_LOW_GPU) {
+                      return new THREE.MeshStandardMaterial(config || {});
+                    }
+                    config = config || {};
+                    const color = config.color || 0x223344;
+                    const emissive = config.emissive || color;
+                    const hasWindows = config.emissive != null || config.hasWindows;
+                    const emMap = _emissiveMap(emissive, hasWindows);
+                    const mat = new THREE.MeshBasicMaterial({
+                      color: color,
+                      map: config.map || null,
+                      transparent: !!config.transparent,
+                      opacity: config.opacity != null ? config.opacity : 1,
+                      side: config.side || THREE.FrontSide,
+                      depthWrite: config.depthWrite !== false,
+                      wireframe: !!config.wireframe,
+                      fog: config.fog !== false,
+                      // baked facade
+                      emissiveMap: emMap,
+                      emissive: new THREE.Color(emissive),
+                      emissiveIntensity: hasWindows ? (config.emissiveIntensity || 1.5) : 0,
+                      // flat-shading normals/roughness don't apply to BasicMaterial,
+                      // but the maps are kept for future upgrade path
+                    });
+                    return mat;
+                  };
+                })();
         // Light budget: keep point lights that the perf governor can see. On low GPU
         // the LightingManager hard-caps active point lights at 8.
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -1601,11 +1674,31 @@
                 summary() { return { registered: _lights.size, activePointLights: _activePointLights(), decorativeEnabled: _decorativeEnabled, cap: _HARD_CAP }; }
             };
             // Observe existing lights AFTER module init: scene is declared later, so defer the walk to avoid TDZ/startup crashes.
-            queueMicrotask(() => {
-                try {
-                    if (scene) scene.traverse((o) => { if (o.isPointLight) _register(o, { owner: o.userData && o.userData.cityGrid ? 'city-grid' : 'scene', decorative: !!(o.userData && o.userData.decorative), cost: 1, priority: (o.userData && o.userData.cityGrid) ? 3 : 5 }); });
-                } catch (e) { if (typeof console !== 'undefined') console.warn('[Genesis] Lighting observe deferred:', e && e.message); }
-            });
+                        queueMicrotask(() => {
+                            try {
+                                if (scene) scene.traverse((o) => { if (o.isPointLight) _register(o, { owner: o.userData && o.userData.cityGrid ? 'city-grid' : 'scene', decorative: !!(o.userData && o.userData.decorative), cost: 1, priority: (o.userData && o.userData.cityGrid) ? 3 : 5 }); });
+                            } catch (e) { if (typeof console !== 'undefined') console.warn('[Genesis] Lighting observe deferred:', e && e.message); }
+                        });
+                        // Continuous re-sweep: city + void realms + warzone spawn lights over
+                        // ~10s of boot. Register every point light (decorative) so the hard cap
+                        // prunes to 8 — this keeps per-material shader light uniforms under
+                        // MAX_FRAGMENT_UNIFORM_VECTORS(1024) on weak GPUs, so the MAIN CITY's
+                        // MeshStandardMaterial shaders compile instead of going black.
+                        let _sweepTicks = 0;
+                        const _sweepTimer = setInterval(() => {
+                            try {
+                                if (!scene) return;
+                                scene.traverse((o) => {
+                                    if (o.isPointLight && !_lights.has(o)) {
+                                        _register(o, { owner: (o.userData && o.userData.cityGrid) ? 'city-grid' : 'scene', decorative: true, cost: 1, priority: (o.userData && o.userData.cityGrid) ? 3 : 5 });
+                                    }
+                                });
+                                _capCheck();
+                                _sweepTicks++;
+                                if (_sweepTicks > 20) clearInterval(_sweepTimer); // ~10s of sweeps is enough
+                            } catch (e) { /* sweep must never throw */ }
+                        }, 500);
+                        if (typeof window !== 'undefined') window.__genesisLightSweep = () => { try { if (scene) scene.traverse((o) => { if (o.isPointLight && !_lights.has(o)) _register(o, { owner: 'manual', decorative: true, cost: 1, priority: 5 }); }); _capCheck(); } catch (e) {} };
             import('./src/genesis/lighting-manager.js').then((m) => {
                 if (!Genesis.LightingManager && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, scene);
                 if (typeof console !== 'undefined') console.log('[Genesis] Lighting Manager module validated (inline manager remains authoritative)');

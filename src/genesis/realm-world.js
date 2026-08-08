@@ -110,6 +110,10 @@ export class Realm {
   _std(config) {
     const T = this.THREE;
     if (!T) return null;
+    // Delegate to central factory for procedural window facades on low GPU.
+    if (typeof window !== 'undefined' && typeof window.__genesisStd === 'function') {
+      return window.__genesisStd(config);
+    }
     if (!(typeof window !== 'undefined' && window.__GENESIS_LOW_GPU)) return new T.MeshStandardMaterial(config);
     config = config || {};
     const c = (config.emissive != null) ? config.emissive : (config.color != null ? config.color : 0xffffff);

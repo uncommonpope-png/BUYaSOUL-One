@@ -162,6 +162,11 @@ export function install(Genesis) {
   // emissive hue and ALWAYS compiles. Set by index.html boot.
   const __lowGPU = !!(typeof window !== 'undefined' && window.__GENESIS_LOW_GPU);
   function _std(config) {
+    // Delegate to the central factory (index.html) so void buildings get the
+    // procedural window-facade texture on low GPU, not bare flat color.
+    if (typeof window !== 'undefined' && typeof window.__genesisStd === 'function' && window.__genesisStd !== _std) {
+      return window.__genesisStd(config);
+    }
     if (!__lowGPU) return new T.MeshStandardMaterial(config);
     config = config || {};
     const c = (config.emissive != null) ? config.emissive : (config.color != null ? config.color : 0xffffff);
