@@ -34,6 +34,7 @@
     }
   };
 
+  let _unitSpeedMult = 1;
   const PLAYER_FACTION = 'voidCovenant';
   const PLAYER_HOME = { x: -104, y: 0, z: 401 }; // Grand Tower coordinates
 
@@ -72,7 +73,7 @@
       const faction = FACTIONS[factionId];
       
       // 1. Resource regeneration & Unit Spawning
-      faction.resources += 18 * dt; // passively gain resources
+      faction.resources += _resRate * dt; // passively gain resources
       if (faction.resources >= faction.spawnCost) {
         faction.resources -= faction.spawnCost;
         spawnAIUnit(factionId);
@@ -93,6 +94,7 @@
         faction.idleUnits.clear();
         
         console.log(`[RTS AI Director] ${faction.name} formed Strike Wave of ${squad.length} units!`);
+        _notifyWave(factionId, squad);
         
         // Attack-move commands to Grand Tower
         for (const entId of squad) {
@@ -126,8 +128,39 @@
     console.log('[RTS AI Director] Hostile AI Director Ready.');
   }
 
+  // ─── PACING + WAVE ALERTS (War Command hooks) ───────────────────────
+  // Default pacing is glacial (18 res/s, 6-unit squads, 1200u march) so
+  // nothing ever reaches the player. WarCommand calls setPacing to crash the
+  // timeline into "real war" speeds and registers onWave to get alerts.
+  let _onWave = null;
+  let _resRate = 18;
+  function setPacing(opts) {
+    if (!opts) return;
+    if (typeof opts.resourceRate === 'number') _resRate = opts.resourceRate;
+    if (typeof opts.unitSpeed === 'number') _unitSpeedMult = opts.unitSpeed;
+    for (const id of Object.keys(FACTIONS)) {
+      const f = FACTIONS[id];
+      if (typeof opts.spawnCost === 'number') f.spawnCost = opts.spawnCost;
+      if (typeof opts.squadThreshold === 'number') f.squadSizeThreshold = opts.squadThreshold;
+      if (typeof opts.homeBase === 'object' && opts.homeBase[id]) {
+        f.homeBase.x = opts.homeBase[id].x != null ? opts.homeBase[id].x : f.homeBase.x;
+        f.homeBase.z = opts.homeBase[id].z != null ? opts.homeBase[id].z : f.homeBase.z;
+      }
+    }
+    if (typeof console !== 'undefined') console.log('[RTS AI Director] Pacing set:', JSON.stringify({ resourceRate: _resRate, spawnCost: FACTIONS.bioHive.spawnCost, squadThreshold: FACTIONS.bioHive.squadSizeThreshold }));
+  }
+  function onWave(fn) { _onWave = fn; }
+  function _notifyWave(factionId, squad) {
+    if (typeof _onWave === 'function') {
+      try { _onWave({ factionId, name: FACTIONS[factionId] && FACTIONS[factionId].name, count: squad.length }); } catch (_) {}
+    }
+  }
+
   window.RTSAIDirector = {
     install,
-    tick: tickAI
+    tick: tickAI,
+    setPacing,
+    onWave,
+    _notifyWave
   };
 })();

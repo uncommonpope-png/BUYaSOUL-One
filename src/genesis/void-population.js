@@ -3458,6 +3458,10 @@ export function install(Genesis) {
     if (window.AdvancedNPCEngine) {
       try { window.AdvancedNPCEngine.install(scene); } catch(e) { console.warn('[VoidPopulation] AdvancedNPCEngine install failed:', e && e.message); }
     }
+    // RTS War Command — must load AFTER both AIDirector + NPCEngine are installed
+    if (window.RTSWarCommand && typeof window.RTSWarCommand.install === 'function') {
+      try { window.RTSWarCommand.install(scene); } catch(e) { if (typeof console !== 'undefined') console.warn('[VoidPopulation] RTSWarCommand install failed:', e && e.message); }
+    }
 
     // Install RTS Subsystem & AI Faction Commanders
     if (window.RTSSubsystem && camera) {
@@ -3854,6 +3858,9 @@ export function install(Genesis) {
     
     if (window.RTSAIDirector && window.RTSAIDirector.tick) {
       window.RTSAIDirector.tick(dt);
+    }
+    if (window.RTSWarCommand && window.RTSWarCommand.tick) {
+      window.RTSWarCommand.tick(dt);
     }
 
     // Tick RTS Subsystem & AI Factions
