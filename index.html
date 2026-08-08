@@ -1033,7 +1033,30 @@
     </script>
 
     <script type="module">
-        import * as THREE from 'three';
+        import * as THREE_NATIVE from 'three';
+        // ─── LOW-GPU CONSTRUCTOR REDIRECT via Proxy ───
+        // `import * as THREE` yields a FROZEN module namespace: assigning
+        // THREE.MeshStandardMaterial = ... throws in strict mode and kills the
+        // whole module (that was the "page won't load" regression). Instead we
+        // proxy the namespace: on weak GPUs, `new THREE.MeshStandardMaterial()`
+        // transparently becomes __genesisStd (unlit + procedural window facades)
+        // so shaders compile under 1024 uniform vectors. High GPU: passthrough.
+        let __stdRedirectWrap = null;
+        const THREE = new Proxy(THREE_NATIVE, {
+            get(t, k) {
+                if (k === 'MeshStandardMaterial' && window.__GENESIS_LOW_GPU && typeof window.__genesisStd === 'function') {
+                    if (!__stdRedirectWrap) {
+                        __stdRedirectWrap = function (config) { return window.__genesisStd(config || {}); };
+                        __stdRedirectWrap.prototype = t.MeshStandardMaterial.prototype;
+                        __stdRedirectWrap.isWrapped = true;
+                        if (typeof console !== 'undefined') console.log('[GPU] MeshStandardMaterial auto-redirected to __genesisStd fallback');
+                    }
+                    return __stdRedirectWrap;
+                }
+                return Reflect.get(t, k);
+            },
+            set(t, k, v) { return Reflect.set(t, k, v); }
+        });
         window.THREE = THREE; // expose for Act VI BODY graft modules (procedural-city/player-cam)
 
         // ─── LOW-GPU DETECTION (restored from backup-c783d60) ───
@@ -1156,21 +1179,6 @@
                     return mat;
                   };
                 })();
-        // ─── LOW-GPU AUTO-REDIRECT (the dc5ce79 fix, done RIGHT this time) ───
-        // On weak GPUs, replace MeshStandardMaterial constructor so ALL call sites
-        // (main city, premium slice, NPCs, cars) automatically get the __genesisStd
-        // fallback — procedural window facades, not flat grey boxes. This is what
-        // dc5ce79 tried and broke; the difference is __genesisStd preserves textures.
-        if (window.__GENESIS_LOW_GPU) {
-            const _OrigMat = THREE.MeshStandardMaterial;
-            THREE.MeshStandardMaterial = function (config) {
-                if (typeof window.__genesisStd === 'function') return window.__genesisStd(config);
-                return new _OrigMat(config || {});
-            };
-            THREE.MeshStandardMaterial.prototype = _OrigMat.prototype;
-            Object.defineProperty(THREE.MeshStandardMaterial, 'name', { value: 'MeshStandardMaterial' });
-            console.log('[GPU] MeshStandardMaterial auto-redirected to __genesisStd fallback');
-        }
         // Light budget: keep point lights that the perf governor can see. On low GPU
         // the LightingManager hard-caps active point lights at 8.
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
