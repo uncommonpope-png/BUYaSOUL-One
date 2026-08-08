@@ -1033,30 +1033,7 @@
     </script>
 
     <script type="module">
-        import * as THREE_NATIVE from 'three';
-        // ─── LOW-GPU CONSTRUCTOR REDIRECT via Proxy ───
-        // `import * as THREE` yields a FROZEN module namespace: assigning
-        // THREE.MeshStandardMaterial = ... throws in strict mode and kills the
-        // whole module (that was the "page won't load" regression). Instead we
-        // proxy the namespace: on weak GPUs, `new THREE.MeshStandardMaterial()`
-        // transparently becomes __genesisStd (unlit + procedural window facades)
-        // so shaders compile under 1024 uniform vectors. High GPU: passthrough.
-        let __stdRedirectWrap = null;
-        const THREE = new Proxy(THREE_NATIVE, {
-            get(t, k) {
-                if (k === 'MeshStandardMaterial' && window.__GENESIS_LOW_GPU && typeof window.__genesisStd === 'function') {
-                    if (!__stdRedirectWrap) {
-                        __stdRedirectWrap = function (config) { return window.__genesisStd(config || {}); };
-                        __stdRedirectWrap.prototype = t.MeshStandardMaterial.prototype;
-                        __stdRedirectWrap.isWrapped = true;
-                        if (typeof console !== 'undefined') console.log('[GPU] MeshStandardMaterial auto-redirected to __genesisStd fallback');
-                    }
-                    return __stdRedirectWrap;
-                }
-                return Reflect.get(t, k);
-            },
-            set(t, k, v) { return Reflect.set(t, k, v); }
-        });
+        import * as THREE from 'three';
         window.THREE = THREE; // expose for Act VI BODY graft modules (procedural-city/player-cam)
 
         // ─── LOW-GPU DETECTION (restored from backup-c783d60) ───
@@ -10496,8 +10473,10 @@ keyState[e.code] = true;
                 cityGroup.add(roofRing);
 
                 // Subtle emissive boost to building
-                nearest.mesh.material.emissive.setHex(0x332200);
-                nearest.mesh.material.emissiveIntensity = 0.4;
+                if (nearest.mesh.material && nearest.mesh.material.emissive) {
+                    nearest.mesh.material.emissive.setHex(0x332200);
+                    nearest.mesh.material.emissiveIntensity = 0.4;
+                }
 
                 officeZones.push({
                     position: new THREE.Vector3(nearest.x, 0, nearest.z),
@@ -14101,7 +14080,7 @@ keyState[e.code] = true;
                     s.material.emissiveIntensity = claimed ? 1.35 : 0.45 + Math.min(0.9, Math.max(0, (rel - 1) * 0.8 + 0.35));
                     if (claimed) s.material.color.setHex(0x9effc4);
                     else s.material.color.setHSL(0.08 + (rel - 1) * 0.4, 0.7, 0.55);
-                    s.material.emissive.copy(s.material.color);
+                    if (s.material.emissive) s.material.emissive.copy(s.material.color);
                 }
             }
         }
@@ -14935,7 +14914,7 @@ keyState[e.code] = true;
         function buildCityAtmosphere() {
             if (typeof cityGroup === 'undefined' || !cityGroup) return;
             if (typeof cityGroundMat !== 'undefined' && cityGroundMat) {
-                cityGroundMat.emissive.setHex(0x081830); cityGroundMat.emissiveIntensity = 0.25;
+                if (cityGroundMat.emissive) { cityGroundMat.emissive.setHex(0x081830); cityGroundMat.emissiveIntensity = 0.25; }
                 cityGroundMat.metalness = 0.45; cityGroundMat.roughness = 0.55;
             }
             const gridLights = [[-56, -56], [56, -56], [-56, 56], [56, 56], [0, 0], [-56, 0], [56, 0], [0, -56], [0, 56]];
@@ -15198,6 +15177,16 @@ keyState[e.code] = true;
             _perfRafId = 0;
             if (!_perfRunning) return; // tab hidden -> stop the loop entirely
             _perfRafId = requestAnimationFrame(animate);
+            // ─── FIRST-FRAME LIGHT CAP (boot-critical) ───
+            // The 500ms re-sweep races the first render: shaders compile with ALL
+            // 470 city/void/warzone point lights visible → >1024 frag uniforms →
+            // MeshStandardMaterial shaders fail → main city renders black. Run the
+            // cap synchronously BEFORE the first frame so real materials compile
+            // with ≤8 lights. This fixes the city without material substitution.
+            if (!window.__genesisFirstFrameCapped && typeof window.__genesisLightSweep === 'function') {
+                window.__genesisFirstFrameCapped = true;
+                try { window.__genesisLightSweep(); if (typeof console !== 'undefined') console.log('[Genesis] First-frame light cap executed'); } catch (e) { if (typeof console !== 'undefined') console.warn('[Genesis] First-frame light cap failed:', e && e.message); }
+            }
             const now = performance.now();
             const dt = Math.min(0.033, (now - lastTime) / 1000);
             lastTime = now;

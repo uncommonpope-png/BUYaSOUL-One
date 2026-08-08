@@ -276,7 +276,7 @@
       // Pulse buildings
       buildings.forEach(b => {
         const pulse = (Math.sin(t * 3 + b.mesh.position.length() * 0.1) + 1) * 0.5;
-        b.mat.emissive.copy(b.baseColor).multiplyScalar(pulse * 0.3);
+        if (b.mat && b.mat.emissive) b.mat.emissive.copy(b.baseColor).multiplyScalar(pulse * 0.3);
       });
 
       // Pulse shields
