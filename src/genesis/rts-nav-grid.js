@@ -20,8 +20,6 @@
 (function() {
   'use strict';
 
-  const T = window.THREE;
-
   let BOUNDS = { minX: -2500, minZ: -2500, maxX: 2500, maxZ: 2500 };
   let CELL = 5;
   let COLS = 0, ROWS = 0;
@@ -223,6 +221,8 @@
       return;
     }
     if (debugGroup) return;
+    const T = window.THREE;
+    if (!T) return;
     debugGroup = new T.Group();
     for (let col = 0; col < COLS; col++) {
       for (let row = 0; row < ROWS; row++) {

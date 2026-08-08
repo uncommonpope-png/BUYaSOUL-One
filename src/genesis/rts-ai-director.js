@@ -2,32 +2,32 @@
  * rts-ai-director.js
  * BUYASOUL CPL / GODFORGE — RTS Enemy AI Director
  * 
- * Centralized brain for enemy factions:
- * 1. Macro: Passively generates resources and spawns new units at Home Bases.
- * 2. Squad Tactics: Groups idle units into Strike Teams.
- * 3. Combat: Sends Strike Teams to attack the player's base.
+ * Brain for enemy factions (bioHive & imperium):
+ * 1. Spawns units near their respective home bases.
+ * 2. Groups them into squads and marches them to attack the Player's Grand Tower.
+ * 3. Uses A* pathfinding automatically since it triggers the core movement states.
  */
 
 (function() {
   'use strict';
 
-  const T = window.THREE;
   let SCENE_REF = null;
 
-  // Faction Definitions
   const FACTIONS = {
     bioHive: {
-      homeBase: new T.Vector3(1200, 0, -500), // Bioluminescent Hive
+      name: 'Bio Hive (Alien)',
+      homeBase: { x: 1200, y: 0, z: -500 }, // Bioluminescent Hive
       resources: 0,
-      spawnCost: 100,
-      squadSizeThreshold: 5,
+      spawnCost: 80,
+      squadSizeThreshold: 6,
       idleUnits: new Set(),
       squads: []
     },
     imperium: {
-      homeBase: new T.Vector3(-800, 0, -600), // Iron Foundry
+      name: 'Imperium (Terran)',
+      homeBase: { x: -800, y: 0, z: -600 }, // Iron Foundry
       resources: 0,
-      spawnCost: 150,
+      spawnCost: 120,
       squadSizeThreshold: 4,
       idleUnits: new Set(),
       squads: []
@@ -35,37 +35,34 @@
   };
 
   const PLAYER_FACTION = 'voidCovenant';
-  const PLAYER_HOME = new T.Vector3(900, 0, 300); // Shattered Front
+  const PLAYER_HOME = { x: -104, y: 0, z: 401 }; // Grand Tower coordinates
 
   function spawnAIUnit(factionId) {
     if (!SCENE_REF || !window.AdvancedNPCEngine || !window.RTSEngineCore) return;
     
     const factionData = FACTIONS[factionId];
     const isAlien = (factionId === 'bioHive');
-    const color = isAlien ? 0xaa00ff : 0xff0055;
+    const color = isAlien ? 0xff0055 : 0xffaa00; // Red-purple alien or golden-yellow armor
     
-    // Create unit mesh using existing AdvancedNPCEngine rig
     const mesh = window.AdvancedNPCEngine.createHumanoidRig(color, isAlien);
     
-    // Spawn around home base
-    const spawnRadius = 30 + Math.random() * 30;
-    const angle = Math.random() * Math.PI * 2;
+    // Spawn offset around home base
+    const spawnAngle = Math.random() * Math.PI * 2;
+    const spawnDist = 40 + Math.random() * 20;
     mesh.position.set(
-      factionData.homeBase.x + Math.cos(angle) * spawnRadius,
+      factionData.homeBase.x + Math.cos(spawnAngle) * spawnDist,
       0,
-      factionData.homeBase.z + Math.sin(angle) * spawnRadius
+      factionData.homeBase.z + Math.sin(spawnAngle) * spawnDist
     );
     
     SCENE_REF.add(mesh);
     
-    // Register to core
-    const hp = isAlien ? 80 : 120;
+    const hp = isAlien ? 80 : 130;
     const ent = window.RTSEngineCore.registerEntity(mesh, 'unit', factionId, hp, 1.2);
+    ent.speed = isAlien ? 5.5 : 3.8;
     
-    // Add to idle pool
     factionData.idleUnits.add(ent.id);
-    
-    console.log(`[AIDirector] Spawned ${factionId} unit ${ent.id}`);
+    console.log(`[RTS AI Director] Spawned ${factionId} unit ${ent.id}`);
   }
 
   function tickAI(dt) {
@@ -74,14 +71,14 @@
     for (const factionId of Object.keys(FACTIONS)) {
       const faction = FACTIONS[factionId];
       
-      // 1. Passive Income & Spawning
-      faction.resources += 20 * dt; // 20 resources per second
+      // 1. Resource regeneration & Unit Spawning
+      faction.resources += 18 * dt; // passively gain resources
       if (faction.resources >= faction.spawnCost) {
         faction.resources -= faction.spawnCost;
         spawnAIUnit(factionId);
       }
 
-      // Clean up dead units from idle pool
+      // Clean up dead units from idle pools
       for (const entId of faction.idleUnits) {
         const ent = window.RTSEngineCore.getEntity(entId);
         if (!ent || ent.isDead) {
@@ -89,22 +86,21 @@
         }
       }
 
-      // 2. Form Squads
+      // 2. Coordinated Attack Waves
       if (faction.idleUnits.size >= faction.squadSizeThreshold) {
         const squad = Array.from(faction.idleUnits);
         faction.squads.push(squad);
         faction.idleUnits.clear();
         
-        console.log(`[AIDirector] ${factionId} formed a Strike Squad of ${squad.length} units!`);
+        console.log(`[RTS AI Director] ${faction.name} formed Strike Wave of ${squad.length} units!`);
         
-        // 3. Issue Attack Orders
-        // Target is the player's home base
+        // Attack-move commands to Grand Tower
         for (const entId of squad) {
           const ent = window.RTSEngineCore.getEntity(entId);
           if (ent && !ent.isDead) {
-            // Jitter the target slightly so they don't all stack
-            const jitterX = (Math.random() - 0.5) * 40;
-            const jitterZ = (Math.random() - 0.5) * 40;
+            const T = window.THREE;
+            const jitterX = (Math.random() - 0.5) * 60;
+            const jitterZ = (Math.random() - 0.5) * 60;
             ent.targetPos = new T.Vector3(PLAYER_HOME.x + jitterX, 0, PLAYER_HOME.z + jitterZ);
             ent.state = 'moving';
             ent.targetId = null;
@@ -112,14 +108,14 @@
         }
       }
       
-      // Cleanup dead squads
+      // Clean up dead squads
       faction.squads = faction.squads.filter(squad => {
         let aliveCount = 0;
         for (const entId of squad) {
           const ent = window.RTSEngineCore.getEntity(entId);
           if (ent && !ent.isDead) aliveCount++;
         }
-        return aliveCount > 0; // Keep squad if at least 1 member is alive
+        return aliveCount > 0;
       });
     }
   }
@@ -127,7 +123,7 @@
   function install(scene) {
     if (!scene) return;
     SCENE_REF = scene;
-    console.log('[AIDirector] Enemy AI Director initialized.');
+    console.log('[RTS AI Director] Hostile AI Director Ready.');
   }
 
   window.RTSAIDirector = {

@@ -1,0 +1,14 @@
+{
+  "name": "buyasoul-cpl",
+  "version": "1.0.0",
+  "description": "BUYASOUL CPL Codebase",
+  "main": "index.html",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 0"
+  },
+  "dependencies": {
+    "@babylonjs/core": "^7.30.0",
+    "three": "^0.185.1"
+  },
+  "license": "ISC"
+}

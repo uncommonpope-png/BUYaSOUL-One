@@ -11,8 +11,6 @@
 (function() {
   'use strict';
 
-  const T = window.THREE;
-
   // --- ENTITY SYSTEM ---
 
   let entityIdCounter = 0;
@@ -157,6 +155,8 @@
 
   function spawnProjectile(startPos, targetPos, color = 0x00ffcc) {
     if (!SCENE_REF) return;
+    const T = window.THREE;
+    if (!T) return;
     
     // Create a laser beam cylinder
     const geo = new T.CylinderGeometry(0.2, 0.2, 4, 4);
@@ -186,6 +186,8 @@
   }
 
   function tickProjectiles(dt) {
+    const T = window.THREE;
+    if (!T) return;
     for (let i = PROJECTILES.length - 1; i >= 0; i--) {
       const p = PROJECTILES[i];
       p.life -= dt;
@@ -206,6 +208,8 @@
   // --- COMBAT & MOVEMENT LOOP ---
 
   function tickEntities(dt) {
+    const T = window.THREE;
+    if (!T) return;
     // Spatial partitioning would be better, but O(N^2) is fine for small N
     const allEnts = Array.from(ENTITIES.values());
 
@@ -216,6 +220,57 @@
       // 1. Cooldowns
       if (ent.currentCooldown > 0) {
         ent.currentCooldown -= dt;
+      }
+
+      // 1.5. Turret Auto-Defense (Phase 7)
+      if (ent.type === 'building') {
+        if (ent.isTurret) {
+          // Scan for nearest enemy unit in attack range
+          let nearestEnemy = null;
+          let minDist = ent.attackRange || 20;
+          for (let j = 0; j < allEnts.length; j++) {
+            const other = allEnts[j];
+            if (other.isDead || other.type !== 'unit') continue;
+            if (other.faction === ent.faction) continue; // skip friendly
+            
+            const d = ent.mesh.position.distanceTo(other.mesh.position);
+            if (d < minDist) {
+              minDist = d;
+              nearestEnemy = other;
+            }
+          }
+          if (nearestEnemy) {
+            ent.mesh.lookAt(nearestEnemy.mesh.position.x, ent.mesh.position.y, nearestEnemy.mesh.position.z);
+            if (ent.currentCooldown <= 0) {
+              nearestEnemy.takeDamage(ent.attackDamage || 15);
+              ent.currentCooldown = ent.attackCooldown || 1.0;
+              spawnProjectile(ent.mesh.position, nearestEnemy.mesh.position, 0x00ffff);
+            }
+          }
+        }
+        continue; // Skip unit logic for buildings
+      }
+
+      // 2. AUTO-AGGRO: idle units scan for nearby enemies and auto-attack
+      if (ent.type === 'unit' && ent.state === 'idle' && !ent.targetId && !ent.targetPos) {
+        const aggroRange = ent.aggroRange || 15;
+        let nearestEnemy = null;
+        let minAggroDist = aggroRange;
+        for (let j = 0; j < allEnts.length; j++) {
+          const other = allEnts[j];
+          if (other.id === ent.id || other.isDead || !other.mesh) continue;
+          if (other.faction === ent.faction || other.faction === 'neutral') continue;
+          if (other.type !== 'unit' && other.type !== 'building') continue;
+          const d = ent.mesh.position.distanceTo(other.mesh.position);
+          if (d < minAggroDist) {
+            minAggroDist = d;
+            nearestEnemy = other;
+          }
+        }
+        if (nearestEnemy) {
+          ent.targetId = nearestEnemy.id;
+          ent.state = 'moving';
+        }
       }
 
       // 2. State Machine: Attacking or Harvesting
@@ -398,6 +453,25 @@
 
   // --- INITIALIZER ---
 
+  // --- PASSIVE ECONOMY DRIP ---
+  // Gives the player a slow trickle of all resources so HUD numbers visibly change
+  let _passiveTimer = 0;
+  function tickPassiveIncome(dt) {
+    if (!window.RTSEconomySystem) return;
+    _passiveTimer += dt;
+    if (_passiveTimer >= 5.0) { // Every 5 seconds
+      _passiveTimer = 0;
+      // Count alive player buildings for income scaling
+      let playerBuildings = 0;
+      for (const ent of ENTITIES.values()) {
+        if (!ent.isDead && ent.type === 'building' && ent.faction === 'voidCovenant') playerBuildings++;
+      }
+      const base = 3 + playerBuildings * 2;
+      window.RTSEconomySystem.addResource('profit', base);
+      window.RTSEconomySystem.addResource('aether', 1);
+    }
+  }
+
   function install(scene) {
     if (!scene) {
       console.warn('[RTSEngineCore] No scene provided to install()');
@@ -410,6 +484,7 @@
   function tick(dt) {
     tickEntities(dt || 0.016);
     tickProjectiles(dt || 0.016);
+    tickPassiveIncome(dt || 0.016);
   }
 
   window.RTSEngineCore = {

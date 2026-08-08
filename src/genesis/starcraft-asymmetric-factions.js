@@ -11,8 +11,6 @@
 (function() {
   'use strict';
 
-  const T = window.THREE;
-
   // ─── FACTION MECHANICS ENGINE ───────────────────────────────────────
 
   const FACTION_MECHANICS = {
@@ -39,10 +37,13 @@
 
   function applyProtossShield(mesh, maxShield) {
     if (!mesh) return;
+    const T = window.THREE;
+    if (!T) return;
     maxShield = maxShield || 100;
 
     // Glowing Blue Shield Bubble
-    const shieldGeo = new T.SphereGeometry(mesh.geometry.boundingSphere ? mesh.geometry.boundingSphere.radius * 1.4 : 3, 16, 16);
+    const radiusVal = (mesh.geometry && mesh.geometry.boundingSphere) ? mesh.geometry.boundingSphere.radius * 1.4 : 3;
+    const shieldGeo = new T.SphereGeometry(radiusVal, 16, 16);
     const shieldMat = new T.MeshBasicMaterial({
       color: 0x00aaff,
       transparent: true,
@@ -82,6 +83,8 @@
   let creepPlane = null;
 
   function spawnBioCreep(position, radius, scene) {
+    const T = window.THREE;
+    if (!T) return;
     radius = radius || 80;
     const geo = new T.CircleGeometry(radius, 32);
     const mat = new T.MeshBasicMaterial({
@@ -113,6 +116,8 @@
 
   function install(scene) {
     if (!scene) return;
+    const T = window.THREE;
+    if (!T) return;
 
     // Deploy Bio-Creep terrain at Bioluminescent Hive (1200, 0, -500)
     spawnBioCreep(new T.Vector3(1200, 0, -500), 120, scene);

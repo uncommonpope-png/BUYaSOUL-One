@@ -3380,6 +3380,9 @@ export function install(Genesis) {
     if (window.RTSBaseBuilder) {
       try { window.RTSBaseBuilder.install({ scene: scene, camera: camera }); } catch(e) { console.warn('[VoidPopulation] RTSBaseBuilder install failed:', e && e.message); }
     }
+    if (window.RTSProductionSystem) {
+      try { window.RTSProductionSystem.install(scene); } catch(e) { console.warn('[VoidPopulation] RTSProductionSystem install failed:', e && e.message); }
+    }
 
     // Phase 5: Register Grand Tower as a town hall (harvest drop-off point)
     // and mark enemy bases in the nav grid
@@ -3388,12 +3391,16 @@ export function install(Genesis) {
         const w = worlds[i];
         if (!w || !w.city) continue;
         const wt = TYPES[i] || w.type;
+        const faction = (wt === 'grandtower' || wt === 'cplclone') ? 'voidCovenant' : 'imperium';
         // Register city center as building
-        let ent = window.RTSEngineCore.registerEntity(w.city, 'building', 'imperium', 5000, 45);
+        let ent = window.RTSEngineCore.registerEntity(w.city, 'building', faction, 5000, 45);
         if (ent) {
           // Grand Tower + New City = player town halls (harvest drop-off)
           if (wt === 'grandtower' || wt === 'cplclone') {
             ent.isTownHall = true;
+          }
+          if (wt === 'grandtower') {
+            ent.isGrandTower = true;
           }
           // Mark nav grid for this building
           if (window.RTSNavGrid) {
@@ -3432,10 +3439,32 @@ export function install(Genesis) {
     if (window.RTSEngineCore && _allSovereignCities && _allSovereignCities.length) {
       _allSovereignCities.forEach((city) => {
         if (!city) return;
-        const ent = window.RTSEngineCore.registerEntity(city, 'building', 'imperium', 4000, 30);
-        if (ent) ent.isTownHall = true;
+        let faction = 'neutral';
+        let isEnemyBase = false;
+
+        // Correctly assign factions based on home base coordinates
+        if (Math.abs(city.position.x - 1200) < 10 && Math.abs(city.position.z - (-500)) < 10) {
+          faction = 'bioHive';
+          isEnemyBase = true;
+        } else if (Math.abs(city.position.x - (-800)) < 10 && Math.abs(city.position.z - (-600)) < 10) {
+          faction = 'imperium';
+          isEnemyBase = true;
+        } else if (Math.abs(city.position.x - 900) < 10 && Math.abs(city.position.z - 300) < 10) {
+          faction = 'imperium'; // Shattered Front is imperium
+        } else {
+          faction = 'neutral';
+        }
+
+        const ent = window.RTSEngineCore.registerEntity(city, 'building', faction, 4000, 30);
+        if (ent) {
+          ent.isTownHall = true;
+          if (isEnemyBase) {
+            ent.isEnemyBase = true;
+            console.log(`[VoidPopulation] Registered enemy command center for ${faction} at ${city.position.x}, ${city.position.z}`);
+          }
+        }
       });
-      console.log('[VoidPopulation] Registered ' + _allSovereignCities.length + ' sovereign city centers as town halls.');
+      console.log('[VoidPopulation] Registered ' + _allSovereignCities.length + ' sovereign city centers.');
     }
 
     console.log('[VoidPopulation] Spawned', WORLD_COUNT, 'Lost Worlds + war fleet at distances', MIN_DIST, '-', MAX_DIST, 'units');
@@ -3772,6 +3801,12 @@ export function install(Genesis) {
     }
     if (window.RTSBaseBuilder && window.RTSBaseBuilder.tick) {
       window.RTSBaseBuilder.tick(dt);
+    }
+    if (window.RTSProductionSystem && window.RTSProductionSystem.tick) {
+      window.RTSProductionSystem.tick(dt);
+    }
+    if (window.RTSGameState && window.RTSGameState.tick) {
+      window.RTSGameState.tick();
     }
     if (window.GodPowersEngine && window.GodPowersEngine.tick) {
       window.GodPowersEngine.tick(dt);

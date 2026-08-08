@@ -8,12 +8,12 @@
 (function() {
   'use strict';
 
-  const T = window.THREE;
-
   // ─── 1. SSAO & POST-PROCESSING SHADOW SIMULATION ─────────────────────
 
   function applySSAOAndContactShadows(scene) {
     if (!scene) return;
+    const T = window.THREE;
+    if (!T) return;
 
     // Contact shadow floor plane under main city
     const shadowGeo = new T.PlaneGeometry(1200, 1200);
@@ -32,6 +32,8 @@
   // ─── 2. SEAMLESS GALACTIC SOLAR SYSTEM ZOOM (ITEM 100) ───────────────
 
   function createGalacticMapOverlay(scene) {
+    const T = window.THREE;
+    if (!T) return;
     const galaxyGroup = new T.Group();
     galaxyGroup.name = 'galactic-map-overview';
 

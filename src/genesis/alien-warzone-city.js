@@ -25,6 +25,13 @@
 (function() {
   'use strict';
 
+  // Fallback for missing engine-level physical material function
+  if (typeof window.__genesisPhysMat !== 'function') {
+    window.__genesisPhysMat = function(opts) {
+      return new THREE.MeshPhysicalMaterial(opts);
+    };
+  }
+
   // ─── CONFIG ───────────────────────────────────────────────────────────
   const CFG = {
     offsetX: 900,

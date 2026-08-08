@@ -12,8 +12,6 @@
 (function() {
   'use strict';
 
-  const T = window.THREE;
-
   // ─── BUILDABLE STRUCTURES ───────────────────────────────────────────
   const BUILD_DEFS = {
     barracks: {
@@ -75,13 +73,15 @@
       display: 'flex',
       flexDirection: 'column',
       gap: '6px',
-      background: 'rgba(6, 10, 20, 0.9)',
-      border: '1px solid rgba(0, 255, 136, 0.35)',
+      background: 'var(--gf-bg-glass)',
+      border: '1px solid var(--gf-border-cyan)',
       borderRadius: '14px',
       padding: '10px',
       zIndex: '110',
-      fontFamily: 'Outfit, -apple-system, sans-serif',
-      boxShadow: '0 8px 32px rgba(0,0,0,0.6)'
+      fontFamily: 'var(--gf-font-main)',
+      backdropFilter: 'blur(14px)',
+      WebkitBackdropFilter: 'blur(14px)',
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6), 0 0 15px rgba(0, 255, 204, 0.1)'
     });
     buildMenu.innerHTML = '<div style="font-size:11px;letter-spacing:1.5px;color:#00ff88;text-align:center;margin-bottom:4px;">⚒ BUILD</div>';
     for (const [id, def] of Object.entries(BUILD_DEFS)) {
@@ -118,6 +118,8 @@
 
   // ─── GHOST HOLOGRAM ─────────────────────────────────────────────────
   function makeGhost(def) {
+    const T = window.THREE;
+    if (!T) return null;
     const group = new T.Group();
     const mat = new T.MeshStandardMaterial({
       color: def.color,
@@ -248,6 +250,8 @@
     }
 
     // Mesh
+    const T = window.THREE;
+    if (!T) return;
     const group = new T.Group();
     const mat = new T.MeshStandardMaterial({
       color: def.color,

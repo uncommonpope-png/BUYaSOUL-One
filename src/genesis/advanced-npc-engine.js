@@ -9,11 +9,11 @@
 (function() {
   'use strict';
 
-  const T = window.THREE;
-
   // ─── PROCEDURAL 3D HUMANOID RIG CREATOR ──────────────────────────────
 
   function createHumanoidRig(colorHex, isAlien) {
+    const T = window.THREE;
+    if (!T) { console.warn('[AdvancedNPCEngine] THREE not ready'); return new (function(){})(); }
     const group = new T.Group();
 
     const skinMat = new T.MeshStandardMaterial({
@@ -92,7 +92,26 @@
     const colors = [0x00ffcc, 0xff0055, 0xffaa00, 0x0088ff, 0xaa00ff];
     const factions = ['imperium', 'voidCovenant', 'bioHive'];
 
-    for (let i = 0; i < count; i++) {
+    // 1. Spawn starting player units (voidCovenant) at the Grand Tower (-104, 0, 401)
+    const playerUnitCount = 12;
+    const towerPos = new T.Vector3(-104, 0, 401);
+    for (let i = 0; i < playerUnitCount; i++) {
+      const npcMesh = createHumanoidRig(0x00ffcc, false); // Cyan humanoid rig for player
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 10 + Math.random() * 25;
+      npcMesh.position.set(
+        towerPos.x + Math.cos(angle) * dist,
+        0,
+        towerPos.z + Math.sin(angle) * dist
+      );
+      group.add(npcMesh);
+      if (window.RTSEngineCore) {
+        window.RTSEngineCore.registerEntity(npcMesh, 'unit', 'voidCovenant', 100, 1.2);
+      }
+    }
+
+    // 2. Spawn remaining units distributed randomly
+    for (let i = 0; i < (count - playerUnitCount); i++) {
       const isAlien = Math.random() > 0.6;
       const color = colors[Math.floor(Math.random() * colors.length)];
       const faction = factions[Math.floor(Math.random() * factions.length)];
@@ -100,7 +119,7 @@
       const npcMesh = createHumanoidRig(color, isAlien);
 
       // Distribute across city / marketplace radius
-      const radius = 50 + Math.random() * 200;
+      const radius = 150 + Math.random() * 300;
       const angle = Math.random() * Math.PI * 2;
       npcMesh.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
 
@@ -113,7 +132,7 @@
     }
 
     scene.add(group);
-    console.log('[AdvancedNPCEngine] Spawned and Registered', count, 'RTS Units.');
+    console.log('[AdvancedNPCEngine] Spawned and Registered starting player units at Grand Tower and other NPCs.');
   }
 
   // ─── PROCEDURAL ANIMATION TICK ───────────────────────────────────────
@@ -122,10 +141,9 @@
     if (!window.RTSEngineCore) return;
 
     for (const ent of window.RTSEngineCore.ENTITIES.values()) {
-      if (ent.type !== 'unit' || ent.isDead || !ent.mesh || !ent.mesh.userData.walkPhase !== undefined) continue;
+      if (ent.type !== 'unit' || ent.isDead || !ent.mesh || !ent.mesh.userData || ent.mesh.userData.walkPhase === undefined) continue;
 
       const ud = ent.mesh.userData;
-      if (!ud || ud.walkPhase === undefined) continue;
 
       // Only swing limbs if moving
       if (ent.state === 'moving') {
@@ -193,9 +211,9 @@
       if (!ent || ent.isDead) continue;
 
       if (targetEntityId && targetEntityId !== ent.id) {
-        // Attack Target
+        // Attack / harvest / drop-off target
         ent.targetId = targetEntityId;
-        ent.state = 'moving'; // It will figure out if it needs to move in tick
+        ent.state = 'moving';
       } else {
         // Move to point
         ent.targetPos = point.clone();
@@ -211,6 +229,11 @@
   function install(scene) {
     if (!scene) return;
     spawnNPCPopulation(scene, 60);
+
+    // Overriding selection methods for compatibility with UI scripts
+    window.AdvancedNPCEngine.selectNPC = selectEntity;
+    window.AdvancedNPCEngine.clearNPCSelection = clearSelection;
+    window.AdvancedNPCEngine.commandNPCsTo = commandSelectedTo;
 
     // Register right-click command with the unified input router
     if (window.RTSInputRouter) {

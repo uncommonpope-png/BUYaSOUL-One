@@ -39,12 +39,24 @@
   let dragActive = false;
 
   // --- shared raycast point ---
-  const GROUND_PLANE = new T.Plane(new T.Vector3(0, 1, 0), 0);
-  const _ray = new T.Raycaster();
-  const _mouse = new T.Vector2();
-  const _point = new T.Vector3();
+  let GROUND_PLANE = null;
+  let _ray = null;
+  let _mouse = null;
+  let _point = null;
+
+  function initThreeObjects() {
+    if (GROUND_PLANE) return;
+    const T = window.THREE;
+    if (!T) return;
+    GROUND_PLANE = new T.Plane(new T.Vector3(0, 1, 0), 0);
+    _ray = new T.Raycaster();
+    _mouse = new T.Vector2();
+    _point = new T.Vector3();
+  }
 
   function lastRaycastPoint(clientX, clientY) {
+    initThreeObjects();
+    if (!_ray) return null;
     _mouse.x = (clientX / window.innerWidth) * 2 - 1;
     _mouse.y = -(clientY / window.innerHeight) * 2 + 1;
     _ray.setFromCamera(_mouse, CAMERA);
@@ -220,6 +232,7 @@
     opts = opts || {};
     SCENE = opts.scene || null;
     CAMERA = opts.camera || null;
+    initThreeObjects();
 
     window.addEventListener('pointerdown', onPointerDown, { passive: true });
     window.addEventListener('pointermove', onPointerMove, { passive: true });

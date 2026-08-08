@@ -13,12 +13,12 @@
 (function() {
   'use strict';
 
-  const T = window.THREE;
-
   // ─── 1. ATMOSPHERIC LIGHTING & VOLUMETRIC HEIGHT FOG ─────────────────
 
   function setupAtmosphere(scene) {
     if (!scene) return;
+    const T = window.THREE;
+    if (!T) return;
 
     // Volumetric Height Fog (Density 0.00065, Void Cyan Tint)
     scene.fog = new T.FogExp2(0x060c18, 0.00065);
@@ -38,6 +38,8 @@
   // ─── 2. ANIMATED CYBERPUNK NEON BILLBOARD CANVAS ─────────────────────
 
   function createNeonBillboard(text, width, height) {
+    const T = window.THREE;
+    if (!T) return null;
     width = width || 256;
     height = height || 128;
 
@@ -73,6 +75,8 @@
   const HOVER_CARS = [];
 
   function spawnHoverTraffic(scene, count) {
+    const T = window.THREE;
+    if (!T) return;
     count = count || 30;
     const group = new T.Group();
     group.name = 'hover-traffic';

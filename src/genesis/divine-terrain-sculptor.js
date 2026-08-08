@@ -10,13 +10,14 @@
 (function() {
   'use strict';
 
-  const T = window.THREE;
   let SCENE_REF = null;
 
   // ─── GOD POWERS ─────────────────────────────────────────────────────
 
   function smite(position, radius = 20, damage = 500) {
     if (!SCENE_REF) return;
+    const T = window.THREE;
+    if (!T) return;
 
     console.log(`[DivineSculptor] Smite at ${position.x}, ${position.z}`);
 
@@ -50,6 +51,8 @@
 
   function sculptTerrain(position, radius = 10, height = 15) {
     if (!SCENE_REF) return;
+    const T = window.THREE;
+    if (!T) return;
     
     console.log(`[DivineSculptor] Sculpting terrain at ${position.x}, ${position.z}`);
     
@@ -72,12 +75,22 @@
 
   // ─── INPUT HANDLING ─────────────────────────────────────────────────
 
-  const raycaster = new T.Raycaster();
-  const mouse = new T.Vector2();
+  let raycaster = null;
+  let mouse = null;
   let cameraRef = null;
+
+  function initInputs() {
+    if (raycaster) return;
+    const T = window.THREE;
+    if (!T) return;
+    raycaster = new T.Raycaster();
+    mouse = new T.Vector2();
+  }
 
   function onMouseRightClick(event) {
     if (!cameraRef) return;
+    initInputs();
+    if (!raycaster) return;
     // We'll use Shift + Right Click for Smite, Alt + Right Click for Sculpt
     if (!event.shiftKey && !event.altKey) return;
     
@@ -87,6 +100,7 @@
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
     raycaster.setFromCamera(mouse, cameraRef);
+    const T = window.THREE;
     const planeZ = new T.Plane(new T.Vector3(0, 1, 0), 0);
     const target = new T.Vector3();
     
@@ -105,6 +119,7 @@
     if (!scene || !camera) return;
     SCENE_REF = scene;
     cameraRef = camera;
+    initInputs();
 
     // Register through the unified input router (modifier right-clicks only)
     if (window.RTSInputRouter) {

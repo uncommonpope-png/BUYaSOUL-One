@@ -4,3 +4,6 @@
 assets/
 covers/
 *.mp4
+
+# 1.4GB runtime-generated void assets - never commit
+void-assets/
