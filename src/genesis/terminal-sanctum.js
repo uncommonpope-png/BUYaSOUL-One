@@ -12,7 +12,16 @@
 (function() {
   'use strict';
 
-  const T = window.THREE;
+  // Lazy THREE accessor — window.THREE is set by the ES module block AFTER
+  // this legacy IIFE parses. Proxy defers resolution until real use (inside
+  // install(), which runs post-boot when THREE exists).
+  const T = new Proxy({}, {
+    get: function(_t, prop) {
+      const THREE = window.THREE;
+      if (!THREE) return undefined;
+      return THREE[prop];
+    }
+  });
 
   // ─── TERMINAL SIMULATOR ─────────────────────────────────────────────
 

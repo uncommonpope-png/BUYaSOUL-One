@@ -85,6 +85,8 @@
   // ─── ADVANCED NPC SPAWNER ────────────────────────────────────────────
 
   function spawnNPCPopulation(scene, count) {
+    const T = window.THREE;
+    if (!T) { console.warn('[AdvancedNPCEngine] THREE not ready, skipping NPC population'); return; }
     count = count || 60;
     const group = new T.Group();
     group.name = 'advanced-npc-population';
@@ -183,6 +185,8 @@
     SELECTED_ENTITIES.add(ent.id);
 
     if (!mesh.userData.badgeRing) {
+      const T = window.THREE;
+      if (!T) return;
       const ringMat = new T.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
       const ring = new T.Mesh(new T.TorusGeometry(ent.radius + 0.2, 0.08, 8, 16), ringMat);
       ring.rotation.x = Math.PI / 2;
