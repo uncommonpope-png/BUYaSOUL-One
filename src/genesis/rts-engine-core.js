@@ -1,13 +1,4 @@
-/**
- * rts-engine-core.js
- * BUYASOUL CPL / GODFORGE — Core RTS Mechanics Engine
- * 
- * Provides:
- *   1. EntityManager: Tracking all units, buildings, and destructibles.
- *   2. CombatEngine: Health, damage, death events, and basic combat loops.
- *   3. CollisionEngine: Basic 2D (X/Z) spatial awareness and overlap prevention.
- */
-
+/* rts-engine-core.js — patched: projectile pooling, harvesting slots, target policy, deposit flag */
 (function() {
   'use strict';
 
@@ -21,15 +12,15 @@
     constructor(mesh, type, faction, maxHp, radius) {
       this.id = ++entityIdCounter;
       this.mesh = mesh; // THREE.Object3D
-      this.type = type; // 'unit' or 'building'
+      this.type = type; // 'unit' or 'building' or 'resource'
       this.faction = faction; // 'imperium', 'voidCovenant', 'bioHive', 'neutral'
-      
+
       this.maxHp = maxHp;
       this.hp = maxHp;
       this.radius = radius || 1.0;
-      
+
       this.isDead = false;
-      
+
       // Combat stats
       this.attackRange = (type === 'unit') ? 5 : 0;
       this.attackDamage = (type === 'unit') ? 10 : 0;
@@ -38,22 +29,29 @@
       this.targetId = null;
 
       // State
-      this.state = 'idle'; // 'idle', 'moving', 'attacking', 'harvesting', 'returning'
+      this.state = 'idle'; // 'idle', 'moving', 'attacking', 'harvesting', 'returning', 'waiting', 'repairing'
       this.targetPos = null;
       this.speed = (type === 'unit') ? (3 + Math.random() * 2) : 0;
 
       // Town Hall (drop-off) flag — Phase 5: harvesters only return here
       this.isTownHall = false;
-      
+
       // Economy
       this.carryAmount = 0;
       this.maxCarry = 15;
+
+      // Harvesting helpers
+      this._harvestSlot = null; // assigned slot index on node
+      this._justDeposited = false; // set by engine when deposit happens
+
+      // Targeting policy (nearest | lowestHp)
+      this.targetPolicy = 'nearest';
 
       // Attach back-reference
       if (this.mesh) {
         this.mesh.userData.entityId = this.id;
       }
-      
+
       // Asymmetric Factions: Apply Protoss Shields
       if (this.faction === 'voidCovenant' && window.StarCraftAsymmetricEngine) {
         this.shieldData = window.StarCraftAsymmetricEngine.applyProtossShield(this.mesh, this.maxHp);
@@ -62,24 +60,24 @@
 
     takeDamage(amount) {
       if (this.isDead) return;
-      
+
       // Asymmetric Factions: Protoss Shield Intercept
       if (this.shieldData && this.shieldData.shield > 0) {
         if (amount > this.shieldData.shield) {
            amount -= this.shieldData.shield;
            this.shieldData.shield = 0;
-           this.shieldData.shieldMesh.material.opacity = 0;
+           if (this.shieldData.shieldMesh) this.shieldData.shieldMesh.material.opacity = 0;
            this.shieldData.rechargeTimer = 0;
         } else {
            this.shieldData.shield -= amount;
            this.shieldData.rechargeTimer = 0; // reset recharge
-           this.shieldData.shieldMesh.material.opacity = 0.1 + (this.shieldData.shield / this.shieldData.maxShield) * 0.3;
+           if (this.shieldData.shieldMesh) this.shieldData.shieldMesh.material.opacity = 0.1 + (this.shieldData.shield / this.shieldData.maxShield) * 0.3;
            return; // All damage absorbed
         }
       }
 
       this.hp -= amount;
-      
+
       // Visual feedback (flash red)
       if (this.mesh) {
         this.mesh.traverse((child) => {
@@ -102,9 +100,9 @@
       this.isDead = true;
       this.hp = 0;
       console.log(`[RTSEngine] Entity ${this.id} (${this.type}) died.`);
-      
+
       if (this.mesh && this.mesh.parent) {
-        // Simple death animation: sink into ground
+        // Simple death animation: sink into ground (visual only)
         const startY = this.mesh.position.y;
         let t = 0;
         const sinkInterval = setInterval(() => {
@@ -116,10 +114,19 @@
           if (t >= 1) {
             clearInterval(sinkInterval);
             if (this.mesh && this.mesh.parent) {
-               this.mesh.parent.remove(this.mesh);
+               try { this.mesh.parent.remove(this.mesh); } catch(_) {}
             }
           }
         }, 16);
+      }
+
+      // Clean up harvest slot if any
+      if (this._harvestSlot && this._harvestSlot.nodeId) {
+        const node = ENTITIES.get(this._harvestSlot.nodeId);
+        if (node && node.harvesterIds) {
+          const i = node.harvesterIds.indexOf(this.id);
+          if (i >= 0) node.harvesterIds.splice(i,1);
+        }
       }
 
       ENTITIES.delete(this.id);
@@ -150,39 +157,60 @@
     return found;
   }
 
-  // --- PROJECTILES ---
+  // --- PROJECTILES (pooled) ---
   const PROJECTILES = [];
+  const PROJECTILE_POOL = [];
+  let PROJECTILE_GEOMETRY = null;
+
+  function createProjectileMesh(color) {
+    const T = window.THREE;
+    if (!PROJECTILE_GEOMETRY) {
+      PROJECTILE_GEOMETRY = new T.CylinderGeometry(0.2, 0.2, 4, 4);
+      PROJECTILE_GEOMETRY.translate(0, 2, 0);
+      PROJECTILE_GEOMETRY.rotateX(Math.PI / 2);
+    }
+    const mat = new T.MeshBasicMaterial({ color: color });
+    const mesh = new T.Mesh(PROJECTILE_GEOMETRY, mat);
+    mesh.visible = false;
+    mesh.userData._pooled = true;
+    return mesh;
+  }
 
   function spawnProjectile(startPos, targetPos, color = 0x00ffcc) {
     if (!SCENE_REF) return;
     const T = window.THREE;
     if (!T) return;
-    
-    // Create a laser beam cylinder
-    const geo = new T.CylinderGeometry(0.2, 0.2, 4, 4);
-    geo.translate(0, 2, 0); // Origin at base
-    geo.rotateX(Math.PI / 2); // Point along Z
-    
-    const mat = new T.MeshBasicMaterial({ color: color });
-    const mesh = new T.Mesh(geo, mat);
-    
-    // Start at attacker's height + a little offset
+
+    let mesh = null;
+    if (PROJECTILE_POOL.length > 0) {
+      mesh = PROJECTILE_POOL.pop();
+      // ensure material color matches
+      try { mesh.material.color.setHex(color); } catch (e) {}
+    } else {
+      mesh = createProjectileMesh(color);
+    }
+
     mesh.position.copy(startPos);
-    mesh.position.y += 2; 
-    
-    // Point at target
+    mesh.position.y += 2;
+
     const targetOffset = targetPos.clone();
     targetOffset.y += 2;
     mesh.lookAt(targetOffset);
-    
+
+    mesh.visible = true;
     SCENE_REF.add(mesh);
-    
-    PROJECTILES.push({
-      mesh: mesh,
-      target: targetOffset,
-      speed: 80, // fast
-      life: 1.0 // safety timeout
-    });
+
+    PROJECTILES.push({ mesh: mesh, target: targetOffset, speed: 80, life: 1.0 });
+  }
+
+  function recycleProjectile(p) {
+    try {
+      if (p.mesh && p.mesh.parent) p.mesh.parent.remove(p.mesh);
+      p.mesh.visible = false;
+      PROJECTILE_POOL.push(p.mesh);
+    } catch (e) {
+      // swallow
+    }
   }
 
   function tickProjectiles(dt) {
@@ -191,12 +219,12 @@
     for (let i = PROJECTILES.length - 1; i >= 0; i--) {
       const p = PROJECTILES[i];
       p.life -= dt;
-      
+
       const dir = new T.Vector3().subVectors(p.target, p.mesh.position);
       const dist = dir.length();
-      
+
       if (dist < 2 || p.life <= 0) {
-        if (p.mesh.parent) p.mesh.parent.remove(p.mesh);
+        recycleProjectile(p);
         PROJECTILES.splice(i, 1);
       } else {
         dir.normalize();
@@ -207,38 +235,51 @@
 
   // --- COMBAT & MOVEMENT LOOP ---
 
+  function chooseTarget(unit, candidates) {
+    if (!candidates || candidates.length === 0) return null;
+    if (unit.targetPolicy === 'lowestHp') {
+      let best = null; let bestHp = Infinity;
+      for (const c of candidates) {
+        if (c.isDead) continue;
+        if (c.hp < bestHp) { bestHp = c.hp; best = c; }
+      }
+      return best;
+    }
+    // default nearest
+    let nearest = null; let minD = Infinity;
+    for (const c of candidates) {
+      if (c.isDead || !c.mesh) continue;
+      const d = unit.mesh.position.distanceTo(c.mesh.position);
+      if (d < minD) { minD = d; nearest = c; }
+    }
+    return nearest;
+  }
+
   function tickEntities(dt) {
     const T = window.THREE;
     if (!T) return;
-    // Spatial partitioning would be better, but O(N^2) is fine for small N
     const allEnts = Array.from(ENTITIES.values());
 
     for (let i = 0; i < allEnts.length; i++) {
       const ent = allEnts[i];
       if (ent.isDead || !ent.mesh) continue;
 
-      // 1. Cooldowns
-      if (ent.currentCooldown > 0) {
-        ent.currentCooldown -= dt;
-      }
+      // cooldowns
+      if (ent.currentCooldown > 0) ent.currentCooldown -= dt;
 
-      // 1.5. Turret Auto-Defense (Phase 7)
+      // building turrets auto-defend
       if (ent.type === 'building') {
         if (ent.isTurret) {
-          // Scan for nearest enemy unit in attack range
-          let nearestEnemy = null;
-          let minDist = ent.attackRange || 20;
+          const aggroRange = ent.attackRange || 20;
+          const candidates = [];
           for (let j = 0; j < allEnts.length; j++) {
             const other = allEnts[j];
             if (other.isDead || other.type !== 'unit') continue;
-            if (other.faction === ent.faction) continue; // skip friendly
-            
+            if (other.faction === ent.faction) continue;
             const d = ent.mesh.position.distanceTo(other.mesh.position);
-            if (d < minDist) {
-              minDist = d;
-              nearestEnemy = other;
-            }
+            if (d < aggroRange) candidates.push(other);
           }
+          const nearestEnemy = chooseTarget(ent, candidates);
           if (nearestEnemy) {
             ent.mesh.lookAt(nearestEnemy.mesh.position.x, ent.mesh.position.y, nearestEnemy.mesh.position.z);
             if (ent.currentCooldown <= 0) {
@@ -248,32 +289,29 @@
             }
           }
         }
-        continue; // Skip unit logic for buildings
+        continue;
       }
 
-      // 2. AUTO-AGGRO: idle units scan for nearby enemies and auto-attack
-      if (ent.type === 'unit' && ent.state === 'idle' && !ent.targetId && !ent.targetPos && !ent._noAggro) {
+      // auto-aggro for idle units
+      if (ent.type === 'unit' && ent.state === 'idle' && !ent.targetId && !ent._noAggro) {
         const aggroRange = ent.aggroRange || 15;
-        let nearestEnemy = null;
-        let minAggroDist = aggroRange;
+        const candidates = [];
         for (let j = 0; j < allEnts.length; j++) {
           const other = allEnts[j];
           if (other.id === ent.id || other.isDead || !other.mesh) continue;
           if (other.faction === ent.faction || other.faction === 'neutral') continue;
           if (other.type !== 'unit' && other.type !== 'building') continue;
           const d = ent.mesh.position.distanceTo(other.mesh.position);
-          if (d < minAggroDist) {
-            minAggroDist = d;
-            nearestEnemy = other;
-          }
+          if (d < aggroRange) candidates.push(other);
         }
-        if (nearestEnemy) {
-          ent.targetId = nearestEnemy.id;
+        const target = chooseTarget(ent, candidates);
+        if (target) {
+          ent.targetId = target.id;
           ent.state = 'moving';
         }
       }
 
-      // 2. State Machine: Attacking or Harvesting
+      // If has explicit targetId handle combat/harvest/return logic
       if (ent.targetId) {
         const target = getEntity(ent.targetId);
         if (!target || target.isDead) {
@@ -281,9 +319,23 @@
           ent.state = 'idle';
         } else {
           const dist = ent.mesh.position.distanceTo(target.mesh.position);
-          
+
           if (target.type === 'resource') {
-             // Harvesting Logic
+             // HARVESTING: manage harvester slot assignment
+             const node = target;
+             if (!node.harvesterIds) node.harvesterIds = [];
+             // If not yet assigned a slot, try to acquire one
+             if (!ent._harvestSlot) {
+               if (node.harvesterIds.length < (node.maxHarvesters || 3)) {
+                 node.harvesterIds.push(ent.id);
+                 ent._harvestSlot = { nodeId: node.id };
+               } else {
+                 // Wait outside until a slot frees up
+                 ent.state = 'waiting';
+                 continue;
+               }
+             }
+
              if (dist <= ent.attackRange + ent.radius + target.radius + 2) {
                 ent.state = 'harvesting';
                 if (ent.currentCooldown <= 0) {
@@ -291,9 +343,19 @@
                    target.resourceAmount -= amount;
                    ent.carryAmount += amount;
                    ent.currentCooldown = ent.attackCooldown; // mining time
-                   
-                   if (target.resourceAmount <= 0) target.die();
-                   
+
+                   if (target.resourceAmount <= 0) {
+                     target.die();
+                     // free all harvester slots
+                     if (target.harvesterIds) {
+                       for (const hid of target.harvesterIds) {
+                         const h = ENTITIES.get(hid);
+                         if (h) h._harvestSlot = null;
+                       }
+                       target.harvesterIds = [];
+                     }
+                   }
+
                    if (ent.carryAmount >= ent.maxCarry) {
                       // Full! Return to the nearest TOWN HALL (isTownHall === true)
                       ent.state = 'returning';
@@ -309,6 +371,15 @@
                       if (nearest) {
                          ent.targetId = nearest.id;
                       }
+                      // free slot at node so others can mine
+                      if (ent._harvestSlot && ent._harvestSlot.nodeId) {
+                        const n = ENTITIES.get(ent._harvestSlot.nodeId);
+                        if (n && n.harvesterIds) {
+                          const ii = n.harvesterIds.indexOf(ent.id);
+                          if (ii >= 0) n.harvesterIds.splice(ii,1);
+                        }
+                        ent._harvestSlot = null;
+                      }
                    }
                 }
              } else {
@@ -323,7 +394,9 @@
                 }
                 ent.carryAmount = 0;
                 ent.state = 'idle';
-                ent.targetId = null; // Wait for next command or auto-seek? Just idle for now.
+                ent.targetId = null;
+                // mark deposit event for executor
+                ent._justDeposited = true;
              } else {
                 ent.state = 'moving';
                 ent.targetPos = target.mesh.position.clone();
@@ -332,17 +405,13 @@
              // Combat Logic
              if (dist <= ent.attackRange + ent.radius + target.radius) {
                ent.state = 'attacking';
-               // Attack!
                if (ent.currentCooldown <= 0) {
                  target.takeDamage(ent.attackDamage);
                  ent.currentCooldown = ent.attackCooldown;
-                 
-                 // Spawn laser projectile
                  const color = (ent.faction === 'imperium') ? 0xff4400 : (ent.faction === 'voidCovenant' ? 0x00ffff : 0x00ff00);
                  spawnProjectile(ent.mesh.position, target.mesh.position, color);
                }
              } else {
-               // Move into range
                ent.state = 'moving';
                ent.targetPos = target.mesh.position.clone();
              }
@@ -350,13 +419,12 @@
         }
       }
 
-      // 3. Movement — with A* waypoint following (Phase 5)
+      // Movement — with A* waypoint following
       if (ent.state === 'moving' && ent.targetPos) {
         const dir = new T.Vector3().subVectors(ent.targetPos, ent.mesh.position);
-        dir.y = 0; // Keep on 2D plane
+        dir.y = 0;
         const distToTarget = dir.length();
-        
-        // Request A* path on first move toward a new target
+
         if (window.RTSNavGrid && (!ent._navTarget || ent._navTarget.distanceTo(ent.targetPos) > 2)) {
           ent._navTarget = ent.targetPos.clone();
           ent._navWaypoints = window.RTSNavGrid.findPath(
@@ -365,17 +433,14 @@
           );
           ent._navWPIndex = 0;
         }
-        
+
         let moveSpeed = ent.speed;
-        // Asymmetric Factions: Zerg Bio-Creep Speed Boost
         if (ent.faction === 'bioHive' && window.StarCraftAsymmetricEngine && window.StarCraftAsymmetricEngine.isOnCreep(ent.mesh.position)) {
            moveSpeed *= 1.3;
         }
-        
+
         if (distToTarget > 0.5) {
           let steerDir = dir.clone().normalize();
-          
-          // A* waypoint following (Phase 5)
           if (ent._navWaypoints && ent._navWPIndex < ent._navWaypoints.length) {
             const wp = ent._navWaypoints[ent._navWPIndex];
             const wpVec = new T.Vector3(wp.x, ent.mesh.position.y, wp.z);
@@ -388,16 +453,14 @@
               steerDir = new T.Vector3(nextWP.x - ent.mesh.position.x, 0, nextWP.z - ent.mesh.position.z).normalize();
             }
           } else {
-            // Fallback: Obstacle Avoidance (Steering)
-            let avoidForce = new T.Vector3(0, 0, 0);
+            // obstacle avoidance simple
+            let avoidForce = new T.Vector3(0,0,0);
             for (let j = 0; j < allEnts.length; j++) {
               const other = allEnts[j];
               if (other.id === ent.id || other.isDead || !other.mesh || other.type !== 'building') continue;
-              
               const toOther = new T.Vector3().subVectors(other.mesh.position, ent.mesh.position);
               toOther.y = 0;
               const distToOther = toOther.length();
-              
               const detectionRadius = other.radius + 10;
               if (distToOther < detectionRadius) {
                  toOther.normalize();
@@ -409,10 +472,9 @@
                  }
               }
             }
-            
             steerDir.add(avoidForce).normalize();
           }
-          
+
           ent.mesh.position.add(steerDir.multiplyScalar(moveSpeed * dt));
           ent.mesh.lookAt(ent.mesh.position.x + steerDir.x, ent.mesh.position.y, ent.mesh.position.z + steerDir.z);
         } else {
@@ -424,7 +486,7 @@
         }
       }
 
-      // 4. Basic Collision (Push apart overlapping units)
+      // Basic Collision (Push apart overlapping units)
       if (ent.type === 'unit') {
         for (let j = 0; j < allEnts.length; j++) {
           if (i === j) continue;
@@ -439,10 +501,7 @@
           if (distSq > 0 && distSq < minD * minD) {
             const dist = Math.sqrt(distSq);
             const overlap = minD - dist;
-            
-            // Push ent away (if both are units, push both half. If other is building, push ent full)
             const pushFactor = (other.type === 'building') ? 1.0 : 0.5;
-            
             ent.mesh.position.x += (dx / dist) * overlap * pushFactor;
             ent.mesh.position.z += (dz / dist) * overlap * pushFactor;
           }
@@ -453,15 +512,12 @@
 
   // --- INITIALIZER ---
 
-  // --- PASSIVE ECONOMY DRIP ---
-  // Gives the player a slow trickle of all resources so HUD numbers visibly change
   let _passiveTimer = 0;
   function tickPassiveIncome(dt) {
     if (!window.RTSEconomySystem) return;
     _passiveTimer += dt;
-    if (_passiveTimer >= 5.0) { // Every 5 seconds
+    if (_passiveTimer >= 5.0) {
       _passiveTimer = 0;
-      // Count alive player buildings for income scaling
       let playerBuildings = 0;
       for (const ent of ENTITIES.values()) {
         if (!ent.isDead && ent.type === 'building' && ent.faction === 'voidCovenant') playerBuildings++;
@@ -473,10 +529,7 @@
   }
 
   function install(scene) {
-    if (!scene) {
-      console.warn('[RTSEngineCore] No scene provided to install()');
-      return;
-    }
+    if (!scene) { console.warn('[RTSEngineCore] No scene provided to install()'); return; }
     SCENE_REF = scene;
     console.log('[RTSEngineCore] Installed. Entities ready.');
   }
