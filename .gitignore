@@ -7,3 +7,5 @@ covers/
 
 # 1.4GB runtime-generated void assets - never commit
 void-assets/
+node_modules/
+test-rts-bridge.js

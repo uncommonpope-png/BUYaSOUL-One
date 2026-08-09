@@ -3407,6 +3407,11 @@ export function install(Genesis) {
       try { window.RTSUICore.install(); } catch(e) { console.warn('[VoidPopulation] RTSUICore install failed:', e && e.message); }
     }
     
+    // RTS-1 + RTS-2: Unified Selection + Order Generator (replaces fragmented handler war)
+    if (window.RTSBridge) {
+      try { window.RTSBridge.install({ scene: scene, camera: camera }); } catch(e) { console.warn('[VoidPopulation] RTSBridge install failed:', e && e.message); }
+    }
+    
     if (window.RTSEconomySystem) {
       try { window.RTSEconomySystem.install(scene); } catch(e) { console.warn('[VoidPopulation] RTSEconomySystem install failed:', e && e.message); }
     }
@@ -3828,6 +3833,10 @@ export function install(Genesis) {
     }
     if (window.RTSEngineCore && window.RTSEngineCore.tick) {
       window.RTSEngineCore.tick(dt);
+    }
+    // RTS-1 + RTS-2: Unified Selection + Order Generator tick
+    if (window.RTSBridge && window.RTSBridge.tick) {
+      window.RTSBridge.tick(dt);
     }
     
     if (window.RTSEconomySystem && window.RTSEconomySystem.tick) {
