@@ -20,6 +20,7 @@
 
   let selection = null;
   let orderGen = null;
+  let orderExecutor = null;
   let ctx = null;
   let _lastClickTime = 0;
   let _lastClickEntityId = -1;
@@ -60,6 +61,11 @@
 
     // Create order generator
     orderGen = new window.RTSOrderGenerator(ctx);
+
+    // Create order executor (RTS-3) — consumes unit.orders[], drives engine-core
+    if (window.RTSOrderExecutor) {
+      orderExecutor = new window.RTSOrderExecutor(ctx);
+    }
 
     // Wire selection → RTSUICore (legacy compatibility)
     if (window.RTSUICore && window.RTSUICore.setSelection) {
@@ -417,6 +423,7 @@
         ent.targetId = null;
         ent.targetPos = null;
         ent.state = 'idle';
+        ent._noAggro = false;
       }
     }
   }
@@ -456,12 +463,16 @@
   }
 
   /**
-   * Per-frame tick: update selection rings, cull dead entities.
+   * Per-frame tick: run order executor (RTS-3), then update selection rings,
+   * cull dead entities.
    */
   function tick(dt) {
     if (!selection || !orderGen) return;
     const entities = window.RTSEngineCore?.ENTITIES;
     if (entities) {
+      // Runs BEFORE engine-core tick (see void-population ordering) so orders
+      // take effect the same frame.
+      if (orderExecutor) orderExecutor.tick(dt);
       selection.cullDead(entities);
       selection.updateRings(entities);
     }
@@ -473,5 +484,6 @@
     tick,
     get selection() { return selection; },
     get orderGen() { return orderGen; },
+    get orderExecutor() { return orderExecutor; },
   };
 })();

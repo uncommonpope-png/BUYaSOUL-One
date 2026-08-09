@@ -3831,12 +3831,13 @@ export function install(Genesis) {
     if (window.StarCraftAsymmetricEngine && window.StarCraftAsymmetricEngine.tick) {
       window.StarCraftAsymmetricEngine.tick(dt);
     }
-    if (window.RTSEngineCore && window.RTSEngineCore.tick) {
-      window.RTSEngineCore.tick(dt);
-    }
-    // RTS-1 + RTS-2: Unified Selection + Order Generator tick
+    // RTS-1 + RTS-2 + RTS-3: order executor first (so engine-core sees fresh
+    // targets this frame), then selection rings
     if (window.RTSBridge && window.RTSBridge.tick) {
       window.RTSBridge.tick(dt);
+    }
+    if (window.RTSEngineCore && window.RTSEngineCore.tick) {
+      window.RTSEngineCore.tick(dt);
     }
     
     if (window.RTSEconomySystem && window.RTSEconomySystem.tick) {

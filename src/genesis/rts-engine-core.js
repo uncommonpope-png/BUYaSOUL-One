@@ -252,7 +252,7 @@
       }
 
       // 2. AUTO-AGGRO: idle units scan for nearby enemies and auto-attack
-      if (ent.type === 'unit' && ent.state === 'idle' && !ent.targetId && !ent.targetPos) {
+      if (ent.type === 'unit' && ent.state === 'idle' && !ent.targetId && !ent.targetPos && !ent._noAggro) {
         const aggroRange = ent.aggroRange || 15;
         let nearestEnemy = null;
         let minAggroDist = aggroRange;
