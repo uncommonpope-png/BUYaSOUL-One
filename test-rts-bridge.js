@@ -45,6 +45,7 @@ class Line {
 }
 class Mesh { constructor(geo, mat) { this.geometry = geo; this.material = mat; this.rotation = { x: 0 }; this.position = new Vector3(); this.userData = {}; } }
 class RingGeometry { constructor() {} }
+class BoxGeometry { constructor() {} }
 class MeshBasicMaterial { constructor(o) { Object.assign(this, o); this.color = { getHex: () => 0x00ff88, setHex: () => {} }; } }
 class Object3D { constructor() { this.position = new Vector3(); this.userData = {}; this.parent = null; this.children = []; } }
 class Scene extends Object3D { add(o) { this.children.push(o); o.parent = this; } remove(o) { this.children = this.children.filter(c => c !== o); o.parent = null; } }
@@ -52,7 +53,7 @@ class Scene extends Object3D { add(o) { this.children.push(o); o.parent = this; 
 const THREE = {
   Vector3, Vector2, Plane, Raycaster,
   BufferGeometry, LineBasicMaterial, LineDashedMaterial, Line,
-  Mesh, RingGeometry, MeshBasicMaterial, Scene,
+  Mesh, RingGeometry, BoxGeometry, MeshBasicMaterial, Scene,
   DoubleSide: 2,
 };
 
@@ -77,16 +78,35 @@ const window = {
 };
 global.window = window;
 global.document = {
-  createElement: () => ({
-    style: {},
-    addEventListener() {},
-    setPointerCapture() {},
-    releasePointerCapture() {},
-    appendChild() {},
-  }),
+  createElement: (tag) => {
+    if (tag === 'canvas') {
+      return {
+        width: 0, height: 0, className: '',
+        style: {},
+        getContext: () => ({
+          imageSmoothingEnabled: true,
+          drawImage() {},
+          fillRect() {},
+          fill() {},
+          beginPath() {},
+          arc() {},
+          stroke() {},
+          putImageData() {},
+          createImageData: (w, h) => ({ data: new Uint8ClampedArray(w * h * 4) }),
+        }),
+        addEventListener() {},
+        setPointerCapture() {},
+        releasePointerCapture() {},
+        getBoundingClientRect: () => ({ left: 0, top: 0 }),
+      };
+    }
+    return { style: {}, addEventListener() {}, setPointerCapture() {}, releasePointerCapture() {}, appendChild() {} };
+  },
   body: { appendChild() {} },
 };
-global.performance = { now: () => Date.now() };
+global.performance = { now: () => _fakeNow };
+let _fakeNow = Date.now();
+global.__advanceTime = (ms) => { _fakeNow += ms; };
 global.requestAnimationFrame = (fn) => { /* no-op */ };
 try { Object.defineProperty(global, 'navigator', { value: {}, configurable: true }); } catch (e) { /* already defined */ }
 
@@ -346,6 +366,62 @@ assert(u7.orders.length === 1 && u7.targetPos.x === 10, 'queue: advances to next
 u7.mesh.position.set(10, 0, 0);
 exec.tick(0.016);
 assert(u7.orders.length === 0, 'queue: all orders consumed');
+
+// ─── Test 6: Minimap (RTS-6) — globals + basic lifecycle ───────────────
+console.log('\n=== Test 6: Minimap (RTS-6) ===');
+{
+  const fs6 = require('fs');
+  const path6 = require('path');
+  const vm6 = require('vm');
+  for (const name of ['rts-minimap.js', 'rts-production-palette.js']) {
+    const code = fs6.readFileSync(path6.join('C:/Users/uncom/Desktop/buyasoul-cpl-fresh/src/genesis', name), 'utf8');
+    vm6.runInThisContext(code, { filename: name });
+  }
+}
+assert(typeof window.RTSMinimap === 'function', 'RTSMinimap class exposed');
+assert(typeof window.RTSProductionPalette === 'function', 'RTSProductionPalette class exposed');
+
+// Minimap: install + tick without error
+const minimap = new window.RTSMinimap({ scene, camera, entities: execEntities });
+minimap.install();
+assert(minimap.canvas && minimap.canvas.width === 256, 'minimap canvas 256×256');
+minimap.tick(0.016);
+assert(true, 'minimap tick runs without error');
+minimap.attackFlash(100, 200, 0xff4444);
+assert(minimap._attackFlashes.length === 1, 'attack flash recorded');
+minimap.tick(0.1);
+assert(minimap._attackFlashes.length === 1, 'attack flash still alive (<4s)');
+global.__advanceTime(5000); // simulate 5s passing
+minimap.tick(10);
+assert(minimap._attackFlashes.length === 0, 'attack flash expired (>4s)');
+
+// ─── Test 7: Production Palette (RTS-5) — install + queue + spawn ──────
+console.log('\n=== Test 7: Production Palette (RTS-5) ===');
+const palette = new window.RTSProductionPalette({
+  entities: execEntities, scene,
+  economy: { RESOURCES: { profit: 2000 }, addResource: () => {} },
+});
+palette.install();
+assert(palette._barEl && palette._slots.length === 15, 'palette bar with 15 slots');
+
+// Select a building (fake)
+const fakeBldg = { id: 3000, type: 'building', faction: 'player', isDead: false, mesh: { position: { x: 0, z: 0 } }, _prodType: 'barracks' };
+palette.selectBuilding(fakeBldg);
+assert(palette._visible === true, 'palette shows on building select');
+assert(palette._slots[0]._def && palette._slots[0]._def.id === 'soldier', 'slot 0 = soldier');
+
+// Enqueue
+palette._enqueue(palette._slots[0]._def, 1);
+assert(palette._queue.length === 1, 'queue has 1 item');
+// Tick progress
+palette.tick(2.0);
+assert(palette._queue[0].elapsed === 2.0, 'queue elapsed advances');
+palette.tick(2.0); // total 4s > soldier buildTime 3s
+assert(palette._queue.length === 0, 'queue empties after buildTime');
+
+// Deselect
+palette.deselect();
+assert(palette._visible === false, 'palette hides on deselect');
 
 // ─── RESULTS ───────────────────────────────────────────────────────────
 console.log('\n========================================');

@@ -3411,6 +3411,21 @@ export function install(Genesis) {
     if (window.RTSBridge) {
       try { window.RTSBridge.install({ scene: scene, camera: camera }); } catch(e) { console.warn('[VoidPopulation] RTSBridge install failed:', e && e.message); }
     }
+    // RTS-5: Production Palette — bottom bar with build icons
+    if (window.RTSProductionPalette) {
+      try {
+        window.RTSProductionPalette._ents = window.RTSEngineCore?.ENTITIES;
+        window.RTSProductionPalette._scene = scene;
+        window.RTSProductionPalette.install();
+      } catch(e) { console.warn('[VoidPopulation] RTSProductionPalette install failed:', e && e.message); }
+    }
+    // RTS-6: Minimap — bottom-right canvas with terrain/fog/entities
+    if (window.RTSMinimap) {
+      try {
+        window.__rtsMinimap = new window.RTSMinimap({ scene, camera, entities: window.RTSEngineCore?.ENTITIES });
+        window.__rtsMinimap.install();
+      } catch(e) { console.warn('[VoidPopulation] RTSMinimap install failed:', e && e.message); }
+    }
     
     if (window.RTSEconomySystem) {
       try { window.RTSEconomySystem.install(scene); } catch(e) { console.warn('[VoidPopulation] RTSEconomySystem install failed:', e && e.message); }
@@ -3862,6 +3877,9 @@ export function install(Genesis) {
     if (window.GodPowersEngine && window.GodPowersEngine.tick) {
       window.GodPowersEngine.tick(dt);
     }
+    // RTS-5 + RTS-6: minimap and palette ticks (after all entities move)
+    if (window.__rtsMinimap && window.__rtsMinimap.tick) window.__rtsMinimap.tick(dt);
+    if (window.RTSProductionPalette && window.RTSProductionPalette.tick) window.RTSProductionPalette.tick(dt);
     if (window.AdvancedNPCEngine && window.AdvancedNPCEngine.tick) {
       window.AdvancedNPCEngine.tick(dt);
     }
