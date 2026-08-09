@@ -97,8 +97,7 @@
             transform: translateX(-50%);
             font-size: 10px; z-index: 5;
             background: rgba(0,0,0,0.4);
-            padding: 4px 14px; border-radius: 20px;
-            pointer-events: none; font-family: monospace;
+            padding: 4px 14px; border-radius: 20px; pointer-events: none; font-family: monospace;
             color: #665577;
         }
         #canvas-container { position: relative; }
@@ -164,8 +163,10 @@
         camera.lookAt(0, 1.2, 0);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        // Adaptive device settings
+        const isMobile = /Mobi|Android|iPhone|iPad|iPod|Windows Phone/i.test(navigator.userAgent) || (navigator.deviceMemory && navigator.deviceMemory <= 1);
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2));
         renderer.shadowMap.enabled = true;
         renderer.toneMapping = THREE.ReinhardToneMapping;
         document.getElementById('canvas-container').appendChild(renderer.domElement);
@@ -174,13 +175,13 @@
         const renderScene = new RenderPass(scene, camera);
         const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.3, 0.6);
         bloomPass.threshold = 0.1;
-        bloomPass.strength = 0.9;
+        bloomPass.strength = isMobile ? 0.6 : 0.9; // reduce on mobile
         bloomPass.radius = 0.5;
 
         const vignetteShader = {
             uniforms: { tDiffuse: { value: null }, intensity: { value: 0.75 } },
             vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-            fragmentShader: 'uniform sampler2D tDiffuse; uniform float intensity; varying vec2 vUv; void main() { vec4 color = texture2D(tDiffuse, vUv); float dist = length(vUv - 0.5); float vignette = 1.0 - smoothstep(0.2, 0.8, dist) * intensity; gl_FragColor = vec4(color.rgb * vignette, color.a); }'
+            fragmentShader: 'uniform sampler2D tDiffuse; uniform float intensity; varying vec2 vUv; void main() { vec4 color = texture2D(tDiffuse, vUv); float dist = length(vUv - 0.5); float vign = smoothstep(0.6, 0.2, dist); gl_FragColor = mix(color, color * (1.0 - vign * intensity), 0.6); }'
         };
         const vignettePass = new ShaderPass(vignetteShader);
         vignettePass.renderToScreen = true;
@@ -214,7 +215,7 @@
         scene.add(fountainGlow);
 
         // Stars
-        const starCount = 1800;
+        const starCount = isMobile ? 300 : 1800;
         const starGeo = new THREE.BufferGeometry();
         const starPositions = new Float32Array(starCount * 3);
         for (let i = 0; i < starCount; i++) {
@@ -223,7 +224,8 @@
             starPositions[i*3+2] = (Math.random() - 0.5) * 150 - 80;
         }
         starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-        scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending })));
+        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending }));
+        scene.add(stars);
 
         // Nebula sprites
         const nebulaGroup = new THREE.Group();
@@ -234,7 +236,8 @@
             ctx.fillStyle = '#ff88cc'; ctx.beginPath(); ctx.arc(16, 16, 8, 0, 2 * Math.PI); ctx.fill();
             return new THREE.CanvasTexture(c);
         })();
-        for (let i = 0; i < 60; i++) {
+        const nebulaCount = isMobile ? 30 : 60;
+        for (let i = 0; i < nebulaCount; i++) {
             const mat = new THREE.SpriteMaterial({
                 map: nebulaTex,
                 color: new THREE.Color().setHSL(0.65 + Math.random()*0.2, 0.8, 0.5),
@@ -292,7 +295,7 @@
         scene.add(crystalGroup);
 
         // Idle particles
-        const particleCount = 1800;
+        const particleCount = isMobile ? 600 : 1800;
         const particlePositions = new Float32Array(particleCount * 3);
         const particleVelocities = [];
         for (let i = 0; i < particleCount; i++) {
@@ -307,7 +310,7 @@
         scene.add(particles);
 
         // Dust motes
-        const dustCount = 800;
+        const dustCount = isMobile ? 200 : 800;
         const dustGeom = new THREE.BufferGeometry();
         const dustPos = new Float32Array(dustCount * 3);
         for (let i = 0; i < dustCount; i++) {

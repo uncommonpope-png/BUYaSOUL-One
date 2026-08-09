@@ -1,20 +1,7 @@
-/**
- * rts-ui-core.js
- * BUYASOUL CPL / GODFORGE — Unified RTS UI Core (Single Source of Truth)
- *
- * Owns:
- *   1. UI_STATE — the one economy + selection state object every system reads/writes.
- *   2. One economy HUD (top-center ticker) fed by RTSEconomySystem.RESOURCES.
- *   3. One hotkey registry (routed through RTSInputRouter).
- *   4. A small event bus so systems decouple without touching each other.
- *
- * Fixes: godforge-ui-dashboard hardcoded numbers, dead #plt-value, duplicate hotkeys.
- */
-
 (function() {
   'use strict';
 
-  // ─── SHARED STATE (single source of truth) ──────────────────────────
+  // ─── SHARED STATE (single source of truth) ────��─────────────────────
   const UI_STATE = {
     resources: { profit: 0, love: 0, tax: 0, aether: 0 },
     selection: new Set(),      // entity ids
@@ -60,7 +47,7 @@
       pointerEvents: 'auto'
     });
     hudEl.innerHTML = [
-      '<span style="background:linear-gradient(135deg,rgba(255,204,0,.25),rgba(255,102,0,.25));border:1px solid #ffd700;color:#ffd700;padding:4px 12px;border-radius:14px;font-size:12px;font-weight:800;letter-spacing:1px;">PLT CORE</span>',
+      '<span style="background:linear-gradient(135deg,rgba(255,204,0,.25),rgba(255,102,0,.25));border:1px solid #ffd700;color:#ffd700;padding:4px 12px;border-radius:14px;font-size:12px;font-weight:700;letter-spacing:1px;">PLT</span>',
       stat('profit', '💰 PROFIT', '#ffd700'),
       stat('love', '🌸 LOVE', '#ff66cc'),
       stat('tax', '⚖️ TAX', '#00ffcc'),
@@ -122,6 +109,13 @@
     if (plt) plt.textContent = Math.floor(r.profit);
   }
 
+  // Throttled / event-driven HUD updates to avoid per-frame DOM churn
+  function scheduleHUDUpdate() {
+    if (scheduleHUDUpdate.queued) return;
+    scheduleHUDUpdate.queued = true;
+    setTimeout(() => { try { updateHUD(); } finally { scheduleHUDUpdate.queued = false; } }, 250); // max 4 updates/sec
+  }
+
   // ─── HOTKEY REGISTRY ────────────────────────────────────────────────
   // Register a hotkey. opts: { key, label, focus: 'world'|'terminal'|'any', action }
   const HOTKEYS = {};
@@ -160,13 +154,27 @@
     emit('selection:change', { ids: [] });
   }
 
-  // ─── TICK ───────────────────────────────────────────────────────────
+  // ─── TICK ──────────────────────────────────────────────────────────
   function tick() {
-    updateHUD();
+    // HUD updates are now throttled / event-driven to avoid per-frame DOM writes.
   }
 
   function install() {
     createHUD();
+    // Attempt to subscribe to any economy event emitter; fall back to a throttled poll.
+    if (window.RTSEconomySystem && typeof window.RTSEconomySystem.on === 'function') {
+      try {
+        window.RTSEconomySystem.on('resources:change', scheduleHUDUpdate);
+      } catch (e) {
+        // some RTSEconomySystem implementations may not support on(); fall back below
+        setInterval(updateHUD, 500);
+      }
+    } else {
+      setInterval(updateHUD, 500); // fallback poll (500ms)
+    }
+    // Initial render of HUD
+    updateHUD();
+
     if (window.RTSInputRouter && window.RTSInputRouter.registerKeyHandler) {
       window.RTSInputRouter.registerKeyHandler(0, onKey);
     }
