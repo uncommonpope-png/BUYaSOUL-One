@@ -1,20 +1,11 @@
 /**
  * rts-nav-grid.js
- * BUYASOUL CPL / GODFORGE — A* Navigation Grid
+ * BUYASOUL CPL / GODFORGE — A* Navigation Grid (optimized)
  *
- * Global 2D grid (default 5x5u cells) over the playable area. Buildings and
- * other obstacles mark cells as blocked. Units request paths, receive smoothed
- * waypoints, and follow them via RTSEngineCore.
- *
- * API:
- *   RTSNavGrid.install({ bounds, cellSize })        // bounds = {minX, minZ, maxX, maxZ}
- *   RTSNavGrid.worldToCell(x, z)                    // -> { col, row } | null (outside)
- *   RTSNavGrid.cellToWorld(col, row)                // -> { x, z } center
- *   RTSNavGrid.setBlockedAt(x, z, blocked)          // mark / unmark a single cell
- *   RTSNavGrid.blockCircle(x, z, radius, blocked)   // mark / unmark a footprint
- *   RTSNavGrid.isWalkable(x, z)
- *   RTSNavGrid.findPath(sx, sz, ex, ez)             // -> [{x,z}, ...] smoothed waypoints
- *   RTSNavGrid.debugVisible(show)                   // toggle grid debug mesh
+ * Improvements made:
+ *  - Replaced linear-scan open set with a binary min-heap (priority queue) to speed up pathfinding.
+ *  - Replaced Manhattan heuristic with an octile heuristic appropriate for 8-neighbor grids.
+ *  - Kept existing diagonal-cut prevention and path smoothing.
  */
 
 (function() {
@@ -83,17 +74,43 @@
     return BLOCKED[idx(c.col, c.row)] === 0;
   }
 
-  // --- A* pathfinding ---
-  const CLOSED = new Set();
-  const OPEN = new Set();
+  // --- Binary min-heap (priority queue) helpers ---
+  function heapPush(heap, item) {
+    heap.push(item);
+    let i = heap.length - 1;
+    while (i > 0) {
+      const p = Math.floor((i - 1) / 2);
+      if (heap[p].f <= heap[i].f) break;
+      const t = heap[p]; heap[p] = heap[i]; heap[i] = t; i = p;
+    }
+  }
+  function heapPop(heap) {
+    if (heap.length === 0) return null;
+    const out = heap[0];
+    const last = heap.pop();
+    if (heap.length > 0) {
+      heap[0] = last;
+      let i = 0;
+      while (true) {
+        const l = 2 * i + 1, r = 2 * i + 2;
+        let smallest = i;
+        if (l < heap.length && heap[l].f < heap[smallest].f) smallest = l;
+        if (r < heap.length && heap[r].f < heap[smallest].f) smallest = r;
+        if (smallest === i) break;
+        const t = heap[i]; heap[i] = heap[smallest]; heap[smallest] = t; i = smallest;
+      }
+    }
+    return out;
+  }
 
+  // --- A* pathfinding (optimized) ---
   function findPath(sx, sz, ex, ez) {
     if (!BLOCKED) return [];
     const start = worldToCell(sx, sz);
     const goal = worldToCell(ex, ez);
     if (!start || !goal) return [];
-    if (BLOCKED[idx(goal.col, goal.row)] === 1) {
-      // Goal blocked — walk to nearest walkable neighbor
+    const goalIdx = idx(goal.col, goal.row);
+    if (BLOCKED[goalIdx] === 1) {
       const near = nearestWalkable(goal.col, goal.row);
       if (near) { goal.col = near.col; goal.row = near.row; }
       else return [];
@@ -102,13 +119,17 @@
     const cameFrom = new Map();
     const gScore = new Map();
     const fScore = new Map();
+
     const startKey = idx(start.col, start.row);
     const goalKey = idx(goal.col, goal.row);
+
     gScore.set(startKey, 0);
     fScore.set(startKey, heuristic(start, goal));
 
-    const open = new Map();
-    open.set(startKey, fScore.get(startKey));
+    const openMap = new Map(); // key -> f
+    const openHeap = [];
+    openMap.set(startKey, fScore.get(startKey));
+    heapPush(openHeap, { key: startKey, f: fScore.get(startKey) });
 
     const dirs = [
       [1, 0], [-1, 0], [0, 1], [0, -1],
@@ -116,17 +137,22 @@
     ];
 
     let guard = 0;
-    while (open.size > 0 && guard < 20000) {
+    const MAX_GUARD = 20000;
+    while (openHeap.length > 0 && guard < MAX_GUARD) {
       guard++;
-      // find lowest f in open
-      let curKey = null, curF = Infinity;
-      for (const [k, f] of open) {
-        if (f < curF) { curF = f; curKey = k; }
+      const cur = heapPop(openHeap);
+      if (!cur) break;
+      const curKey = cur.key;
+      // If this entry is stale (we pushed a newer f for same key), skip it
+      const recordedF = openMap.get(curKey);
+      if (recordedF === undefined || Math.abs(recordedF - cur.f) > 1e-9) {
+        continue;
       }
+      openMap.delete(curKey);
+
       if (curKey === goalKey) {
         return reconstructPath(cameFrom, curKey, startKey);
       }
-      open.delete(curKey);
 
       const curCol = curKey % COLS;
       const curRow = Math.floor(curKey / COLS);
@@ -140,22 +166,27 @@
         if (dc !== 0 && dr !== 0) {
           if (BLOCKED[idx(curCol + dc, curRow)] === 1 || BLOCKED[idx(curCol, curRow + dr)] === 1) continue;
         }
-        const cost = (dc !== 0 && dr !== 0) ? 1.4142 : 1;
-        const tentative = gScore.get(curKey) + cost;
-        if (tentative < (gScore.get(nk) === undefined ? Infinity : gScore.get(nk))) {
+        const cost = (dc !== 0 && dr !== 0) ? 1.4142135623730951 : 1.0;
+        const tentative = (gScore.get(curKey) === undefined ? Infinity : gScore.get(curKey)) + cost;
+        const prevG = (gScore.get(nk) === undefined ? Infinity : gScore.get(nk));
+        if (tentative < prevG) {
           cameFrom.set(nk, curKey);
           gScore.set(nk, tentative);
           const f = tentative + heuristic({ col: nc, row: nr }, goal);
           fScore.set(nk, f);
-          open.set(nk, f);
+          openMap.set(nk, f);
+          heapPush(openHeap, { key: nk, f });
         }
       }
     }
     return [];
   }
 
+  // Octile heuristic (admissible for 8-neighbor grid with diagonal cost sqrt(2))
   function heuristic(a, b) {
-    return Math.abs(a.col - b.col) + Math.abs(a.row - b.row);
+    const dx = Math.abs(a.col - b.col);
+    const dy = Math.abs(a.row - b.row);
+    return dx + dy + (Math.SQRT2 - 2) * Math.min(dx, dy);
   }
 
   function nearestWalkable(col, row) {
