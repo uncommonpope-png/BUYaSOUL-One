@@ -574,6 +574,30 @@
     tickEntities(dt || 0.016);
     tickProjectiles(dt || 0.016);
     tickPassiveIncome(dt || 0.016);
+    applyFogVisibility();
+  }
+
+  function applyFogVisibility() {
+    var fog = window.RTSFogOfWarInstance;
+    if (!fog) return;
+    var playerIndex = 0;
+    for (var ent of ENTITIES.values()) {
+      if (ent.isDead || !ent.mesh) continue;
+      var pos = ent.mesh.position;
+      if (fog.canSee(playerIndex, ent)) {
+        ent.mesh.visible = true;
+        ent.mesh.traverse(function(c) {
+          if (c.isMesh && c.material) { c.material.transparent = true; c.material.opacity = 1.0; }
+        });
+      } else if (fog.isExplored(playerIndex, pos.x, pos.z)) {
+        ent.mesh.visible = true;
+        ent.mesh.traverse(function(c) {
+          if (c.isMesh && c.material) { c.material.transparent = true; c.material.opacity = 0.3; }
+        });
+      } else {
+        ent.mesh.visible = false;
+      }
+    }
   }
 
   window.RTSEngineCore = {
