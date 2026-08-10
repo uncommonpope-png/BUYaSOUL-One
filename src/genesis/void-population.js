@@ -41,6 +41,14 @@ const WORLD_COORDINATES = [
   { x: 3800, y: 0, z: 0, zone: 'outer-void' },
   // Cosmic Colosseum — Outer Void at 4000u
   { x: 0, y: 0, z: -4000, zone: 'outer-void' },
+  // Expansion cities — new districts beyond the original ring
+  { x: 2200, y: 12.5, z: 1800, zone: 'lost-worlds' },   // Abyssal Market — trade
+  { x: -1800, y: -6.2, z: 2100, zone: 'lost-worlds' },  // Sunken Archive — knowledge
+  { x: 2600, y: 8.0, z: -1200, zone: 'lost-worlds' },  // Radiant Foundry — industry
+  { x: -1500, y: 4.5, z: -2300, zone: 'lost-worlds' }, // Hollow Court — governance
+  { x: 3100, y: 0, z: 900, zone: 'outer-void' },       // Obsidian Spire — military
+  { x: -2600, y: 0, z: -900, zone: 'outer-void' },      // Verdant Coil — bio-lab
+  { x: 0, y: 0, z: 4200, zone: 'outer-void' },         // Solar Spire — energy
 ];
 
 const WORLD_CONFIG = [
@@ -67,6 +75,14 @@ const WORLD_CONFIG = [
   { name: 'Stormhold Castle', type: 'castle', plt: { profit: 30, love: 10, tax: 40 } },
   // Cosmic Colosseum — Outer Void arena
   { name: 'Cosmic Colosseum', type: 'colosseum', plt: { profit: 40, love: 20, tax: 30 } },
+  // Expansion cities
+  { name: 'Abyssal Market', type: 'trading', plt: { profit: 35, love: 8, tax: 12 } },
+  { name: 'Sunken Archive', type: 'exploration', plt: { profit: 10, love: 20, tax: 5 } },
+  { name: 'Radiant Foundry', type: 'crafting', plt: { profit: 28, love: 5, tax: 18 } },
+  { name: 'Hollow Court', type: 'governance', plt: { profit: 15, love: 25, tax: 20 } },
+  { name: 'Obsidian Spire', type: 'combat', plt: { profit: 22, love: 4, tax: 25 } },
+  { name: 'Verdant Coil', type: 'breeding', plt: { profit: 18, love: 22, tax: 8 } },
+  { name: 'Solar Spire', type: 'economy', plt: { profit: 40, love: 12, tax: 10 } },
 ];
 
 const NAMES = WORLD_CONFIG.map(w => w.name);
@@ -179,6 +195,14 @@ export function install(Genesis) {
       wireframe: !!config.wireframe,
       fog: (config.fog !== false)
     });
+  }
+
+  // Textured material helper using VoidBuildingTextures when available.
+  function _texturedStd(type, color, opts) {
+    if (window.VoidBuildingTextures && window.VoidBuildingTextures.materialFor) {
+      return window.VoidBuildingTextures.materialFor(type, color, opts);
+    }
+    return _std(opts);
   }
   // Point-light factory that registers with the LightingManager so the hard cap
   // (8 active point lights) tames the 400+ light scene. On low GPUs lights are
@@ -390,10 +414,19 @@ export function install(Genesis) {
         const d2 = 2 + rng() * 5;
         const bColor = rng() > 0.6 ? d.color : 0x222244;
         const geo = new T.BoxGeometry(w, h, d2);
-        const mat = _std({
-          color: bColor, emissive: d.eColor, emissiveIntensity: 0.08,
-          metalness: 0.7, roughness: 0.3
-        });
+        const mat = (window.VoidBuildingTextures && window.VoidBuildingTextures.materialFor)
+          ? window.VoidBuildingTextures.materialFor('district-' + d.name, bColor, {
+              emissive: '#' + d.eColor.toString(16).padStart(6, '0'),
+              emissiveIntensity: 0.2,
+              roughness: 0.35,
+              metalness: 0.35,
+              windows: true,
+              neonBand: '#' + d.color.toString(16).padStart(6, '0')
+            })
+          : _std({
+              color: bColor, emissive: d.eColor, emissiveIntensity: 0.08,
+              metalness: 0.7, roughness: 0.3
+            });
         const mesh = new T.Mesh(geo, mat);
         mesh.position.set(x, h / 2, z);
         mesh.castShadow = true;
@@ -452,7 +485,9 @@ export function install(Genesis) {
     }
 
     // Outer ring buildings
-    const ringMat = _std({ color: 0x222244, emissive: 0x110022, emissiveIntensity: 0.1, metalness: 0.6, roughness: 0.4 });
+    const ringMat = (window.VoidBuildingTextures && window.VoidBuildingTextures.materialFor)
+      ? window.VoidBuildingTextures.materialFor('outer-ring', 0x222244, { emissive: '#221133', emissiveIntensity: 0.15, roughness: 0.6, metalness: 0.2, windows: true, neonBand: '#332244' })
+      : _std({ color: 0x222244, emissive: 0x110022, emissiveIntensity: 0.1, metalness: 0.6, roughness: 0.4 });
     const ringCounts = [{ r: 120, count: 20, skip: 0.4 }, { r: 160, count: 28, skip: 0.5 }, { r: 200, count: 35, skip: 0.6 }];
     for (const rc of ringCounts) {
       for (let i = 0; i < rc.count; i++) {
@@ -3263,6 +3298,17 @@ export function install(Genesis) {
         city = createCastle(pos, rng);
       } else if (type === 'colosseum') {
         city = createColosseum(pos, rng);
+      } else if (window.VoidCityGenerator) {
+        // Use extended AoE-style city generator if available
+        city = window.VoidCityGenerator.generateCity({
+          pos: pos,
+          type: type,
+          seed: i * 1000 + 12345,
+          radius: 160,
+          buildingCount: 90,
+          faction: faction,
+        });
+        console.log('[VoidPopulation] Using VoidCityGenerator for', type, 'at', pos.x, pos.z);
       } else {
         city = createCitySkeleton(pos, type, rng);
       }
@@ -3442,8 +3488,8 @@ export function install(Genesis) {
     }
 
     // Phase 5: Register Grand Tower as a town hall (harvest drop-off point)
-    // and mark enemy bases in the nav grid
-    if (window.RTSEngineCore) {
+    // and mark enemy bases in the nav grid. Wire into VoidRTSBuildings for garrison/production.
+    if (window.RTSEngineCore && window.VoidRTSBuildings) {
       for (let i = 0; i < worlds.length; i++) {
         const w = worlds[i];
         if (!w || !w.city) continue;
@@ -3451,10 +3497,14 @@ export function install(Genesis) {
         const faction = (wt === 'grandtower' || wt === 'cplclone') ? 'voidCovenant' : 'imperium';
         // Register city center as building
         let ent = window.RTSEngineCore.registerEntity(w.city, 'building', faction, 5000, 45);
+        let rtsBuilding = null;
         if (ent) {
           // Grand Tower + New City = player town halls (harvest drop-off)
           if (wt === 'grandtower' || wt === 'cplclone') {
             ent.isTownHall = true;
+            // Create AoE-style townCenter for production/garrison
+            rtsBuilding = window.VoidRTSBuildings.registerVoidBuilding(w.city, 'townCenter', faction, { hp: 5000, garrisonMax: 10, productionMax: 5 });
+            ent.rtsBuildingId = rtsBuilding.id;
           }
           if (wt === 'grandtower') {
             ent.isGrandTower = true;
@@ -3464,8 +3514,13 @@ export function install(Genesis) {
             window.RTSNavGrid.blockCircle(w.position.x, w.position.z, 50, true);
           }
         }
+        // Register any tower buildings inside the city group as barracks or towers
+        if (rtsBuilding && w.group) {
+          const bList = window.VoidRTSBuildings.registerCityGroup(w.group, wt, faction);
+          console.log(`[VoidPopulation] Registered ${bList.length} AoE-style buildings in ${wt} world.`);
+        }
       }
-      console.log('[VoidPopulation] Registered Grand Tower + city centers as town halls.');
+      console.log('[VoidPopulation] Registered Grand Tower + city centers with AoE-style RTS extensions.');
     }
     
     if (window.DivineTerrainSculptor) {
@@ -3497,7 +3552,8 @@ export function install(Genesis) {
     }
 
     // Register sovereign city centers as town halls (harvest drop-off points)
-    if (window.RTSEngineCore && _allSovereignCities && _allSovereignCities.length) {
+    // Wire into VoidRTSBuildings for AoE-style garrison/production.
+    if (window.RTSEngineCore && window.VoidRTSBuildings && _allSovereignCities && _allSovereignCities.length) {
       _allSovereignCities.forEach((city) => {
         if (!city) return;
         let faction = 'neutral';
@@ -3517,15 +3573,24 @@ export function install(Genesis) {
         }
 
         const ent = window.RTSEngineCore.registerEntity(city, 'building', faction, 4000, 30);
+        let rtsBuilding = null;
         if (ent) {
           ent.isTownHall = true;
+          // Create AoE townCenter for production/garrison
+          rtsBuilding = window.VoidRTSBuildings.registerVoidBuilding(city, 'townCenter', faction, { hp: 4000, garrisonMax: 8, productionMax: 4 });
+          ent.rtsBuildingId = rtsBuilding.id;
           if (isEnemyBase) {
             ent.isEnemyBase = true;
-            console.log(`[VoidPopulation] Registered enemy command center for ${faction} at ${city.position.x}, ${city.position.z}`);
+            console.log(`[VoidPopulation] Registered enemy command center for ${faction} with AoE RTS at ${city.position.x}, ${city.position.z}`);
           }
         }
+        // Wire any tower buildings inside this city group
+        if (rtsBuilding && city.group) {
+          const bList = window.VoidRTSBuildings.registerCityGroup(city.group, faction, faction);
+          console.log(`[VoidPopulation] Registered ${bList.length} AoE-style buildings in ${faction} city.`);
+        }
       });
-      console.log('[VoidPopulation] Registered ' + _allSovereignCities.length + ' sovereign city centers.');
+      console.log('[VoidPopulation] Registered ' + _allSovereignCities.length + ' sovereign city centers with AoE RTS extensions.');
     }
 
     console.log('[VoidPopulation] Spawned', WORLD_COUNT, 'Lost Worlds + war fleet at distances', MIN_DIST, '-', MAX_DIST, 'units');

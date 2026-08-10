@@ -977,6 +977,10 @@
 
     <!-- Core Engine Systems -->
     <script src="src/genesis/procedural-art-engine.js"></script>
+    <script src="src/genesis/void-building-textures.js"></script>
+    <script src="src/genesis/void-rts-buildings.js"></script>
+    <script src="src/genesis/void-building-panel.js"></script>
+    <script src="src/genesis/void-city-generator.js"></script>
     <script src="src/genesis/godforge-art-pass-v2.js"></script>
     <script src="src/genesis/godforge-art-pass-v3-omnibus.js"></script>
     <script src="src/genesis/story-quest-system.js"></script>
@@ -8768,6 +8772,11 @@ if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) {
             window.Genesis.VoidPopulation.populate({ scene, camera });
             console.log('[Genesis] VoidPopulation ready:', window.Genesis.VoidPopulation.summary());
           }
+          // Wire building click panel after camera is available
+          if (window.VoidBuildingPanel && camera) {
+            window.VoidBuildingPanel.setupClickDetection(camera);
+            console.log('[Genesis] VoidBuildingPanel click detection active.');
+          }
         }
 
         // ========== P138/P183: PLT LEDGER (per-action Profit + Love - Tax audit trail) ==========
@@ -15235,6 +15244,10 @@ keyState[e.code] = true;
                 // Late spawn safety: if Rapier became ready after cpl:ready, spawn now.
                 if (window.__genesisVehicleSpawnCheck && window.__genesisVehicleSpawnCheck()) { /* spawned or will retry */ }
                 Genesis.VehicleController.tick(dt);
+            }
+            // Void RTS buildings: garrison/production/tick
+            if (window.VoidRTSBuildings && window.VoidRTSBuildings.tick) {
+              try { window.VoidRTSBuildings.tick(dt); } catch (e) {}
             }
             if (hubSurfaceActive && updateBillboards(time)) surfaceSystemTicks.billboards++;
             if (updateBillboardVideoPlayback(hubSurfaceActive) && hubSurfaceActive) surfaceSystemTicks.videos++;
