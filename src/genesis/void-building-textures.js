@@ -6,12 +6,13 @@
 (function () {
   'use strict';
 
-  const T = window.THREE;
+  function T3() { return window.THREE; }
   const CACHE = new Map();
 
   function key(type, width, height, accent) { return `${type}_${width}_${height}_${accent}`; }
 
   function hexToRgb(hex) {
+    var T = T3();
     const c = new T.Color(hex);
     return { r: c.r, g: c.g, b: c.b };
   }
@@ -115,6 +116,8 @@
 
     drawFacade(ctx, width, height, baseColor, opts);
 
+    var T = T3();
+    if (!T) return null;
     const texture = new T.CanvasTexture(canvas);
     texture.wrapS = T.RepeatWrapping;
     texture.wrapT = T.RepeatWrapping;
@@ -125,9 +128,11 @@
 
   function materialFor(type, baseColor, opts) {
     opts = opts || {};
-    const tex = generate(type, 256, 256, baseColor, opts);
-    const emissiveColor = opts.emissive || 0x000000;
-    const mat = new T.MeshStandardMaterial({
+    var tex = generate(type, 256, 256, baseColor, opts);
+    if (!tex) return null;
+    var T = T3();
+    var emissiveColor = opts.emissive || 0x000000;
+    var mat = new T.MeshStandardMaterial({
       color: 0xffffff,
       map: tex,
       emissive: emissiveColor,
