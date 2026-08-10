@@ -8767,6 +8767,36 @@ if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) {
         }
         window.__GENESIS_VOID_POPULATION = (typeof window.__GENESIS_VOID_POPULATION === 'boolean') ? window.__GENESIS_VOID_POPULATION : true;
         if (window.__GENESIS_VOID_POPULATION !== false) {
+          // Install RTS engine core with scene BEFORE populating worlds
+          if (window.RTSEngineCore && scene) {
+            window.RTSEngineCore.install(scene);
+            console.log('[Genesis] RTSEngineCore installed with scene.');
+          }
+          // Install RTS economy
+          if (window.RTSEconomySystem && scene) {
+            window.RTSEconomySystem.install(scene);
+            console.log('[Genesis] RTSEconomySystem installed.');
+          }
+          // Install RTS input router
+          if (window.RTSInputRouter && scene && camera) {
+            window.RTSInputRouter.install({ scene: scene, camera: camera });
+            console.log('[Genesis] RTSInputRouter installed.');
+          }
+          // Install RTS nav grid (pathfinding)
+          if (window.RTSNavGrid) {
+            window.RTSNavGrid.install({});
+            console.log('[Genesis] RTSNavGrid installed.');
+          }
+          // Install RTS bridge (wires selection, order generator, order executor)
+          if (window.RTSBridge && scene && camera) {
+            window.RTSBridge.install({ scene: scene, camera: camera, production: window.RTSProductionSystem });
+            console.log('[Genesis] RTSBridge installed — selection + orders + executor wired.');
+          }
+          // Install RTS UI core (economy HUD, hotkeys)
+          if (window.RTSUICore) {
+            window.RTSUICore.install();
+            console.log('[Genesis] RTSUICore installed — HUD and hotkeys active.');
+          }
           installVoidPopulation(window.Genesis);
           if (window.Genesis && window.Genesis.VoidPopulation) {
             window.Genesis.VoidPopulation.populate({ scene, camera });
@@ -15244,6 +15274,22 @@ keyState[e.code] = true;
                 // Late spawn safety: if Rapier became ready after cpl:ready, spawn now.
                 if (window.__genesisVehicleSpawnCheck && window.__genesisVehicleSpawnCheck()) { /* spawned or will retry */ }
                 Genesis.VehicleController.tick(dt);
+            }
+            // RTS engine tick — runs every frame
+            if (window.RTSEngineCore && window.RTSEngineCore.tick) {
+              try { window.RTSEngineCore.tick(dt); } catch (e) { console.warn('[RTS] tick error:', e); }
+            }
+            // RTS economy tick
+            if (window.RTSEconomySystem && window.RTSEconomySystem.tick) {
+              try { window.RTSEconomySystem.tick(dt); } catch (e) {}
+            }
+            // RTS bridge tick (order executor + selection)
+            if (window.RTSBridge && window.RTSBridge.tick) {
+              try { window.RTSBridge.tick(dt); } catch (e) {}
+            }
+            // RTS production tick (unit training queues)
+            if (window.RTSProductionSystem && window.RTSProductionSystem.tick) {
+              try { window.RTSProductionSystem.tick(dt); } catch (e) {}
             }
             // Void RTS buildings: garrison/production/tick
             if (window.VoidRTSBuildings && window.VoidRTSBuildings.tick) {
