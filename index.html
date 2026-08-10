@@ -15275,17 +15275,17 @@ keyState[e.code] = true;
                 if (window.__genesisVehicleSpawnCheck && window.__genesisVehicleSpawnCheck()) { /* spawned or will retry */ }
                 Genesis.VehicleController.tick(dt);
             }
-            // RTS engine tick — runs every frame
+            // RTS bridge tick FIRST — processes orders before engine executes
+            if (window.RTSBridge && window.RTSBridge.tick) {
+              try { window.RTSBridge.tick(dt); } catch (e) {}
+            }
+            // RTS engine tick — runs movement, combat, projectiles
             if (window.RTSEngineCore && window.RTSEngineCore.tick) {
               try { window.RTSEngineCore.tick(dt); } catch (e) { console.warn('[RTS] tick error:', e); }
             }
             // RTS economy tick
             if (window.RTSEconomySystem && window.RTSEconomySystem.tick) {
               try { window.RTSEconomySystem.tick(dt); } catch (e) {}
-            }
-            // RTS bridge tick (order executor + selection)
-            if (window.RTSBridge && window.RTSBridge.tick) {
-              try { window.RTSBridge.tick(dt); } catch (e) {}
             }
             // RTS production tick (unit training queues)
             if (window.RTSProductionSystem && window.RTSProductionSystem.tick) {
