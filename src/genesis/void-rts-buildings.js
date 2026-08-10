@@ -1,4 +1,4 @@
-// src/genesis/void-rts-buildings.js
+﻿// src/genesis/void-rts-buildings.js
 // AoE-style RTS building extensions for the Void cities.
 // Gives void buildings garrison capacity, production queues, and tech upgrades.
 
@@ -30,6 +30,9 @@
       lineOfSight: opts.lineOfSight || 20,
       isVoidBuilding: true,
       rallyPoint: opts.rallyPoint || null,
+      underConstruction: opts.underConstruction || false,
+      buildProgress: opts.underConstruction ? 10 : 100,
+      buildTimeTotal: opts.buildTime || 15,
     };
     if (mesh) mesh.userData.rtsBuildingId = building.id;
     BUILDING_DB.set(building.id, building);
@@ -119,8 +122,21 @@
   }
 
   // Per-tick update across all registered void buildings
+  function tickConstruction(building, dt) {
+    if (!building || !building.underConstruction) return;
+    var rate = 100 / building.buildTimeTotal;
+    building.buildProgress = Math.min(100, building.buildProgress + rate * dt);
+    building.hp = Math.floor((building.buildProgress / 100) * building.maxHp);
+    if (building.buildProgress >= 100) {
+      building.underConstruction = false;
+      building.hp = building.maxHp;
+      console.log('[VoidRTSBuildings] Construction complete: ' + building.type + ' #' + building.id);
+    }
+  }
+
   function tick(dt) {
     for (const building of BUILDING_DB.values()) {
+      tickConstruction(building, dt);
       tickProduction(building, dt);
     }
   }

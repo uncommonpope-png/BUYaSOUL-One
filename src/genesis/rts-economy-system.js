@@ -4,6 +4,8 @@
   // RTSEconomySystem — ensure resource nodes support harvester slots
   const RESOURCES = {
     profit: 500,
+    food: 200,
+    wood: 200,
     love: 100,
     tax: 0,
     aether: 50

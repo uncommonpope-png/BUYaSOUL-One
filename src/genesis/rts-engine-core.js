@@ -1,4 +1,4 @@
-/* rts-engine-core.js — patched: projectile pooling, harvesting slots, target policy, deposit flag */
+﻿/* rts-engine-core.js — patched: projectile pooling, harvesting slots, target policy, deposit flag */
 (function() {
   'use strict';
 
@@ -7,6 +7,26 @@
   let entityIdCounter = 0;
   const ENTITIES = new Map();
   let SCENE_REF = null;
+
+    // --- PATH CACHING & THROTTLING ---
+  var PATH_CACHE = new Map();
+  var MAX_CACHE_SIZE = 100;
+  var pathRequestsThisFrame = 0;
+  var MAX_PATH_REQUESTS_PER_FRAME = 8;
+
+  function getCachedPath(sx, sz, tx, tz) {
+    var key = Math.round(sx/4) + '_' + Math.round(sz/4) + '_' + Math.round(tx/4) + '_' + Math.round(tz/4);
+    return PATH_CACHE.get(key) || null;
+  }
+
+  function setCachedPath(sx, sz, tx, tz, waypoints) {
+    var key = Math.round(sx/4) + '_' + Math.round(sz/4) + '_' + Math.round(tx/4) + '_' + Math.round(tz/4);
+    if (PATH_CACHE.size >= MAX_CACHE_SIZE) {
+      var first = PATH_CACHE.keys().next().value;
+      PATH_CACHE.delete(first);
+    }
+    PATH_CACHE.set(key, waypoints);
+  }
 
   class GameEntity {
     constructor(mesh, type, faction, maxHp, radius) {
@@ -386,6 +406,22 @@
                 ent.state = 'moving';
                 ent.targetPos = target.mesh.position.clone();
              }
+                    } else if (ent.state === 'repairing' && target.type === 'building') {
+             // WORKER REPAIR MECHANIC (AoE II)
+             if (dist <= ent.attackRange + ent.radius + target.radius + 3) {
+                if (ent.currentCooldown <= 0) {
+                   target.hp = Math.min(target.maxHp, target.hp + 25);
+                   ent.currentCooldown = 1.0;
+                   if (target.hp >= target.maxHp) {
+                      ent.state = 'idle';
+                      ent.targetId = null;
+                   }
+                }
+             } else {
+                ent.state = 'moving';
+                ent.targetPos = target.mesh.position.clone();
+             }
+
           } else if (ent.state === 'returning' && target.type === 'building') {
              // Returning resources to base
              if (dist <= 15 + ent.radius + target.radius) { // dropoff range

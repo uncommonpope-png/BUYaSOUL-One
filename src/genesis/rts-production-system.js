@@ -8,9 +8,38 @@
   const QUEUES = new Map();
 
   const UNIT_TEMPLATES = {
-    scout: { name: 'Scout Drone', cost: 100, time: 3, color: 0x00ffcc, hp: 80, desc: 'Fast light scout unit' },
-    marine: { name: 'Void Raider', cost: 150, time: 5, color: 0xaa00ff, hp: 120, desc: 'Medium assault combat unit' }
+    scout:    { name: 'Scout Drone',    cost: 100,             time: 3,  color: 0x00ffcc, hp: 80,  attackDamage: 5,  attackRange: 5,  speed: 6,   desc: 'Fast light scout unit',             unitType: 'scout' },
+    marine:   { name: 'Void Raider',    cost: 150,             time: 5,  color: 0xaa00ff, hp: 120, attackDamage: 10, attackRange: 5,  speed: 4.5, desc: 'Medium assault combat unit',        unitType: null },
+    spearman: { name: 'Spearman',       cost: { food: 35, wood: 25 }, time: 5,  color: 0x88cc44, hp: 30,  attackDamage: 3,  attackRange: 3,  speed: 3.5, desc: '+150% bonus vs cavalry',            unitType: 'spearman' },
+    swordsman:{ name: 'Swordsman',      cost: { food: 60, aether: 20 }, time: 7,  color: 0xddaa33, hp: 40,  attackDamage: 6,  attackRange: 3,  speed: 3.5, desc: 'Solid infantry fighter',            unitType: 'swordsman' },
+    archer:   { name: 'Archer',         cost: { food: 25, wood: 45 }, time: 6,  color: 0x44aaff, hp: 30,  attackDamage: 4,  attackRange: 5,  speed: 3,   desc: '+100% bonus vs infantry',           unitType: 'archer' },
+    knight:   { name: 'Knight',         cost: { food: 60, aether: 75 }, time: 10, color: 0xff6600, hp: 100, attackDamage: 10, attackRange: 3,  speed: 5.5, desc: '+50% bonus vs archers',             unitType: 'knight' },
   };
+
+  // --- Cost helpers ---
+  const COST_ICONS = { food: '🍖', wood: '🪵', aether: '💎', profit: '💰', love: '❤️' };
+
+  function formatCost(cost) {
+    if (typeof cost === 'number') return `${cost} PLT`;
+    return Object.entries(cost).map(([k, v]) => `${COST_ICONS[k] || ''}${v}`).join(' ');
+  }
+
+  function canAfford(cost) {
+    if (!window.RTSEconomySystem) return true;
+    if (typeof cost === 'number') return window.RTSEconomySystem.spendResource('profit', cost);
+    for (const [res, amt] of Object.entries(cost)) {
+      if (!window.RTSEconomySystem.spendResource(res, amt)) return false;
+    }
+    return true;
+  }
+
+  function refundCost(cost) {
+    if (!window.RTSEconomySystem) return;
+    if (typeof cost === 'number') { window.RTSEconomySystem.addResource('profit', cost); return; }
+    for (const [res, amt] of Object.entries(cost)) {
+      window.RTSEconomySystem.addResource(res, amt);
+    }
+  }
 
   function createProductionPanel() {
     if (panelEl) return;
@@ -63,7 +92,7 @@
           <button class="prod-btn" data-unit="${id}" style="background:rgba(255,255,255,0.04); border:1px solid rgba(0,255,204,0.3); color:#fff; border-radius:10px; padding:8px; cursor:pointer; text-align:left;">
             <div style="font-weight:600; font-size:13px; color:#00ffcc;">${def.name}</div>
             <div style="font-size:10px; color:#888; margin:2px 0;">${def.desc}</div>
-            <div style="font-size:11px; color:#ffd700; font-weight:700; margin-top:4px;">💰 ${def.cost} PLT</div>
+            <div style="font-size:11px; color:#ffd700; font-weight:700; margin-top:4px;">${formatCost(def.cost)}</div>
           </button>
         `).join('')}
       </div>
@@ -84,11 +113,9 @@
   function enqueueUnit(unitId) {
     const def = UNIT_TEMPLATES[unitId];
     if (!def) return;
-    if (window.RTSEconomySystem && window.RTSEconomySystem.spendResource) {
-      if (!window.RTSEconomySystem.spendResource('profit', def.cost)) {
-        console.warn('[RTS Production] Not enough resources!');
-        return;
-      }
+    if (!canAfford(def.cost)) {
+      console.warn('[RTS Production] Not enough resources!');
+      return;
     }
     let qData = QUEUES.get(selectedBuildingId);
     if (!qData) { qData = { queue: [], activeProgress: 0 }; QUEUES.set(selectedBuildingId, qData); }
@@ -100,10 +127,7 @@
     const qData = QUEUES.get(buildingId);
     if (!qData || idx < 0 || idx >= qData.queue.length) return;
     const item = qData.queue.splice(idx, 1)[0];
-    const def = UNIT_TEMPLATES[item.unitId];
-    if (window.RTSEconomySystem && window.RTSEconomySystem.addResource) {
-      window.RTSEconomySystem.addResource('profit', item.costPaid || def.cost);
-    }
+    refundCost(item.costPaid);
     updatePanelUI();
   }
 
@@ -117,8 +141,10 @@
     const spawnDist = building.radius + 6;
     mesh.position.set(building.mesh.position.x + Math.cos(spawnAngle) * spawnDist, 0, building.mesh.position.z + Math.sin(spawnAngle) * spawnDist);
     SCENE.add(mesh);
-    const ent = window.RTSEngineCore.registerEntity(mesh, 'unit', 'voidCovenant', def.hp, 1.2);
-    ent.speed = 4.5;
+    const ent = window.RTSEngineCore.registerEntity(mesh, 'unit', 'voidCovenant', def.hp, 1.2, def.unitType || null);
+    ent.attackDamage = def.attackDamage || 10;
+    ent.attackRange = def.attackRange || 5;
+    ent.speed = def.speed || 4.5;
     const T = window.THREE;
     if (T) {
       ent.targetPos = new T.Vector3(mesh.position.x + Math.cos(spawnAngle) * 5, 0, mesh.position.z + Math.sin(spawnAngle) * 5);

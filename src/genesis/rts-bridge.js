@@ -28,6 +28,9 @@
   let _lastClickY = 0;
   let _installed = false;
 
+  /** Control groups: Map<number, Set<entityId>> — mirrors selection.groups */
+  let _groups = null;
+
   /**
    * Build the context object that RTS-1 and RTS-2 need.
    * Reads from existing globals: RTSEngineCore.ENTITIES, scene, camera.
@@ -58,6 +61,9 @@
     // Create selection system
     selection = new window.RTSSelection(ctx);
     ctx.selection = selection;
+
+    // Initialize control groups (mirrors selection.groups)
+    _groups = selection.groups;
 
     // Create order generator
     orderGen = new window.RTSOrderGenerator(ctx);
@@ -390,9 +396,32 @@
 
   /**
    * Handle keyboard commands (A=attack-move, S=stop, H=hold, P=patrol).
+   * Ctrl+1-9: save selection as group. 1-9: recall group. Shift+1-9: add group.
    */
   function handleKey(key, e, ctx) {
     if (ctx.focus !== 'world') return false;
+
+    // ── Control group keys: 1-9 ──
+    const num = parseInt(key, 10);
+    if (num >= 1 && num <= 9) {
+      if (e.ctrlKey) {
+        // Ctrl+number → save current selection to group
+        selection.saveGroup(num);
+        return true;
+      }
+      if (e.shiftKey) {
+        // Shift+number → add group to current selection
+        selection.addGroup(num);
+        // Flash feedback so player sees units were added
+        if (selection.flashGroupRings) selection.flashGroupRings(200);
+        return true;
+      }
+      // Plain number → recall group
+      selection.recallGroup(num);
+      // Flash selection rings for visual feedback
+      if (selection.flashGroupRings) selection.flashGroupRings(300);
+      return true;
+    }
 
     switch (key) {
       case 'a': // Attack move — enters attack-move mode
@@ -485,5 +514,6 @@
     get selection() { return selection; },
     get orderGen() { return orderGen; },
     get orderExecutor() { return orderExecutor; },
+    get groups() { return _groups; },
   };
 })();

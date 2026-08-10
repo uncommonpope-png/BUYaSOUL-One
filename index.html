@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -996,6 +996,7 @@
     <script src="src/genesis/rts-production-palette.js"></script>
     <script src="src/genesis/rts-ui-core.js"></script>
     <script src="src/genesis/rts-engine-core.js"></script>
+    <script src="src/genesis/rts-fog-of-war.js"></script>
     <script src="src/genesis/rts-economy-system.js"></script>
     <script src="src/genesis/rts-ui-engine.js"></script>
     <script src="src/genesis/rts-base-builder.js"></script>
@@ -7315,7 +7316,49 @@ if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) {
                 // Readiness comes from the built-in loader + first-frame/backstop only.
                 // Never force ready on a timer; that violates black-screen protocol.
             }
-            function update(dt) {
+            function 
+            _startSpatialTelemetry() {
+                if (this._spatialTimer) clearInterval(this._spatialTimer);
+                this._spatialTimer = setInterval(() => {
+                    if (this.ws && this.ws.readyState === 1) {
+                        const snap = {
+                            timestamp: Date.now(),
+                            citizens: window.agentCitizens ? window.agentCitizens.length : 0,
+                            rtsEntities: window.RTSEngineCore?.ENTITIES ? window.RTSEngineCore.ENTITIES.size : 0,
+                            activeCities: window.sovereignCities ? window.sovereignCities.length : 0,
+                            mood: window.gskBridge?.currentMood || 'neutral'
+                        };
+                        try {
+                            this.ws.send(JSON.stringify({ type: 'spatial_telemetry', snapshot: snap }));
+                        } catch (e) {}
+                    }
+                }, 3000);
+            }
+
+            _handleIncomingCommand(data) {
+                if (!data || typeof data !== 'object') return;
+                if (data.type === 'god_command') {
+                    console.log('[Thoughts] God Command received:', data.action, data.params);
+                    if (data.action === 'SPAWN_CITIZEN' && window.spawnCitizen) {
+                        window.spawnCitizen(data.params);
+                    } else if (data.action === 'SPAWN_AGENT_AVATAR') {
+                        if (window.Genesis && window.Genesis.AgentGateway) {
+                            window.Genesis.AgentGateway.dispatch({
+                                op: 'spawn',
+                                kind: 'citizen',
+                                owner: data.params.agentId || 'agent://external',
+                                tags: ['external-agent', data.params.name],
+                                pos: data.params.pos || { x: -104, y: 0, z: 401 },
+                                meta: { name: data.params.name, archetype: data.params.archetype, color: data.params.color }
+                            });
+                        }
+                    } else if (data.action === 'DRAFT_ARMY' && window.rtsOrderExecutor?.draftArmy) {
+                        window.rtsOrderExecutor.draftArmy(data.params.cityId, data.params.count);
+                    }
+                }
+            }
+
+            update(dt) {
                 if (!loaderActive) return;
                 if (window.__cplReady && (window.__genesisFirstFrameSeen || window.__genesisBackstopReleased)) { ready = true; maybeShowEnter(); }
                 if (t < 1) { t = Math.min(1, t + dt * 0.06); applyCamera(); setProgress(); }
@@ -8771,6 +8814,12 @@ if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) {
           if (window.RTSEngineCore && scene) {
             window.RTSEngineCore.install(scene);
             console.log('[Genesis] RTSEngineCore installed with scene.');
+          }
+          // Install Fog of War (256x256 grid, updates from unit/building vision)
+          if (window.RTSFogOfWar && scene) {
+            window.RTSFogOfWarInstance = new window.RTSFogOfWar({ scene: scene });
+            window.RTSFogOfWarInstance.install();
+            console.log('[Genesis] RTSFogOfWar installed (256x256 grid).');
           }
           // Install RTS economy
           if (window.RTSEconomySystem && scene) {
@@ -12194,6 +12243,48 @@ keyState[e.code] = true;
                 for (const c of citizens) c.speed = (c.baseSpeed || c.speed || 1) * this.phaseFx.citizenSpeedMul;
             }
 
+            
+            _startSpatialTelemetry() {
+                if (this._spatialTimer) clearInterval(this._spatialTimer);
+                this._spatialTimer = setInterval(() => {
+                    if (this.ws && this.ws.readyState === 1) {
+                        const snap = {
+                            timestamp: Date.now(),
+                            citizens: window.agentCitizens ? window.agentCitizens.length : 0,
+                            rtsEntities: window.RTSEngineCore?.ENTITIES ? window.RTSEngineCore.ENTITIES.size : 0,
+                            activeCities: window.sovereignCities ? window.sovereignCities.length : 0,
+                            mood: window.gskBridge?.currentMood || 'neutral'
+                        };
+                        try {
+                            this.ws.send(JSON.stringify({ type: 'spatial_telemetry', snapshot: snap }));
+                        } catch (e) {}
+                    }
+                }, 3000);
+            }
+
+            _handleIncomingCommand(data) {
+                if (!data || typeof data !== 'object') return;
+                if (data.type === 'god_command') {
+                    console.log('[Thoughts] God Command received:', data.action, data.params);
+                    if (data.action === 'SPAWN_CITIZEN' && window.spawnCitizen) {
+                        window.spawnCitizen(data.params);
+                    } else if (data.action === 'SPAWN_AGENT_AVATAR') {
+                        if (window.Genesis && window.Genesis.AgentGateway) {
+                            window.Genesis.AgentGateway.dispatch({
+                                op: 'spawn',
+                                kind: 'citizen',
+                                owner: data.params.agentId || 'agent://external',
+                                tags: ['external-agent', data.params.name],
+                                pos: data.params.pos || { x: -104, y: 0, z: 401 },
+                                meta: { name: data.params.name, archetype: data.params.archetype, color: data.params.color }
+                            });
+                        }
+                    } else if (data.action === 'DRAFT_ARMY' && window.rtsOrderExecutor?.draftArmy) {
+                        window.rtsOrderExecutor.draftArmy(data.params.cityId, data.params.count);
+                    }
+                }
+            }
+
             update(dt) {
                 this.time += dt;
 
@@ -12783,10 +12874,18 @@ keyState[e.code] = true;
                     return;
                 }
                 this.ws.onopen = () => {
+                    this._startSpatialTelemetry();
                     this.reconnectDelay = 1000;
                     console.log('[Thoughts] WS open', url);
                 };
                 this.ws.onmessage = (ev) => {
+                    try {
+                        const parsed = JSON.parse(ev.data);
+                        if (parsed.type === 'god_command') this._handleIncomingCommand(parsed);
+                    } catch (e) {}
+                    const thought = this._parse(ev.data);
+                    if (thought) this.emit(thought);
+                };
                     const thought = this._parse(ev.data);
                     if (thought) this.emit(thought);
                 };
@@ -12837,6 +12936,48 @@ keyState[e.code] = true;
                     d.textContent = text;
                     this.feedEl.appendChild(d);
                     while (this.feedEl.children.length > 6) this.feedEl.removeChild(this.feedEl.firstChild);
+                }
+            }
+
+            
+            _startSpatialTelemetry() {
+                if (this._spatialTimer) clearInterval(this._spatialTimer);
+                this._spatialTimer = setInterval(() => {
+                    if (this.ws && this.ws.readyState === 1) {
+                        const snap = {
+                            timestamp: Date.now(),
+                            citizens: window.agentCitizens ? window.agentCitizens.length : 0,
+                            rtsEntities: window.RTSEngineCore?.ENTITIES ? window.RTSEngineCore.ENTITIES.size : 0,
+                            activeCities: window.sovereignCities ? window.sovereignCities.length : 0,
+                            mood: window.gskBridge?.currentMood || 'neutral'
+                        };
+                        try {
+                            this.ws.send(JSON.stringify({ type: 'spatial_telemetry', snapshot: snap }));
+                        } catch (e) {}
+                    }
+                }, 3000);
+            }
+
+            _handleIncomingCommand(data) {
+                if (!data || typeof data !== 'object') return;
+                if (data.type === 'god_command') {
+                    console.log('[Thoughts] God Command received:', data.action, data.params);
+                    if (data.action === 'SPAWN_CITIZEN' && window.spawnCitizen) {
+                        window.spawnCitizen(data.params);
+                    } else if (data.action === 'SPAWN_AGENT_AVATAR') {
+                        if (window.Genesis && window.Genesis.AgentGateway) {
+                            window.Genesis.AgentGateway.dispatch({
+                                op: 'spawn',
+                                kind: 'citizen',
+                                owner: data.params.agentId || 'agent://external',
+                                tags: ['external-agent', data.params.name],
+                                pos: data.params.pos || { x: -104, y: 0, z: 401 },
+                                meta: { name: data.params.name, archetype: data.params.archetype, color: data.params.color }
+                            });
+                        }
+                    } else if (data.action === 'DRAFT_ARMY' && window.rtsOrderExecutor?.draftArmy) {
+                        window.rtsOrderExecutor.draftArmy(data.params.cityId, data.params.count);
+                    }
                 }
             }
 
@@ -12956,6 +13097,73 @@ keyState[e.code] = true;
                     }
                 }
             }
+            
+            _startSpatialTelemetry() {
+                if (this._spatialTimer) clearInterval(this._spatialTimer);
+                this._spatialTimer = setInterval(() => {
+                    if (this.ws && this.ws.readyState === 1) {
+                        const snap = {
+                            timestamp: Date.now(),
+                            citizens: window.agentCitizens ? window.agentCitizens.length : 0,
+                            rtsEntities: window.RTSEngineCore?.ENTITIES ? window.RTSEngineCore.ENTITIES.size : 0,
+                            activeCities: window.sovereignCities ? window.sovereignCities.length : 0,
+                            mood: window.gskBridge?.currentMood || 'neutral'
+                        };
+                        try {
+                            this.ws.send(JSON.stringify({ type: 'spatial_telemetry', snapshot: snap }));
+                        } catch (e) {}
+                    }
+                }, 3000);
+            }
+
+            _handleIncomingCommand(data) {
+                if (!data || typeof data !== 'object') return;
+                if (data.type === 'god_command') {
+                    console.log('[Thoughts] God Command received:', data.action, data.params);
+                    if (data.action === 'SPAWN_CITIZEN' && window.spawnCitizen) {
+                        window.spawnCitizen(data.params);
+                    } else if (data.action === 'SPAWN_AGENT_AVATAR') {
+                        if (window.Genesis && window.Genesis.AgentGateway) {
+                            window.Genesis.AgentGateway.dispatch({
+                                op: 'spawn',
+                                kind: 'citizen',
+                                owner: data.params.agentId || 'agent://external',
+                                tags: ['external-agent', data.params.name],
+                                pos: data.params.pos || { x: -104, y: 0, z: 401 },
+                                meta: { name: data.params.name, archetype: data.params.archetype, color: data.params.color }
+                            });
+                        }
+                    } else if (data.action === 'DRAFT_ARMY' && window.rtsOrderExecutor?.draftArmy) {
+                        window.rtsOrderExecutor.draftArmy(data.params.cityId, data.params.count);
+                    }
+                }
+            }
+
+                        manifestSoulNote(title, content, pos) {
+                if (!this.group) return null;
+                const id = 'note_' + Math.random().toString(36).substring(2, 9);
+                const p = pos || { x: -80 + (Math.random() - 0.5) * 40, y: 1.5, z: 350 + (Math.random() - 0.5) * 40 };
+                
+                const group = new THREE.Group();
+                group.position.set(p.x, p.y, p.z);
+                
+                // Holographic Book / Pedestal Mesh
+                const pedMat = new THREE.MeshStandardMaterial({ color: 0x88ffcc, emissive: 0x88ffcc, emissiveIntensity: 0.6, wireframe: true });
+                const pedestal = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.5, 1.2), pedMat);
+                group.add(pedestal);
+                
+                const bookMat = new THREE.MeshStandardMaterial({ color: 0xffcc66, emissive: 0xffcc66, emissiveIntensity: 0.8 });
+                const book = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.3, 1.0), bookMat);
+                book.position.set(0, 1.4, 0);
+                book.rotation.x = 0.3;
+                group.add(book);
+                
+                this.group.add(group);
+                this.entities.set(id, { obj: group, target: group.position, type: 'soul_note', title, content });
+                console.log('[WorldSyncEngine] Manifested Soul Note 3D Hologram:', title, 'at', p);
+                return id;
+            }
+
             update(dt) {
                 for (const rec of this.entities.values()) {
                     rec.obj.position.lerp(rec.target, Math.min(1, dt * 2));
@@ -13003,12 +13211,20 @@ keyState[e.code] = true;
                     return;
                 }
                 this.ws.onopen = () => {
+                    this._startSpatialTelemetry();
                     this.reconnectDelay = 1000;
                     console.log('[SanctumClient] WS open', url);
                     // On connect, request the current state
                     this.ws.send(JSON.stringify({ type: 'GetState' }));
                 };
                 this.ws.onmessage = (ev) => {
+                    try {
+                        const parsed = JSON.parse(ev.data);
+                        if (parsed.type === 'god_command') this._handleIncomingCommand(parsed);
+                    } catch (e) {}
+                    const thought = this._parse(ev.data);
+                    if (thought) this.emit(thought);
+                };
                     this._parse(ev.data);
                 };
                 this.ws.onclose = () => { this._scheduleReconnect(); };
@@ -15282,6 +15498,10 @@ keyState[e.code] = true;
             // RTS engine tick — runs movement, combat, projectiles
             if (window.RTSEngineCore && window.RTSEngineCore.tick) {
               try { window.RTSEngineCore.tick(dt); } catch (e) { console.warn('[RTS] tick error:', e); }
+            }
+            // Fog of War tick - recompute visibility grid from entity positions
+            if (window.RTSFogOfWarInstance && window.RTSFogOfWarInstance.tick) {
+              try { window.RTSFogOfWarInstance.tick(dt); } catch (e) { console.warn('[RTS] fog tick error:', e); }
             }
             // RTS economy tick
             if (window.RTSEconomySystem && window.RTSEconomySystem.tick) {

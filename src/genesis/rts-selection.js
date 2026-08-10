@@ -162,14 +162,24 @@
     /** Check if entity is selected */
     isSelected(entityId) { return this.ids.has(entityId); }
 
-    /** Remove dead entities from selection (call each tick) */
+    /** Remove dead entities from selection AND control groups (call each tick) */
     cullDead(entities) {
       let changed = false;
+      // Cull from active selection
       for (const id of this.ids) {
         const ent = entities.get(id);
         if (!ent || ent.isDead) {
           this.ids.delete(id);
           changed = true;
+        }
+      }
+      // Cull dead from control groups
+      for (const [, group] of this.groups) {
+        for (const id of group) {
+          const ent = entities.get(id);
+          if (!ent || ent.isDead) {
+            group.delete(id);
+          }
         }
       }
       if (changed) {
@@ -225,6 +235,35 @@
       }
       this._syncList();
       this._emit('change', { ids: this.list, type: 'groupAdd', group: groupNum });
+    }
+
+    /**
+     * Flash selection rings white briefly for visual feedback (group recall).
+     * @param {number} duration - flash duration in ms (default 300)
+     */
+    flashGroupRings(duration = 300) {
+      const flashColor = 0xffffff;
+      const normalColor = CFG.SELECTION_RING_COLOR;
+      const start = performance.now();
+
+      const doFlash = () => {
+        const elapsed = performance.now() - start;
+        const t = elapsed / duration;
+        if (t >= 1) {
+          // Revert all active rings to normal color
+          for (const [id, ring] of this._activeRings) {
+            if (ring.material) ring.material.color.setHex(normalColor);
+          }
+          return;
+        }
+        // Alternate between white and normal for a blink effect
+        const blink = Math.floor(t * 6) % 2 === 0 ? flashColor : normalColor;
+        for (const [id, ring] of this._activeRings) {
+          if (ring.material) ring.material.color.setHex(blink);
+        }
+        requestAnimationFrame(doFlash);
+      };
+      requestAnimationFrame(doFlash);
     }
 
     // ─── DRAG BOX STATE MACHINE ─────────────────────────────────────────
