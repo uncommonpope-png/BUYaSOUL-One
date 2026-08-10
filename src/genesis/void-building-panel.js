@@ -219,7 +219,8 @@
     window.addEventListener('click', (e) => {
       if (!window.RTSSpatialIndex || !_camera) return;
       // Don't open panel if user is selecting units or clicking UI
-      if (e.target.closest('#void-building-panel') || e.target.closest('#rts-minimap') || e.target.closest('.rts-hud')) return;
+      const t = e.target;
+      if (t && t.closest && (t.closest('#void-building-panel') || t.closest('#rts-minimap') || t.closest('.rts-hud'))) return;
       _raycaster.setFromCamera(_pointer, _camera);
       // Query nearby entities
       const camPos = _camera.position;

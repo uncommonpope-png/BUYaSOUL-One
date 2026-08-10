@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { installVoidCosmos } from './void-cosmos.js';
 
-const WORLD_COUNT = 17;
+const WORLD_COUNT = 24;
 const MIN_DIST = 360; // Lost Mechanics Ring starts here (CPL Territory ends at 360u)
 const MAX_DIST = 3000;
 const WAKE_RADIUS = 800;
@@ -86,7 +86,7 @@ const WORLD_CONFIG = [
 ];
 
 const NAMES = WORLD_CONFIG.map(w => w.name);
-const TYPES = ['physics', 'arena', 'soulhome', 'combat', 'crafting', 'trading', 'exploration', 'breeding', 'governance', 'economy', 'building', 'conversation', 'districts', 'cplclone', 'grandtower', 'castle', 'colosseum'];
+const TYPES = WORLD_CONFIG.map(w => w.type);
 
 const TYPE_COLORS = {
   // Lost Mechanics Archetypes
@@ -3306,7 +3306,7 @@ export function install(Genesis) {
           seed: i * 1000 + 12345,
           radius: 160,
           buildingCount: 90,
-          faction: faction,
+          faction: (type === 'grandtower' || type === 'cplclone') ? 'voidCovenant' : 'imperium',
         });
         console.log('[VoidPopulation] Using VoidCityGenerator for', type, 'at', pos.x, pos.z);
       } else {

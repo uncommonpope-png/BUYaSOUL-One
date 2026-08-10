@@ -63,8 +63,8 @@
       u._garrisonBuilding = null;
       if (rallyPoint && u.mesh) {
         u.mesh.position.copy(rallyPoint);
-      } else if (building.mesh && u.mesh) {
-        u.mesh.position.copy(building.mesh.position).add({ x: 5 + Math.random() * 5, y: 0, z: 5 + Math.random() * 5 });
+      } else if (building.mesh && u.mesh && window.THREE) {
+        u.mesh.position.copy(building.mesh.position).add(new window.THREE.Vector3(5 + Math.random() * 5, 0, 5 + Math.random() * 5));
       }
     }
     return units;
