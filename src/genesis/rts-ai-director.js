@@ -16,7 +16,7 @@
   const FACTIONS = {
     bioHive: {
       name: 'Bio Hive (Alien)',
-      homeBase: { x: 1200, y: 0, z: -500 }, // Bioluminescent Hive
+      homeBase: { x: 400, y: 0, z: -300 }, // Closer to player for visible combat
       resources: 0,
       spawnCost: 80,
       squadSizeThreshold: 6,
@@ -25,7 +25,7 @@
     },
     imperium: {
       name: 'Imperium (Terran)',
-      homeBase: { x: -800, y: 0, z: -600 }, // Iron Foundry
+      homeBase: { x: -400, y: 0, z: -300 }, // Closer to player for visible combat
       resources: 0,
       spawnCost: 120,
       squadSizeThreshold: 4,

@@ -8890,6 +8890,10 @@ if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) {
             window.RTSUICore.install();
             console.log('[Genesis] RTSUICore installed — HUD and hotkeys active.');
           }
+          // Install RTS UI Engine (health bars, box-select overlay, selection)
+          if (window.RTSUIEngine) {
+            try { window.RTSUIEngine.install(scene, camera); console.log('[Genesis] RTSUIEngine installed — health bars + selection.'); } catch(e) { console.warn('[Genesis] RTSUIEngine install failed:', e && e.message); }
+          }
           installVoidPopulation(window.Genesis);
           if (window.Genesis && window.Genesis.VoidPopulation) {
             window.Genesis.VoidPopulation.populate({ scene, camera });
@@ -15585,6 +15589,10 @@ keyState[e.code] = true;
             // Production Palette tick — advances training queues + UI refresh
             if (window.RTSProductionPalette && window.RTSProductionPalette._instance && window.RTSProductionPalette._instance.tick) {
               try { window.RTSProductionPalette._instance.tick(dt); } catch (e) { console.warn('[RTS] Production Palette tick error:', e); }
+            }
+            // RTS UI Engine tick — health bars + selection visuals
+            if (window.RTSUIEngine && window.RTSUIEngine.tick) {
+              try { window.RTSUIEngine.tick(dt); } catch (e) { console.warn('[RTS] UI Engine tick error:', e); }
             }
             if (hubSurfaceActive && updateBillboards(time)) surfaceSystemTicks.billboards++;
             if (updateBillboardVideoPlayback(hubSurfaceActive) && hubSurfaceActive) surfaceSystemTicks.videos++;

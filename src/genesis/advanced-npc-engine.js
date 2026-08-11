@@ -15,11 +15,14 @@
     const T = window.THREE;
     if (!T) { console.warn('[AdvancedNPCEngine] THREE not ready'); return new (function(){})(); }
     const group = new T.Group();
+    group.scale.setScalar(3); // Scale up 3x so units are visible at world scale
 
     const skinMat = new T.MeshStandardMaterial({
       color: colorHex || 0x00ffcc,
       roughness: 0.4,
-      metalness: isAlien ? 0.8 : 0.2
+      metalness: isAlien ? 0.8 : 0.2,
+      emissive: colorHex || 0x00ffcc,
+      emissiveIntensity: 0.3
     });
 
     const jointMat = new T.MeshBasicMaterial({ color: 0xffaa00 });
@@ -78,6 +81,11 @@
       head,
       walkPhase: Math.random() * Math.PI * 2
     };
+
+    // Faction glow light so units are visible at distance
+    const glow = new T.PointLight(colorHex || 0x00ffcc, 0.8, 15);
+    glow.position.y = 2.3;
+    group.add(glow);
 
     return group;
   }

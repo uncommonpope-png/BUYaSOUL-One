@@ -1,4 +1,4 @@
-﻿/* rts-engine-core.js — patched: projectile pooling, harvesting slots, target policy, deposit flag */
+/* rts-engine-core.js — patched: projectile pooling, harvesting slots, target policy, deposit flag */
 (function() {
   'use strict';
 
@@ -215,8 +215,8 @@
   function createProjectileMesh(color) {
     const T = window.THREE;
     if (!PROJECTILE_GEOMETRY) {
-      PROJECTILE_GEOMETRY = new T.CylinderGeometry(0.2, 0.2, 4, 4);
-      PROJECTILE_GEOMETRY.translate(0, 2, 0);
+      PROJECTILE_GEOMETRY = new T.CylinderGeometry(0.8, 0.4, 6, 6);
+      PROJECTILE_GEOMETRY.translate(0, 3, 0);
       PROJECTILE_GEOMETRY.rotateX(Math.PI / 2);
     }
     const mat = new T.MeshBasicMaterial({ color: color });
