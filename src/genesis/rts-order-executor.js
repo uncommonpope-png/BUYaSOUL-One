@@ -122,6 +122,61 @@
       ent.state = 'moving';
       ent.targetPos = target.clone();
     }
+
+    /**
+     * Draft an army at a city: spawn `count` unit entities near the city center
+     * (or the nearest town hall). This closes the dangling DRAFT_ARMY hook in
+     * index.html — window.rtsOrderExecutor.draftArmy(cityId, count) was
+     * referenced by the world/daemon commands but never implemented.
+     */
+    draftArmy(cityId, count) {
+      const countN = Math.max(1, Math.min(40, Number(count) || 5));
+      const core = window.RTSEngineCore;
+      const THREE = window.THREE;
+      if (!core || !THREE) return { ok: false, error: 'RTSEngineCore/THREE not ready' };
+
+      // Resolve the target city entity: by explicit id, or nearest town hall.
+      let cityEnt = null;
+      if (cityId != null) {
+        const direct = this.entities.get(String(cityId));
+        if (direct && (direct.type === 'building' || direct.type === 'city')) cityEnt = direct;
+      }
+      if (!cityEnt) {
+        for (const ent of this.entities.values()) {
+          if (ent.isTownHall || ent.type === 'city') { cityEnt = ent; break; }
+        }
+      }
+      if (!cityEnt) return { ok: false, error: 'No city/town-hall found' };
+
+      const pos = (cityEnt.obj && cityEnt.obj.position) || (cityEnt.mesh && cityEnt.mesh.position) || cityEnt.position;
+      if (!pos) return { ok: false, error: 'City has no position' };
+
+      const faction = cityEnt.faction || 'neutral';
+      const spawned = [];
+      for (let i = 0; i < countN; i++) {
+        const mesh = new THREE.Mesh(
+          new THREE.BoxGeometry(1.1, 1.5, 1.1),
+          new THREE.MeshBasicMaterial({ color: 0xffaa44 })
+        );
+        const angle = (i / Math.max(1, countN)) * Math.PI * 2;
+        const rad = 12 + (i % 3) * 5;
+        mesh.position.set(pos.x + Math.cos(angle) * rad, 0.75, pos.z + Math.sin(angle) * rad);
+        mesh.name = 'drafted-' + (cityId || 'city') + '-' + i;
+        if (window.Genesis && Genesis.scene) Genesis.scene.add(mesh);
+        const ent = core.registerEntity(mesh, 'unit', faction, 120, 1.0);
+        if (ent) {
+          ent.speed = 2.4;
+          ent.attackDamage = 8;
+          ent.attackRange = 12;
+          ent.draftedAt = Date.now();
+          spawned.push(ent);
+        }
+      }
+      if (window.Genesis && Genesis.EventBridge && Genesis.EventBridge.emit) {
+        Genesis.EventBridge.emit('rts:drafted', { city: cityId, count: spawned.length });
+      }
+      return { ok: true, city: cityId, spawned: spawned.length };
+    }
   }
 
   function installNoAggroGuard() {

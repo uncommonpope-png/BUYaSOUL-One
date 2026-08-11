@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -377,6 +377,19 @@
             100% { opacity: 0; transform: translateY(-70px) scale(0.9); }
         }
         /* --- GSK soul panel --- */
+        #gsk-city-clock-chip {
+            position: fixed; top: 12px; right: 220px; z-index: 15;
+            background: rgba(6,10,18,0.72); border: 1px solid rgba(102,255,255,0.25);
+            border-radius: 16px; padding: 8px 14px; min-width: 150px;
+            backdrop-filter: blur(6px); box-shadow: 0 0 18px rgba(80,200,255,0.12);
+            font-family: monospace; font-size: 12px; color: #ffddcc;
+            pointer-events: none; transition: background 0.3s, border-color 0.3s;
+        }
+        #gsk-city-clock-chip.phase-night { border-color: rgba(136,170,255,0.4); background: rgba(4,6,14,0.82); color: #aaccff; }
+        #gsk-city-clock-chip.phase-dawn  { border-color: rgba(255,170,120,0.4); background: rgba(20,10,8,0.78); color: #ffd9b8; }
+        #gsk-city-clock-chip.phase-dusk  { border-color: rgba(255,120,70,0.45); background: rgba(24,10,6,0.78); color: #ffb088; }
+        #gsk-city-clock-chip.phase-day   { border-color: rgba(150,255,220,0.3); background: rgba(6,14,12,0.72); color: #ccffee; }
+
         #gsk-panel {
             position: fixed; top: 12px; right: 14px; z-index: 15;
             background: rgba(6,10,18,0.72); border: 1px solid rgba(102,255,255,0.25);
@@ -762,6 +775,11 @@
         </div>
     </div>
 
+    <!-- CPL City Clock (day/night HUD) -->
+    <div id="gsk-city-clock-chip" class="phase-day">
+        <span id="gsk-city-clock">Day 1 · 08:00 · day</span>
+    </div>
+
     <!-- GSK Soul Panel -->
     <div id="gsk-panel">
         <div class="gsk-header">
@@ -973,6 +991,10 @@
     </script>
 
     <script src="./cpl-config.js"></script>
+    <!-- Load THREE early for classic scripts that need window.THREE -->
+    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+    <script>window.THREE = THREE;</script>
+
     <script src="src/genesis/alien-warzone-city.js"></script>
 
     <!-- Core Engine Systems -->
@@ -998,6 +1020,8 @@
     <script src="src/genesis/rts-engine-core.js"></script>
     <script src="src/genesis/rts-fog-of-war.js"></script>
     <script src="src/genesis/rts-economy-system.js"></script>
+    <script src="src/genesis/rts-farm-system.js"></script>
+    <script src="src/genesis/rts-wall-system.js"></script>
     <script src="src/genesis/rts-ui-engine.js"></script>
     <script src="src/genesis/rts-base-builder.js"></script>
     <script src="src/genesis/rts-production-system.js"></script>
@@ -2863,6 +2887,23 @@ if (Genesis.SectorManager && typeof Genesis.SectorManager.register === 'function
                     .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Sovereign Agent FSM validated (P-D).'); })
                     .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Trust Ledger / P-D load skipped:', e && e.message); });
 
+                // ═══ DAILY LIFE LOOP (vision-audit gap: "NPC work/draft/customize
+                // daily life loop") — city clock + professions + work/sleep schedule ═══
+                // city-clock owns the main-city day/night (brightness only; the GSK
+                // mood bridge keeps the hue). daily-life-loop assigns each citizen a
+                // profession + home/work/social anchors. behavior-attacher's planner
+                // consumes both to run the schedule.
+                window.__GENESIS_CITY_CLOCK = (typeof window.__GENESIS_CITY_CLOCK === 'boolean') ? window.__GENESIS_CITY_CLOCK : true;
+                window.__GENESIS_DAILY_LIFE = (typeof window.__GENESIS_DAILY_LIFE === 'boolean') ? window.__GENESIS_DAILY_LIFE : true;
+                if (window.__GENESIS_CITY_CLOCK === true || window.__GENESIS_DAILY_LIFE === true) {
+                    Promise.resolve()
+                        .then(() => import('./src/genesis/city-clock.js'))
+                        .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] City Clock validated (daily life: day/night).'); })
+                        .then(() => import('./src/genesis/daily-life-loop.js'))
+                        .then((m) => { if (m && typeof m.install === 'function') m.install(window.Genesis); if (typeof console !== 'undefined') console.log('[Genesis] Daily Life Loop validated (professions + anchors).'); })
+                        .catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Daily Life Loop load skipped:', e && e.message); });
+                }
+
                 // ═══ P-C TRUST-GATED DIALOGUE (band-driven NPC responses) ═══
                 // Requires TrustLedger to be present. Provides getDialogue() and
                 // enriches agent:say events with trust-aware responses.
@@ -4581,6 +4622,10 @@ bloomPass.radius = 0.7;
         const dimFill = new THREE.DirectionalLight(0x445566, 0.5);
         dimFill.position.set(2, 5, 3);
         scene.add(dimFill);
+        // Handle for the city-clock module: it scales hemi intensity for day/night
+        // brightness WITHOUT fighting the GSK mood bridge (which re-colors but
+        // never re-scales intensity).
+        window.__genesisLights = { hemi: hemiLight, hemiBase: 1.1, sun: null };
         
         const addNeonLight = (color, x, y, z, intensity = 0.7) => {
             const light = new THREE.PointLight(color, intensity, 14);
@@ -7316,8 +7361,7 @@ if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) {
                 // Readiness comes from the built-in loader + first-frame/backstop only.
                 // Never force ready on a timer; that violates black-screen protocol.
             }
-            function 
-            _startSpatialTelemetry() {
+            function _startSpatialTelemetry() {
                 if (this._spatialTimer) clearInterval(this._spatialTimer);
                 this._spatialTimer = setInterval(() => {
                     if (this.ws && this.ws.readyState === 1) {
@@ -7335,7 +7379,7 @@ if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) {
                 }, 3000);
             }
 
-            _handleIncomingCommand(data) {
+            function _handleIncomingCommand(data) {
                 if (!data || typeof data !== 'object') return;
                 if (data.type === 'god_command') {
                     console.log('[Thoughts] God Command received:', data.action, data.params);
@@ -7358,7 +7402,7 @@ if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) {
                 }
             }
 
-            update(dt) {
+            function update(dt) {
                 if (!loaderActive) return;
                 if (window.__cplReady && (window.__genesisFirstFrameSeen || window.__genesisBackstopReleased)) { ready = true; maybeShowEnter(); }
                 if (t < 1) { t = Math.min(1, t + dt * 0.06); applyCamera(); setProgress(); }
@@ -8855,6 +8899,18 @@ if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) {
           if (window.VoidBuildingPanel && camera) {
             window.VoidBuildingPanel.setupClickDetection(camera);
             console.log('[Genesis] VoidBuildingPanel click detection active.');
+          }
+          // Install enemy AI director (spawns NPC factions, forms attack waves)
+          if (window.RTSAIDirector) {
+            try { window.RTSAIDirector.install(scene); } catch(e) { console.warn('[Genesis] AI Director install failed:', e && e.message); }
+          }
+          // Install war command (accelerates AI, spawns player army, alerts)
+          if (window.RTSWarCommand) {
+            try { window.RTSWarCommand.install(scene); } catch(e) { console.warn('[Genesis] War Command install failed:', e && e.message); }
+          }
+          // Install production palette UI (train/build units via bottom bar)
+          if (window.RTSProductionPalette) {
+            try { window.RTSProductionPalette._instance = new window.RTSProductionPalette({ scene, economy: window.RTSEconomySystem }); window.RTSProductionPalette._instance.install(); } catch(e) { console.warn('[Genesis] Production Palette install failed:', e && e.message); }
           }
         }
 
@@ -12886,9 +12942,6 @@ keyState[e.code] = true;
                     const thought = this._parse(ev.data);
                     if (thought) this.emit(thought);
                 };
-                    const thought = this._parse(ev.data);
-                    if (thought) this.emit(thought);
-                };
                 this.ws.onclose = () => { this._scheduleReconnect(); };
                 this.ws.onerror = () => { try { this.ws.close(); } catch (e) {} };
             }
@@ -13224,8 +13277,6 @@ keyState[e.code] = true;
                     } catch (e) {}
                     const thought = this._parse(ev.data);
                     if (thought) this.emit(thought);
-                };
-                    this._parse(ev.data);
                 };
                 this.ws.onclose = () => { this._scheduleReconnect(); };
                 this.ws.onerror = () => { try { this.ws.close(); } catch (e) {} };
@@ -15507,6 +15558,14 @@ keyState[e.code] = true;
             if (window.RTSEconomySystem && window.RTSEconomySystem.tick) {
               try { window.RTSEconomySystem.tick(dt); } catch (e) {}
             }
+            // RTS farm tick - animate crops, handle farm lifecycle
+            if (window.RTSFarmSystem && window.RTSFarmSystem.tick) {
+              try { window.RTSFarmSystem.tick(dt); } catch (e) {}
+            }
+            // RTS wall tick - damage visuals
+            if (window.RTSWallSystem && window.RTSWallSystem.tick) {
+              try { window.RTSWallSystem.tick(dt); } catch (e) {}
+            }
             // RTS production tick (unit training queues)
             if (window.RTSProductionSystem && window.RTSProductionSystem.tick) {
               try { window.RTSProductionSystem.tick(dt); } catch (e) {}
@@ -15514,6 +15573,18 @@ keyState[e.code] = true;
             // Void RTS buildings: garrison/production/tick
             if (window.VoidRTSBuildings && window.VoidRTSBuildings.tick) {
               try { window.VoidRTSBuildings.tick(dt); } catch (e) {}
+            }
+            // AI Director tick — spawns enemy units and forms attack waves
+            if (window.RTSAIDirector && window.RTSAIDirector.tick) {
+              try { window.RTSAIDirector.tick(dt); } catch (e) { console.warn('[RTS] AI Director tick error:', e); }
+            }
+            // War Command tick — updates war alert UI
+            if (window.RTSWarCommand && window.RTSWarCommand.tick) {
+              try { window.RTSWarCommand.tick(dt); } catch (e) { console.warn('[RTS] War Command tick error:', e); }
+            }
+            // Production Palette tick — advances training queues + UI refresh
+            if (window.RTSProductionPalette && window.RTSProductionPalette._instance && window.RTSProductionPalette._instance.tick) {
+              try { window.RTSProductionPalette._instance.tick(dt); } catch (e) { console.warn('[RTS] Production Palette tick error:', e); }
             }
             if (hubSurfaceActive && updateBillboards(time)) surfaceSystemTicks.billboards++;
             if (updateBillboardVideoPlayback(hubSurfaceActive) && hubSurfaceActive) surfaceSystemTicks.videos++;

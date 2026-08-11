@@ -29,7 +29,7 @@
   }
 
   class GameEntity {
-    constructor(mesh, type, faction, maxHp, radius) {
+    constructor(mesh, type, faction, maxHp, radius, buildTime, buildProgress) {
       this.id = ++entityIdCounter;
       this.mesh = mesh; // THREE.Object3D
       this.type = type; // 'unit' or 'building' or 'resource'
@@ -40,6 +40,10 @@
       this.radius = radius || 1.0;
 
       this.isDead = false;
+
+      // Construction phase
+      this.buildTime = buildTime || 0;
+      this.buildProgress = (buildProgress !== undefined && buildProgress !== null) ? buildProgress : 1;
 
       // Combat stats
       this.attackRange = (type === 'unit') ? 5 : 0;
@@ -153,9 +157,35 @@
     }
   }
 
-  function registerEntity(mesh, type, faction, maxHp, radius) {
-    const ent = new GameEntity(mesh, type, faction, maxHp, radius);
+  function registerEntity(mesh, type, faction, maxHp, radius, buildTime, buildProgress) {
+    const ent = new GameEntity(mesh, type, faction, maxHp, radius, buildTime, buildProgress);
     ENTITIES.set(ent.id, ent);
+    return ent;
+  }
+
+  // Build time constants (seconds)
+  const BUILD_TIMES = {
+    house: 10, barracks: 25, tower: 20, market: 20,
+    university: 30, farm: 5, wall: 3, gate: 5, townHall: 60
+  };
+
+  function getBuildTime(buildingType) {
+    return BUILD_TIMES[buildingType] || 0;
+  }
+
+  // Create a building with construction phase
+  function createBuildingWithBuildTime(scene, mesh, type, faction, maxHp, radius, buildTime) {
+    var bt = buildTime || getBuildTime(type) || 0;
+    var ent = registerEntity(mesh, "building", faction, maxHp, radius, bt, bt > 0 ? 0 : 1);
+    ent.buildingType = type;
+    if (bt > 0 && ent.mesh) {
+      ent.mesh.traverse(function(c) {
+        if (c.isMesh && c.material) {
+          c.material.transparent = true;
+          c.material.opacity = 0.3;
+        }
+      });
+    }
     return ent;
   }
 
@@ -287,8 +317,33 @@
       // cooldowns
       if (ent.currentCooldown > 0) ent.currentCooldown -= dt;
 
-      // building turrets auto-defend
+      // building construction & turrets
       if (ent.type === 'building') {
+        // Construction progress
+        if (ent.buildProgress < 1 && ent.buildTime > 0) {
+          ent.buildProgress = Math.min(1, ent.buildProgress + dt / ent.buildTime);
+          // Update transparency based on progress
+          if (ent.mesh) {
+            ent.mesh.traverse(function(c) {
+              if (c.isMesh && c.material) {
+                c.material.transparent = true;
+                c.material.opacity = ent.buildProgress;
+              }
+            });
+          }
+          if (ent.buildProgress >= 1) {
+            // Construction complete - set full opacity
+            if (ent.mesh) {
+              ent.mesh.traverse(function(c) {
+                if (c.isMesh && c.material) {
+                  c.material.transparent = true;
+                  c.material.opacity = 1.0;
+                }
+              });
+            }
+          }
+          continue; // Skip everything else while under construction
+        }
         if (ent.isTurret) {
           const aggroRange = ent.attackRange || 20;
           const candidates = [];
@@ -546,6 +601,55 @@
     }
   }
 
+
+  // createBuildingWithBuildTime is defined above (uses BUILD_TIMES from line 167)
+  function createBuildingWithBuildTime(scene, buildingDef) {
+    const T = window.THREE;
+    if (!T || !scene) return null;
+
+    // Create ghost wireframe mesh (green wireframe)
+    const geometry = new T.BoxGeometry(
+      buildingDef.size || 4,
+      buildingDef.height || 6,
+      buildingDef.size || 4
+    );
+    const material = new T.MeshBasicMaterial({
+      color: 0x00ff88,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.3
+    });
+    const mesh = new T.Mesh(geometry, material);
+    mesh.position.set(
+      buildingDef.x || 0,
+      (buildingDef.height || 6) / 2,
+      buildingDef.z || 0
+    );
+    scene.add(mesh);
+
+    // Create entity with buildTime, buildProgress starts at 0
+    const bt = BUILD_TIMES[buildingDef.variant] || 15;
+    const ent = new GameEntity(
+      mesh,
+      "building",
+      buildingDef.faction || "voidCovenant",
+      buildingDef.hp || 500,
+      buildingDef.radius || 3,
+      bt,
+      0
+    );
+
+    // Copy optional building properties
+    if (buildingDef.isTurret !== undefined) ent.isTurret = buildingDef.isTurret;
+    if (buildingDef.isTownHall !== undefined) ent.isTownHall = buildingDef.isTownHall;
+    if (buildingDef.attackRange !== undefined) ent.attackRange = buildingDef.attackRange;
+    if (buildingDef.attackDamage !== undefined) ent.attackDamage = buildingDef.attackDamage;
+    if (buildingDef.variant) ent.variant = buildingDef.variant;
+
+    ENTITIES.set(ent.id, ent);
+    return ent;
+  }
+
   // --- INITIALIZER ---
 
   let _passiveTimer = 0;
@@ -604,6 +708,9 @@
     install,
     tick,
     registerEntity,
+    createBuildingWithBuildTime,
+    getBuildTime,
+    BUILD_TIMES,
     getEntity,
     getEntitiesInRadius,
     ENTITIES

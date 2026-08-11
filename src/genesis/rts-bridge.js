@@ -71,6 +71,11 @@
     // Create order executor (RTS-3) — consumes unit.orders[], drives engine-core
     if (window.RTSOrderExecutor) {
       orderExecutor = new window.RTSOrderExecutor(ctx);
+      // Expose the live instance so world/daemon hooks (SPAWN_AGENT_AVATAR,
+      // DRAFT_ARMY) can drive it. Previously only the class was global and the
+      // instance was module-scoped — the DRAFT_ARMY hook in index.html referenced
+      // window.rtsOrderExecutor?.draftArmy, which was always undefined.
+      window.rtsOrderExecutor = orderExecutor;
     }
 
     // Wire selection → RTSUICore (legacy compatibility)

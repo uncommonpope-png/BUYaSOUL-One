@@ -14,6 +14,15 @@
 
   // ─── BUILDABLE STRUCTURES ───────────────────────────────────────────
   const BUILD_DEFS = {
+    townhall: {
+      name: 'Town Hall',
+      icon: '🏛️',
+      cost: { profit: 300, love: 50, tax: 0 },
+      hp: 1500,
+      radius: 8,
+      color: 0xffcc00,
+      desc: 'Central building - enables farm placement nearby'
+    },
     barracks: {
       name: 'Barracks',
       icon: '⚔️',
@@ -51,6 +60,15 @@
       radius: 5,
       color: 0x00ffcc,
       desc: 'Boosts crystal harvest rate'
+    },
+    farm: {
+      name: 'Farm',
+      icon: '🌾',
+      cost: { profit: 80, wood: 40, love: 0, tax: 0 },
+      hp: 200,
+      radius: 2.5,
+      color: 0x5db83a,
+      desc: 'Produces food - must be near Town Hall'
     }
   };
 
@@ -232,24 +250,44 @@
 
   function getFunds() {
     const r = window.RTSEconomySystem ? window.RTSEconomySystem.RESOURCES : {};
-    return { profit: r.profit || 0, love: r.love || 0, tax: r.tax || 0 };
+    return { profit: r.profit || 0, love: r.love || 0, tax: r.tax || 0, wood: r.wood || 0 };
   }
 
   // ─── PLACEMENT ──────────────────────────────────────────────────────
   function placeBuilding(x, z) {
     if (!activeBuild || !activeBuild.valid) return;
     const def = activeBuild.def;
+    const defId = activeBuild.defId;
 
-    // Spend
+    // Spend resources (handle wood cost for farms)
     if (window.RTSEconomySystem && window.RTSEconomySystem.spendResource) {
-      if (!window.RTSEconomySystem.spendResource('profit', def.cost.profit)) {
+      if (!window.RTSEconomySystem.spendResource('profit', def.cost.profit || 0)) {
         console.warn('[RTSBuilder] Not enough profit');
         return;
       }
       if (def.cost.love > 0) window.RTSEconomySystem.spendResource('love', def.cost.love);
+      if (def.cost.wood > 0) window.RTSEconomySystem.spendResource('wood', def.cost.wood);
     }
 
-    // Mesh
+    // Special handling for farms - use RTSFarmSystem
+    if (defId === 'farm' && window.RTSFarmSystem) {
+      const entity = window.RTSFarmSystem.registerFarm(SCENE, x, z, 'imperium');
+      if (!entity) {
+        console.warn('[RTSBuilder] Farm placement failed - no town hall nearby');
+        return;
+      }
+      // Mark nav grid blocked
+      if (window.RTSNavGrid) {
+        window.RTSNavGrid.blockCircle(x, z, def.radius, true);
+      }
+      BUILT.push({ entity, mesh: entity.mesh, defId });
+      console.log('[RTSBuilder] Placed', def.name, 'at', x, z);
+      emitBuild(defId, x, z);
+      cancelBuild();
+      return;
+    }
+
+    // Mesh for regular buildings
     const T = window.THREE;
     if (!T) return;
     const group = new T.Group();
@@ -273,7 +311,7 @@
       barrel.position.y = 4;
       group.add(barrel);
     }
-    if (activeBuild.defId === 'wall') {
+    if (defId === 'wall') {
       base.scale.set(1, 1.6, 1);
       base.position.y = 2;
     }
