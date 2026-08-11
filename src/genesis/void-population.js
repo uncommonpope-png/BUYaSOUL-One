@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { installVoidCosmos } from './void-cosmos.js';
 
-const WORLD_COUNT = 24;
+const WORLD_COUNT = 30;
 const MIN_DIST = 360; // Lost Mechanics Ring starts here (CPL Territory ends at 360u)
 const MAX_DIST = 3000;
 const WAKE_RADIUS = 800;
@@ -49,6 +49,13 @@ const WORLD_COORDINATES = [
   { x: 3100, y: 0, z: 900, zone: 'outer-void' },       // Obsidian Spire — military
   { x: -2600, y: 0, z: -900, zone: 'outer-void' },      // Verdant Coil — bio-lab
   { x: 0, y: 0, z: 4200, zone: 'outer-void' },         // Solar Spire — energy
+  // === NEW CITIES (Expansion Pack 1) ===
+  { x: 3500, y: 0, z: -2500, zone: 'outer-void' },      // Chrono Bastion — time manipulation
+  { x: -3200, y: 0, z: 1800, zone: 'outer-void' },      // Quantum Foundry — reality bending
+  { x: 1800, y: 0, z: 3200, zone: 'lost-worlds' },      // Stellar Archive — cosmic knowledge
+  { x: -2800, y: 0, z: -2800, zone: 'outer-void' },     // Voidheart Citadel — soul mastery
+  { x: 4200, y: 0, z: 1200, zone: 'outer-void' },       // Aurora Spire — light magic
+  { x: -1200, y: 0, z: 3500, zone: 'lost-worlds' },     // Deepforge Depths — underground industry
 ];
 
 const WORLD_CONFIG = [
@@ -83,6 +90,13 @@ const WORLD_CONFIG = [
   { name: 'Obsidian Spire', type: 'combat', plt: { profit: 22, love: 4, tax: 25 } },
   { name: 'Verdant Coil', type: 'breeding', plt: { profit: 18, love: 22, tax: 8 } },
   { name: 'Solar Spire', type: 'economy', plt: { profit: 40, love: 12, tax: 10 } },
+  // === NEW CITIES (Expansion Pack 1) ===
+  { name: 'Chrono Bastion', type: 'time', plt: { profit: 32, love: 6, tax: 28 } },
+  { name: 'Quantum Foundry', type: 'reality', plt: { profit: 45, love: 3, tax: 35 } },
+  { name: 'Stellar Archive', type: 'knowledge', plt: { profit: 12, love: 30, tax: 7 } },
+  { name: 'Voidheart Citadel', type: 'soul', plt: { profit: 25, love: 18, tax: 22 } },
+  { name: 'Aurora Spire', type: 'light', plt: { profit: 38, love: 9, tax: 19 } },
+  { name: 'Deepforge Depths', type: 'industry', plt: { profit: 34, love: 7, tax: 26 } },
 ];
 
 const NAMES = WORLD_CONFIG.map(w => w.name);
