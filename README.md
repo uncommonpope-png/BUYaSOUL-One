@@ -137,3 +137,12 @@ MIT + Commercial License
 - Documentation: SETUP.md
 - Issues: GitHub Issues
 - Email: support@buyasoul.online
+
+## GSK Phases 0.1 - 230 Multiverse Engine
+
+This repository contains the complete implementation of the **Grand Soul Kernel (GSK)** expanded across **230 total phases (0.1 - 230)**:
+
+- **Express Router Endpoints**: `src/routers/soulEngine.ts` exposes API endpoints for all phases 0.1 through 230.
+- **OmniRouter Service**: `src/lib/omniRouterService.ts` & `src/routers/omniRoute.ts` implement the model fallback chain (`NVIDIA` → `Google` → `OpenAI` → `Groq` → `OpenRouter` → `Bedrock`) configured via `OMNIROUTER_URL` on Render free tier.
+- **GSK MCP Client**: `src/lib/gskMcpClient.ts` wires all phase calls through MCP to GSK on Render (`port 3001/4491`).
+- **12-Tab Multiverse UI**: All 12 tabs are active in `src/App.tsx` and `src/components/`, integrating the **PLT Framework** (`Profit + Love - Tax = True Value`).

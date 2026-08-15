@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { AgentProfile, Skill, ProviderConfig, ContextSource, MCPServer, MarketplaceTransaction } from "./types";
+import { useState } from "react";
+import { AgentProfile, Skill, MarketplaceTransaction } from "./types";
 import { INITIAL_SKILLS } from "./constants";
 import { AgentPreview } from "./components/AgentPreview";
 import { SkillLibrary } from "./components/SkillLibrary";
@@ -16,28 +16,23 @@ import { SolanaWalletAdapter } from "./components/SolanaWalletAdapter";
 import { CoreCapabilities } from "./components/CoreCapabilities";
 import { GSKTelephone } from "./components/GSKTelephone";
 import { 
-  Plus, 
-  Check, 
-  HelpCircle, 
   SlidersHorizontal, 
-  Zap, 
-  Activity, 
-  Network, 
   Terminal, 
-  Menu, 
   Settings2,
-  Cpu,
-  Workflow,
-  Download,
-  FileJson,
-  X,
-  Copy,
   ShieldCheck,
   Key,
   Users,
   ShoppingBag,
-  History,
-  Layers
+  Layers,
+  BookOpen,
+  Network,
+  Globe,
+  MessageSquare,
+  Zap,
+  Download,
+  Copy,
+  X,
+  Check
 } from "lucide-react";
 
 export default function App() {
@@ -60,7 +55,12 @@ export default function App() {
   });
 
   const [skills, setSkills] = useState<Skill[]>(INITIAL_SKILLS);
-  const [activeTab, setActiveTab] = useState<"capabilities" | "profile" | "skills" | "simulation" | "integrations" | "realism" | "vault" | "habitat" | "marketplace" | "transactions">("capabilities");
+  const [activeTab, setActiveTab] = useState<
+    "capabilities" | "profile" | "skills" | "simulation" | "cpl_library" |
+    "connections" | "realism" | "vault" | "world_states" | "marketplace" |
+    "narrative" | "habitat" | "transcendence"
+  >("capabilities");
+
   const [strictRealismMode, setStrictRealismMode] = useState<boolean>(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [copiedConfig, setCopiedConfig] = useState<boolean>(false);
@@ -79,662 +79,363 @@ export default function App() {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
       } catch (e) {
-        console.error("Failed to parse transactions", e);
+        // Fall back to default if parsing fails
       }
     }
     return [
       {
-        id: "TX-1049",
+        id: "tx-init-001",
         type: "mining",
-        title: "Validated local GPU compute task verification loop",
-        amount: 500,
-        timestamp: "2026-05-21 12:01"
+        title: "Initial Sovereign Multiverse Genesis Grant",
+        amount: 2500,
+        timestamp: new Date().toISOString(),
       },
-      {
-        id: "TX-1048",
-        type: "purchase",
-        title: "Purchased advanced Quantum Realism Evaluator skill",
-        amount: -650,
-        timestamp: "2026-05-21 11:42"
-      },
-      {
-        id: "TX-1047",
-        type: "sale",
-        title: "P2P Sold custom Core Audit ledger parameters",
-        amount: 320,
-        timestamp: "2026-05-21 08:31"
-      },
-      {
-        id: "TX-1046",
-        type: "purchase",
-        title: "Acquired DeFi Solana Memetics Miner template structure",
-        amount: -450,
-        timestamp: "2026-05-21 04:15"
-      }
     ];
   });
 
-  useEffect(() => {
-    localStorage.setItem("agent_workbench_qsc_balance", qscBalance.toString());
-  }, [qscBalance]);
+  const activeSkillsCount = skills.filter((s) => s.unlocked).length;
 
-  useEffect(() => {
-    localStorage.setItem("agent_workbench_transactions", JSON.stringify(transactions));
-  }, [transactions]);
-
-  // Advanced cognitive states integration
-  const [providerConfig, setProviderConfig] = useState<ProviderConfig>({
-    provider: "gemini",
-    model: "gemini-3.5-flash",
-    apiKey: "",
-    baseUrl: "",
-  });
-
-  const [contextSources, setContextSources] = useState<ContextSource[]>([]);
-  const [mcpServers, setMcpServers] = useState<MCPServer[]>([]);
-
-  // Load active skills equipped states
-  const [equippedSkillIds, setEquippedSkillIds] = useState<string[]>(["web_search", "webhook_dispatcher"]);
-  const computedActiveSkills = skills.filter((s) => equippedSkillIds.includes(s.id));
-
-  // Handler functions
-  const handleEquipSkill = (skillId: string) => {
-    if (equippedSkillIds.includes(skillId)) return;
-    if (equippedSkillIds.length >= 4) return; // Cap at 4
-    setEquippedSkillIds((prev) => [...prev, skillId]);
-  };
-
-  const handleUnequipSkill = (skillId: string) => {
-    setEquippedSkillIds((prev) => prev.filter((id) => id !== skillId));
-  };
-
-  const handleEquipPreset = (presetIds: string[]) => {
-    // Only set equipped IDs that exist in the skills list
-    const validIds = presetIds.filter(id => skills.some(s => s.id === id));
-    setEquippedSkillIds(validIds);
-  };
-
-  const handleUpdateParameters = (skillId: string, updatedParams: Record<string, string>) => {
-    setSkills((prev) =>
-      prev.map((s) => (s.id === skillId ? { ...s, parameters: updatedParams } : s))
-    );
-  };
-
-  const getAgentJsonConfig = () => {
-    return JSON.stringify({
-      agent_profile: {
-        name: profile.name,
-        avatarColor: profile.avatarColor,
-        avatarSeed: profile.avatarSeed,
-        personality: profile.personality,
-        behavior: profile.behavior,
-        autonomy: profile.autonomy,
-        temperature: profile.temperature,
-        thinking: profile.thinking
-      },
-      cognitive_brain: {
-        provider: providerConfig.provider,
-        model: providerConfig.model,
-        baseUrl: providerConfig.baseUrl,
-        apiKey: providerConfig.apiKey ? "[DYNAMIC_SECRET_KEY]" : "",
-        context_sources: contextSources.map(ctx => ({
-          name: ctx.name,
-          type: ctx.type,
-          content: ctx.content,
-          active: ctx.active
-        })),
-        mcp_servers: mcpServers.map(mcp => ({
-          name: mcp.name,
-          url: mcp.url,
-          transport: mcp.transport,
-          description: mcp.description,
-          methods: mcp.methods,
-          active: mcp.active
-        }))
-      },
-      equipped_skills: computedActiveSkills.map(s => ({
-        id: s.id,
-        name: s.name,
-        category: s.category,
-        parameters: s.parameters,
-        paramDefinitions: s.paramDefinitions,
-        isCustom: s.isCustom || false
-      })),
-      soul_genesis_marketing_protocol: "active",
-      generated_at: new Date().toISOString()
-    }, null, 2);
-  };
-
-  const downloadJsonConfig = () => {
-    const jsonStr = getAgentJsonConfig();
-    const blob = new Blob([jsonStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${profile.name.toLowerCase().replace(/\s+/g, "-")}-blueprint.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const copyJsonConfig = () => {
-    navigator.clipboard.writeText(getAgentJsonConfig());
+  const handleCopyJson = () => {
+    const fullConfig = {
+      profile,
+      skills: skills.filter((s) => s.unlocked),
+      exportedAt: new Date().toISOString(),
+      strictRealismMode,
+      pltFramework: {
+        formula: "Profit + Love - Tax = True Value",
+        profitWeight: 0.85,
+        loveWeight: 0.92,
+        taxWeight: 0.15,
+        trueValue: 1.62
+      }
+    };
+    navigator.clipboard.writeText(JSON.stringify(fullConfig, null, 2));
     setCopiedConfig(true);
     setTimeout(() => setCopiedConfig(false), 2000);
   };
 
-  return (
-    <div className="min-h-screen bg-[#05050a]/40 text-slate-100 flex flex-col font-sans transition-all selection:bg-pink-500/30 selection:text-white relative overflow-x-hidden">
-      {/* Matrix Code Rain & Luminous Cyber Pyramids Backdrop */}
-      <MatrixBackground accentColor={profile.avatarColor} />
+  const handleDownloadJson = () => {
+    const fullConfig = {
+      profile,
+      skills: skills.filter((s) => s.unlocked),
+      exportedAt: new Date().toISOString(),
+      strictRealismMode,
+      pltFramework: {
+        formula: "Profit + Love - Tax = True Value",
+        profitWeight: 0.85,
+        loveWeight: 0.92,
+        taxWeight: 0.15,
+        trueValue: 1.62
+      }
+    };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fullConfig, null, 2));
+    const downloadAnchor = document.createElement("a");
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `${profile.name.toLowerCase().replace(/\s+/g, "_")}_config.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
 
-      {/* Main Top Header Navbar */}
-      <header className="sticky top-0 z-40 bg-slate-950/50 backdrop-blur-md border-b border-slate-800/50 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative overflow-x-hidden selection:bg-pink-500 selection:text-white">
+      {/* Background cybernetic grid */}
+      <MatrixBackground />
+
+      {/* Top Header Bar */}
+      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50 px-6 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div 
-            className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500/20 to-slate-950 border flex items-center justify-center animate-pulse-slow"
-            style={{ 
-              borderColor: `${profile.avatarColor}40`,
-              boxShadow: `0 0 15px ${profile.avatarColor}20` 
-            }}
-          >
-            <Cpu className="w-5.5 h-5.5" style={{ color: profile.avatarColor }} />
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center font-bold text-white shadow-lg shadow-pink-500/20 font-mono text-sm">
+            GSK
           </div>
           <div className="text-left">
-            <h1 className="font-display text-lg font-bold tracking-tight text-white flex items-center gap-2">
-              AGENTBlueprints
-              <span 
-                className="text-[10px] border font-mono tracking-widest font-normal px-2 py-0.5 rounded-full"
-                style={{ 
-                  color: profile.avatarColor,
-                  borderColor: `${profile.avatarColor}30`,
-                  backgroundColor: `${profile.avatarColor}10` 
-                }}
-              >
-                BETA_VER_2.0
+            <div className="flex items-center gap-2">
+              <h1 className="font-bold text-slate-100 text-sm tracking-wide">{profile.name}</h1>
+              <span className="text-[10px] bg-pink-950/80 text-pink-400 border border-pink-800/60 font-mono px-2 py-0.5 rounded-full font-bold">
+                PLT TRUE VALUE: 1.62
               </span>
-            </h1>
-            <p className="text-xs text-slate-400 font-sans">Visual character loadout workbench for functional artificial agents</p>
+            </div>
+            <p className="text-[11px] text-slate-400 font-mono">
+              230 GSK PHASES • RENDER FREE TIER • PORT 3001/4491
+            </p>
           </div>
         </div>
 
-        {/* Global Operational Metrics */}
-        <div className="flex items-center gap-6 text-[11px] font-mono text-slate-500 bg-slate-950/70 px-4 py-2 rounded-xl border border-slate-850 backdrop-blur-md">
-          <div className="flex items-center gap-1.5">
-            <Activity className="w-3.5 h-3.5 text-pink-400 animate-pulse" />
-            <span>INTELLIGENCE Matrix: <span className="text-pink-400 font-bold uppercase">{providerConfig.provider}</span></span>
-          </div>
-          <div className="h-4 w-px bg-slate-800" />
-          <div className="flex items-center gap-1.5">
-            <Zap className="w-3.5 h-3.5 text-yellow-400" />
-            <span>LOAD_COEFFICIENT: <span className="text-slate-300 font-bold">{computedActiveSkills.length}/4 NODES</span></span>
-          </div>
+        <div className="flex items-center gap-4">
+          <SolanaWalletAdapter qscBalance={qscBalance} />
+
+          <button
+            onClick={() => setIsExportModalOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-mono rounded-lg transition"
+          >
+            <Download className="w-3.5 h-3.5" />
+            EXPORT CONF
+          </button>
         </div>
       </header>
 
-      {/* Sub-Navigation Dashboard tabs */}
-      <div className="bg-slate-900/50 backdrop-blur-lg border-b border-slate-800/80 px-6 py-2.5 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between relative z-10">
-        <div className="flex flex-wrap gap-2.5">
+      {/* 12-Tab GSK Multiverse Subsystem Navigation */}
+      <div className="bg-slate-900/50 backdrop-blur-lg border-b border-slate-800/80 px-6 py-2.5 relative z-10 text-left">
+        <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest block mb-2 px-1">
+          12 GSK MULTIVERSE SUBSYSTEMS (PHASES 0.1 - 230)
+        </span>
+        <div className="flex flex-wrap gap-2">
+          {/* TAB 0. Overview */}
           <button
             onClick={() => setActiveTab("capabilities")}
-            className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-xs font-mono tracking-wider uppercase transition-all duration-300 whitespace-nowrap cursor-pointer hover:scale-[1.03] active:scale-95 ${
-              activeTab === "capabilities"
-                ? "bg-slate-950 text-white font-bold border-slate-650"
-                : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30"
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-[10px] font-mono tracking-wider uppercase transition-all duration-300 ${
+              activeTab === "capabilities" ? "bg-slate-800 text-white font-bold border-pink-500" : "border-transparent text-slate-400 hover:text-slate-200"
             }`}
-            style={{
-              borderColor: activeTab === "capabilities" ? profile.avatarColor : undefined,
-              boxShadow: activeTab === "capabilities" ? `0 0 16px ${profile.avatarColor}25, inset 0 0 8px ${profile.avatarColor}10` : undefined,
-            }}
           >
-            <Layers className="w-4 h-4" style={{ color: profile.avatarColor }} />
-            0. Core Capabilities
+            <Layers className="w-3.5 h-3.5 text-pink-400" />
+            0. OVERVIEW
           </button>
 
+          {/* TAB 1. Agent Forge */}
           <button
             onClick={() => setActiveTab("profile")}
-            className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-xs font-mono tracking-wider uppercase transition-all duration-300 whitespace-nowrap cursor-pointer hover:scale-[1.03] active:scale-95 ${
-              activeTab === "profile"
-                ? "bg-slate-950 text-white font-bold border-slate-650"
-                : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30"
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-[10px] font-mono tracking-wider uppercase transition-all duration-300 ${
+              activeTab === "profile" ? "bg-slate-800 text-white font-bold border-pink-500" : "border-transparent text-slate-400 hover:text-slate-200"
             }`}
-            style={{
-              borderColor: activeTab === "profile" ? profile.avatarColor : undefined,
-              boxShadow: activeTab === "profile" ? `0 0 16px ${profile.avatarColor}25, inset 0 0 8px ${profile.avatarColor}10` : undefined,
-            }}
           >
-            <SlidersHorizontal className="w-4 h-4" style={{ color: profile.avatarColor }} />
-            1. Character Blueprint
+            <SlidersHorizontal className="w-3.5 h-3.5 text-pink-400" />
+            1. AGENT FORGE
           </button>
 
+          {/* TAB 2. Skill Codex */}
           <button
             onClick={() => setActiveTab("skills")}
-            className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-xs font-mono tracking-wider uppercase transition-all duration-300 whitespace-nowrap cursor-pointer hover:scale-[1.03] active:scale-95 ${
-              activeTab === "skills"
-                ? "bg-slate-950 text-white font-bold border-slate-650"
-                : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30"
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-[10px] font-mono tracking-wider uppercase transition-all duration-300 ${
+              activeTab === "skills" ? "bg-slate-800 text-white font-bold border-pink-500" : "border-transparent text-slate-400 hover:text-slate-200"
             }`}
-            style={{
-              borderColor: activeTab === "skills" ? profile.avatarColor : undefined,
-              boxShadow: activeTab === "skills" ? `0 0 16px ${profile.avatarColor}25, inset 0 0 8px ${profile.avatarColor}10` : undefined,
-            }}
           >
-            <Settings2 className="w-4 h-4" style={{ color: profile.avatarColor }} />
-            2. Equip Skills Loadout
+            <Settings2 className="w-3.5 h-3.5 text-pink-400" />
+            2. SKILL CODEX ({activeSkillsCount})
           </button>
 
+          {/* TAB 3. GSK Engine */}
           <button
             onClick={() => setActiveTab("simulation")}
-            className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-xs font-mono tracking-wider uppercase transition-all duration-300 whitespace-nowrap cursor-pointer hover:scale-[1.03] active:scale-95 ${
-              activeTab === "simulation"
-                ? "bg-slate-950 text-white font-bold border-slate-650"
-                : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30"
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-[10px] font-mono tracking-wider uppercase transition-all duration-300 ${
+              activeTab === "simulation" ? "bg-slate-800 text-white font-bold border-pink-500" : "border-transparent text-slate-400 hover:text-slate-200"
             }`}
-            style={{
-              borderColor: activeTab === "simulation" ? profile.avatarColor : undefined,
-              boxShadow: activeTab === "simulation" ? `0 0 16px ${profile.avatarColor}25, inset 0 0 8px ${profile.avatarColor}10` : undefined,
-            }}
           >
-            <Terminal className="w-4 h-4" style={{ color: profile.avatarColor }} />
-            3. Test Bench Playground
+            <Terminal className="w-3.5 h-3.5 text-pink-400" />
+            3. GSK ENGINE
           </button>
 
+          {/* TAB 4. CPL Library */}
           <button
-            onClick={() => setActiveTab("integrations")}
-            className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-xs font-mono tracking-wider uppercase transition-all duration-300 whitespace-nowrap cursor-pointer hover:scale-[1.03] active:scale-95 ${
-              activeTab === "integrations"
-                ? "bg-slate-950 text-white font-bold border-slate-650"
-                : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30"
+            onClick={() => setActiveTab("cpl_library")}
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-[10px] font-mono tracking-wider uppercase transition-all duration-300 ${
+              activeTab === "cpl_library" ? "bg-slate-800 text-white font-bold border-pink-500" : "border-transparent text-slate-400 hover:text-slate-200"
             }`}
-            style={{
-              borderColor: activeTab === "integrations" ? profile.avatarColor : undefined,
-              boxShadow: activeTab === "integrations" ? `0 0 16px ${profile.avatarColor}25, inset 0 0 8px ${profile.avatarColor}10` : undefined,
-            }}
           >
-            <Workflow className="w-4 h-4" style={{ color: profile.avatarColor }} />
-            4. Production Pipelines
+            <BookOpen className="w-3.5 h-3.5 text-pink-400" />
+            4. CPL LIBRARY
           </button>
 
+          {/* TAB 5. Connections */}
+          <button
+            onClick={() => setActiveTab("connections")}
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-[10px] font-mono tracking-wider uppercase transition-all duration-300 ${
+              activeTab === "connections" ? "bg-slate-800 text-white font-bold border-pink-500" : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <Network className="w-3.5 h-3.5 text-pink-400" />
+            5. CONNECTIONS
+          </button>
+
+          {/* TAB 6. 4 Gods Realm */}
           <button
             onClick={() => setActiveTab("realism")}
-            className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-xs font-mono tracking-wider uppercase transition-all duration-300 whitespace-nowrap cursor-pointer hover:scale-[1.03] active:scale-95 ${
-              activeTab === "realism"
-                ? "bg-slate-950 text-white font-bold border-slate-650"
-                : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30"
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-[10px] font-mono tracking-wider uppercase transition-all duration-300 ${
+              activeTab === "realism" ? "bg-slate-800 text-white font-bold border-pink-500" : "border-transparent text-slate-400 hover:text-slate-200"
             }`}
-            style={{
-              borderColor: activeTab === "realism" ? profile.avatarColor : undefined,
-              boxShadow: activeTab === "realism" ? `0 0 16px ${profile.avatarColor}25, inset 0 0 8px ${profile.avatarColor}10` : undefined,
-            }}
           >
-            <ShieldCheck className="w-4 h-4" style={{ color: profile.avatarColor }} />
-            5. Ultra-Realism Reviewer
+            <ShieldCheck className="w-3.5 h-3.5 text-pink-400" />
+            6. 4 GODS REALM
           </button>
 
+          {/* TAB 7. Living Memory */}
           <button
             onClick={() => setActiveTab("vault")}
-            className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-xs font-mono tracking-wider uppercase transition-all duration-300 whitespace-nowrap cursor-pointer hover:scale-[1.03] active:scale-95 ${
-              activeTab === "vault"
-                ? "bg-slate-950 text-white font-bold border-slate-650"
-                : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30"
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-[10px] font-mono tracking-wider uppercase transition-all duration-300 ${
+              activeTab === "vault" ? "bg-slate-800 text-white font-bold border-pink-500" : "border-transparent text-slate-400 hover:text-slate-200"
             }`}
-            style={{
-              borderColor: activeTab === "vault" ? profile.avatarColor : undefined,
-              boxShadow: activeTab === "vault" ? `0 0 16px ${profile.avatarColor}25, inset 0 0 8px ${profile.avatarColor}10` : undefined,
-            }}
           >
-            <Key className="w-4 h-4" style={{ color: profile.avatarColor }} />
-            6. API & Token Vault
+            <Key className="w-3.5 h-3.5 text-pink-400" />
+            7. LIVING MEMORY
           </button>
 
+          {/* TAB 8. World States */}
           <button
-            onClick={() => setActiveTab("habitat")}
-            className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-xs font-mono tracking-wider uppercase transition-all duration-300 whitespace-nowrap cursor-pointer hover:scale-[1.03] active:scale-95 ${
-              activeTab === "habitat"
-                ? "bg-slate-950 text-white font-bold border-slate-650"
-                : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30"
+            onClick={() => setActiveTab("world_states")}
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-[10px] font-mono tracking-wider uppercase transition-all duration-300 ${
+              activeTab === "world_states" ? "bg-slate-800 text-white font-bold border-pink-500" : "border-transparent text-slate-400 hover:text-slate-200"
             }`}
-            style={{
-              borderColor: activeTab === "habitat" ? profile.avatarColor : undefined,
-              boxShadow: activeTab === "habitat" ? `0 0 16px ${profile.avatarColor}25, inset 0 0 8px ${profile.avatarColor}10` : undefined,
-            }}
           >
-            <Users className="w-4 h-4" style={{ color: profile.avatarColor }} />
-            7. Multi-Agent Habitat
+            <Globe className="w-3.5 h-3.5 text-pink-400" />
+            8. WORLD STATES
           </button>
 
+          {/* TAB 9. Economy Forge */}
           <button
             onClick={() => setActiveTab("marketplace")}
-            className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-xs font-mono tracking-wider uppercase transition-all duration-300 whitespace-nowrap cursor-pointer hover:scale-[1.03] active:scale-95 ${
-              activeTab === "marketplace"
-                ? "bg-slate-950 text-white font-bold border-slate-650"
-                : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30"
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-[10px] font-mono tracking-wider uppercase transition-all duration-300 ${
+              activeTab === "marketplace" ? "bg-slate-800 text-white font-bold border-pink-500" : "border-transparent text-slate-400 hover:text-slate-200"
             }`}
-            style={{
-              borderColor: activeTab === "marketplace" ? profile.avatarColor : undefined,
-              boxShadow: activeTab === "marketplace" ? `0 0 16px ${profile.avatarColor}25, inset 0 0 8px ${profile.avatarColor}10` : undefined,
-            }}
           >
-            <ShoppingBag className="w-4 h-4" style={{ color: profile.avatarColor }} />
-            8. Social & Live Market
+            <ShoppingBag className="w-3.5 h-3.5 text-pink-400" />
+            9. ECONOMY FORGE
           </button>
 
+          {/* TAB 10. Narrative Engine */}
           <button
-            onClick={() => setActiveTab("transactions")}
-            className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-xs font-mono tracking-wider uppercase transition-all duration-300 whitespace-nowrap cursor-pointer hover:scale-[1.03] active:scale-95 ${
-              activeTab === "transactions"
-                ? "bg-slate-950 text-white font-bold border-slate-650"
-                : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30"
+            onClick={() => setActiveTab("narrative")}
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-[10px] font-mono tracking-wider uppercase transition-all duration-300 ${
+              activeTab === "narrative" ? "bg-slate-800 text-white font-bold border-pink-500" : "border-transparent text-slate-400 hover:text-slate-200"
             }`}
-            style={{
-              borderColor: activeTab === "transactions" ? profile.avatarColor : undefined,
-              boxShadow: activeTab === "transactions" ? `0 0 16px ${profile.avatarColor}25, inset 0 0 8px ${profile.avatarColor}10` : undefined,
-            }}
           >
-            <History className="w-4 h-4" style={{ color: profile.avatarColor }} />
-            9. Marketplace Transactions
+            <MessageSquare className="w-3.5 h-3.5 text-pink-400" />
+            10. NARRATIVE ENGINE
           </button>
-        </div>
 
-        <div>
+          {/* TAB 11. Multiverse Habitat */}
           <button
-            onClick={() => setIsExportModalOpen(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2 border border-slate-755 bg-slate-950 hover:bg-slate-900 text-white font-mono text-xs rounded-xl tracking-wider uppercase hover:scale-[1.03] hover:border-slate-550 transition-all cursor-pointer whitespace-nowrap"
-            style={{
-              boxShadow: `0 0 12px ${profile.avatarColor}20`
-            }}
+            onClick={() => setActiveTab("habitat")}
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-[10px] font-mono tracking-wider uppercase transition-all duration-300 ${
+              activeTab === "habitat" ? "bg-slate-800 text-white font-bold border-pink-500" : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
           >
-            <FileJson className="w-4 h-4" style={{ color: profile.avatarColor }} />
-            Export Config [JSON]
+            <Users className="w-3.5 h-3.5 text-pink-400" />
+            11. MULTI HABITAT
+          </button>
+
+          {/* TAB 12. Transcendence */}
+          <button
+            onClick={() => setActiveTab("transcendence")}
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-[10px] font-mono tracking-wider uppercase transition-all duration-300 ${
+              activeTab === "transcendence" ? "bg-slate-800 text-white font-bold border-pink-500" : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <Zap className="w-3.5 h-3.5 text-amber-400" />
+            12. TRANSCENDENCE
           </button>
         </div>
       </div>
 
-      {/* Main Panel Content Box */}
-      <main className="flex-1 p-6 max-w-7xl mx-auto w-full flex flex-col">
-        {activeTab === "capabilities" && (
-          <div className="flex-1">
-            <CoreCapabilities
-              accentColor={profile.avatarColor}
-              providerConfig={providerConfig}
-            />
-          </div>
-        )}
+      {/* Main Workspace Content */}
+      <main className="flex-1 p-6 relative z-10 max-w-7xl mx-auto w-full">
+        {activeTab === "capabilities" && <CoreCapabilities />}
 
         {activeTab === "profile" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch flex-1">
-            {/* Left character attributes designer */}
-            <div className="lg:col-span-5 h-full">
-              <AgentPreview profile={profile} onChange={setProfile} providerConfig={providerConfig} />
-            </div>
-
-            {/* Right Cognitive Brain Ingestion component */}
-            <div className="lg:col-span-7 h-full">
-              <BrainIngestion
-                providerConfig={providerConfig}
-                onProviderConfigChange={setProviderConfig}
-                contextSources={contextSources}
-                onContextSourcesChange={setContextSources}
-                mcpServers={mcpServers}
-                onMcpServersChange={setMcpServers}
-                accentColor={profile.avatarColor}
-              />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <AgentPreview profile={profile} setProfile={setProfile} />
+            <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 text-left">
+              <h2 className="text-lg font-bold text-white mb-2">PLT Framework Sovereignty</h2>
+              <p className="text-xs text-slate-400 font-mono mb-4">
+                Profit + Love - Tax = True Value
+              </p>
+              <div className="space-y-3 font-mono text-xs">
+                <div className="p-3 bg-slate-950 border border-emerald-900/50 rounded-lg flex justify-between">
+                  <span className="text-emerald-400">PROFIT (Mythos)</span>
+                  <span className="text-white">0.85</span>
+                </div>
+                <div className="p-3 bg-slate-950 border border-pink-900/50 rounded-lg flex justify-between">
+                  <span className="text-pink-400">LOVE (Affect)</span>
+                  <span className="text-white">0.92</span>
+                </div>
+                <div className="p-3 bg-slate-950 border border-amber-900/50 rounded-lg flex justify-between">
+                  <span className="text-amber-400">TAX (Volition)</span>
+                  <span className="text-white">0.15</span>
+                </div>
+                <div className="p-3 bg-purple-950/60 border border-purple-800 rounded-lg flex justify-between font-bold">
+                  <span className="text-purple-300">TRUE VALUE</span>
+                  <span className="text-purple-200">1.62</span>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
         {activeTab === "skills" && (
-          <div className="flex-1">
-            <SkillLibrary
-              skills={skills}
-              activeSkills={computedActiveSkills}
-              onEquipSkill={handleEquipSkill}
-              onUnequipSkill={handleUnequipSkill}
-              onUpdateParameters={handleUpdateParameters}
-              accentColor={profile.avatarColor}
-              onAddCustomSkill={(newSkill) => setSkills((prev) => [newSkill, ...prev])}
-              onDeleteCustomSkill={(skillId) => {
-                setSkills((prev) => prev.filter((s) => s.id !== skillId));
-                setEquippedSkillIds((prev) => prev.filter((id) => id !== skillId));
-              }}
-              onEquipPreset={handleEquipPreset}
-            />
-          </div>
+          <SkillLibrary skills={skills} setSkills={setSkills} />
         )}
 
         {activeTab === "simulation" && (
-          <div className="flex-1 min-h-[480px]">
-            <AgentSimulator
-              profile={profile}
-              activeSkills={computedActiveSkills}
-              accentColor={profile.avatarColor}
-              providerConfig={providerConfig}
-              mcpServers={mcpServers}
-              contextSources={contextSources}
-              onEquipSkill={handleEquipSkill}
-              strictRealismMode={strictRealismMode}
-            />
-          </div>
+          <AgentSimulator profile={profile} skills={skills} />
         )}
 
-        {activeTab === "integrations" && (
-          <div className="flex-1">
-            <WorkflowIntegration
-              profile={profile}
-              activeSkills={computedActiveSkills}
-              accentColor={profile.avatarColor}
-            />
-          </div>
-        )}
+        {activeTab === "cpl_library" && <CplLibrary />}
+
+        {activeTab === "connections" && <ConnectionsManager />}
 
         {activeTab === "realism" && (
-          <div className="flex-1">
-            <RealismAuditor
-              skills={skills}
-              equippedSkillIds={equippedSkillIds}
-              profile={profile}
-              accentColor={profile.avatarColor}
-              strictRealismMode={strictRealismMode}
-              onToggleStrictRealismMode={setStrictRealismMode}
-            />
-          </div>
+          <RealismAuditor
+            profile={profile}
+            skills={skills}
+            strictRealismMode={strictRealismMode}
+            setStrictRealismMode={setStrictRealismMode}
+          />
         )}
 
         {activeTab === "vault" && (
-          <div className="flex-1">
-            <VaultAndMemory
-              accentColor={profile.avatarColor}
-            />
+          <div className="space-y-6">
+            <BrainIngestion />
+            <VaultAndMemory />
           </div>
         )}
 
-        {activeTab === "habitat" && (
-          <div className="flex-1">
-            <MultiAgentHabitat
-              primaryAgent={profile}
-              accentColor={profile.avatarColor}
-            />
-          </div>
-        )}
+        {activeTab === "world_states" && <WorldStates />}
 
         {activeTab === "marketplace" && (
-          <div className="flex-1">
+          <div className="space-y-6">
             <SoulMarketplace
-              primaryProfile={profile}
-              skills={skills}
-              onImportProfile={setProfile}
-              onUnlockSkill={(skillId) => {
-                setSkills((prev) =>
-                  prev.map((s) => (s.id === skillId ? { ...s, unlocked: true } : s))
-                );
-              }}
-              onInjectCommunitySkill={(newSkill) => {
-                setSkills((prev) => {
-                  const alreadyExists = prev.some((s) => s.id === newSkill.id);
-                  if (alreadyExists) return prev;
-                  return [newSkill, ...prev];
-                });
-              }}
-              onEquipMarketLoadout={(skillIds) => {
-                // Ensure unique IDs in our active array and verify they exist
-                setEquippedSkillIds((prev) => {
-                  const combined = Array.from(new Set([...prev, ...skillIds]));
-                  return combined.slice(0, 4); // Limit to top 4 max
-                });
-              }}
-              accentColor={profile.avatarColor}
               qscBalance={qscBalance}
-              onUpdateQscBalance={setQscBalance}
-              onAddTransaction={(tx) => {
-                setTransactions((prev) => [tx, ...prev]);
-              }}
+              setQscBalance={setQscBalance}
+              setTransactions={setTransactions}
             />
+            <TransactionsTab transactions={transactions} />
           </div>
         )}
 
-        {activeTab === "transactions" && (
-          <div className="flex-1 flex flex-col space-y-6">
-            <SolanaWalletAdapter
-              accentColor={profile.avatarColor}
-              onAddTransaction={(tx) => {
-                setTransactions((prev) => [tx, ...prev]);
-              }}
-            />
-            <TransactionsTab
-              transactions={transactions}
-              qscBalance={qscBalance}
-              accentColor={profile.avatarColor}
-              onClearTransactions={() => {
-                setTransactions([]);
-              }}
-              onAddSampleTransactions={() => {
-                setTransactions([
-                  {
-                    id: "TX-1049",
-                    type: "mining",
-                    title: "Validated local GPU compute task verification loop",
-                    amount: 500,
-                    timestamp: "2026-05-21 12:01"
-                  },
-                  {
-                    id: "TX-1048",
-                    type: "purchase",
-                    title: "Purchased advanced Quantum Realism Evaluator skill",
-                    amount: -650,
-                    timestamp: "2026-05-21 11:42"
-                  },
-                  {
-                    id: "TX-1047",
-                    type: "sale",
-                    title: "P2P Sold custom Core Audit ledger parameters",
-                    amount: 320,
-                    timestamp: "2026-05-21 08:31"
-                  },
-                  {
-                    id: "TX-1046",
-                    type: "purchase",
-                    title: "Acquired DeFi Solana Memetics Miner template structure",
-                    amount: -450,
-                    timestamp: "2026-05-21 04:15"
-                  }
-                ]);
-              }}
-            />
-          </div>
-        )}
+        {activeTab === "narrative" && <NarrativeEngine />}
+
+        {activeTab === "habitat" && <MultiAgentHabitat />}
+
+        {activeTab === "transcendence" && <TranscendenceTab />}
       </main>
 
-      {/* Master JSON Export Modal */}
+      {/* Export Modal */}
       {isExportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl relative flex flex-col">
-            
-            {/* Modal Header */}
-            <div className="flex justify-between items-center bg-slate-950/80 px-6 py-4 border-b border-slate-850 text-left">
-              <div className="flex items-center gap-2">
-                <FileJson className="w-5 h-5" style={{ color: profile.avatarColor }} />
-                <h3 className="font-display font-medium text-white text-base">
-                  Export Agent Blueprint Configuration
-                </h3>
-              </div>
-              <button
-                onClick={() => setIsExportModalOpen(false)}
-                className="text-slate-500 hover:text-white transition-colors cursor-pointer p-1 rounded-sm hover:bg-slate-800"
-              >
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-lg w-full text-left space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white">GSK Config Export</h3>
+              <button onClick={() => setIsExportModalOpen(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
-
-            {/* Modal Content */}
-            <div className="p-6 space-y-4 text-left">
-              <p className="text-xs text-slate-400 font-sans leading-relaxed">
-                This config file packages your custom agent traits, active character stats, customized LLM cognitive brain, grounding contexts, MCP servers, and equipped functional skills loadout. Port and load it directly into other S.O.U.L G.E.N.E.S.I.S execution networks.
-              </p>
-
-              <div className="relative bg-slate-950 border border-slate-850 rounded-xl overflow-hidden min-h-[300px] flex flex-col font-mono text-[11px] leading-relaxed">
-                {/* File Header Tab bar */}
-                <div className="bg-slate-900/60 border-b border-slate-850 px-4 py-2 flex justify-between items-center">
-                  <span className="text-[10px] text-slate-500 flex items-center gap-1.5 font-medium">
-                    <SlidersHorizontal className="w-3 h-3" />
-                    {profile.name.toLowerCase().replace(/\s+/g, "-")}-blueprint.json
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={copyJsonConfig}
-                      className="flex items-center gap-1 px-2.5 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded text-[10px] text-slate-350 font-mono transition-all cursor-pointer"
-                    >
-                      {copiedConfig ? (
-                        <>
-                          <Check className="w-3 h-3 text-emerald-400" />
-                          COPIED
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3 h-3" />
-                          COPY
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={downloadJsonConfig}
-                      className="flex items-center gap-1 px-2.5 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded text-[10px] text-slate-350 font-mono transition-all cursor-pointer"
-                    >
-                      <Download className="w-3 h-3" />
-                      DOWNLOAD
-                    </button>
-                  </div>
-                </div>
-
-                <textarea
-                  readOnly
-                  className="w-full flex-1 p-4 bg-slate-950 text-slate-300 outline-none resize-none font-mono text-[11px] leading-relaxed h-[250px] overflow-y-auto"
-                  value={getAgentJsonConfig()}
-                />
-              </div>
-            </div>
-
-            {/* Modal Footer actions */}
-            <div className="flex justify-end gap-3 px-6 py-4 bg-slate-950/40 border-t border-slate-850 text-left">
+            <p className="text-xs text-slate-400 font-mono">
+              Export full GSK profile, active skills, and PLT True Value calibration metrics.
+            </p>
+            <div className="flex gap-3">
               <button
-                onClick={() => setIsExportModalOpen(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 font-mono text-xs rounded-xl transition-all cursor-pointer border border-slate-750"
+                onClick={handleCopyJson}
+                className="flex-1 bg-pink-600 hover:bg-pink-500 text-white font-mono text-xs py-2.5 rounded-lg font-bold flex items-center justify-center gap-2"
               >
-                CLOSE WINDOW
+                {copiedConfig ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                {copiedConfig ? "COPIED" : "COPY JSON"}
               </button>
               <button
-                onClick={downloadJsonConfig}
-                className="flex items-center gap-1.5 px-4 py-2 font-mono text-xs font-semibold rounded-xl transition-all cursor-pointer bg-slate-200 text-slate-950 hover:bg-white"
-                style={{
-                  backgroundColor: profile.avatarColor,
-                  color: "#0f172a"
-                }}
+                onClick={handleDownloadJson}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-mono text-xs py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 border border-slate-700"
               >
-                <Download className="w-3.5 h-3.5 stroke-[2.5px]" />
-                DOWNLOAD BLUEPRINT FILE
+                <Download className="w-4 h-4" />
+                DOWNLOAD
               </button>
             </div>
-
           </div>
         </div>
       )}
