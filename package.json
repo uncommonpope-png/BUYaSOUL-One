@@ -10,7 +10,9 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "dev:auto": "node auto-start.js",
+    "install:all": "npm install && npm install -g omniroute"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

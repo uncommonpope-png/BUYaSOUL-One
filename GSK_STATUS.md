@@ -1,0 +1,1 @@
+GSK IS ALIVE ON PORT 3001 - Health confirmed after 163K seconds uptime. OmniRoute connection required for full cognitive function (currently in circuit-breaker mode due to missing OmniRoute on :20128). Architect Gate is embedded and ready.
