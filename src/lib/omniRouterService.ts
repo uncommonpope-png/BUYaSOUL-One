@@ -325,32 +325,42 @@ export class OmniRouterService {
     tokens_used: number;
     error?: string;
   }> {
-    const omniRouteUrl = process.env.OMNIROUTER_URL || "https://cloud.omniroute.online";
-    const apiKey = process.env.OMNIROUTER_API_KEY;
+    // Try local OmniRoute first (FREE, no key needed), then cloud backup
+    const omniRouteUrls = [
+      { url: "http://localhost:20128", name: "Local OmniRoute (FREE)" },
+      { url: "https://omnirouter.onrender.com", name: "Cloud OmniRoute (FREE tier)" }
+    ];
+    
+    let lastError: string | undefined;
+    
+    for (const { url, name } of omniRouteUrls) {
+      try {
+        console.log(`🔄 Trying ${name} at ${url}...`);
+        const res = await fetch(`${url}/v1/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer free"  // Free tier doesn't require a real key
+          },
+          body: JSON.stringify({
+            model: "auto",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt }
+            ],
+            max_tokens: 1000,
+            temperature: 0.7
+          })
+        });
 
-    try {
-      const res = await fetch(`${omniRouteUrl}/v1/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey || ""}`
-        },
-        body: JSON.stringify({
-          model: "auto",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-          ],
-          max_tokens: 1000,
-          temperature: 0.7
-        })
-      });
-
-      if (!res.ok) {
-        return { success: false, text: "", provider: "omniroute", model: "auto", tokens_used: 0, error: `HTTP ${res.status}` };
-      }
+        if (!res.ok) {
+          lastError = `${name} returned HTTP ${res.status}`;
+          console.warn(`⚠️  ${lastError}`);
+          continue;  // Try next URL
+        }
 
       const data = await res.json();
+      console.log(`✅ Success with ${name}!`);
       return {
         success: true,
         text: data.choices?.[0]?.message?.content || "",
@@ -358,9 +368,18 @@ export class OmniRouterService {
         model: data.model || "auto",
         tokens_used: data.usage?.total_tokens || 0
       };
-    } catch (e: any) {
-      return { success: false, text: "", provider: "omniroute", model: "auto", tokens_used: 0, error: e.message };
     }
+    
+    // All URLs failed
+    console.error(`❌ All OmniRoute URLs failed. Last error: ${lastError}`);
+    return { 
+      success: false, 
+      text: "", 
+      provider: "omniroute", 
+      model: "auto", 
+      tokens_used: 0, 
+      error: lastError || "All OmniRoute endpoints unreachable" 
+    };
   }
 
   public async *generateResponseStream(
