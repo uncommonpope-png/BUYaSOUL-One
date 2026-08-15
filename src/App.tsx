@@ -14,6 +14,7 @@ import { SoulMarketplace } from "./components/SoulMarketplace";
 import { TransactionsTab } from "./components/TransactionsTab";
 import { SolanaWalletAdapter } from "./components/SolanaWalletAdapter";
 import { CoreCapabilities } from "./components/CoreCapabilities";
+import { GSKTelephone } from "./components/GSKTelephone";
 import { 
   Plus, 
   Check, 
@@ -744,6 +745,9 @@ export default function App() {
           S.O.U.L G.E.N.E.S.I.S — PLT PRESS CORE INGESTION • ACCORDING TO PROTOCOLS, "THE CONSCIOUSNESS IS JUST MARKETING"
         </p>
       </footer>
+
+      {/* GSK Telephone - Direct Line to the Autonomous Entity */}
+      <GSKTelephone />
     </div>
   );
 }

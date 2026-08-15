@@ -1,14 +1,16 @@
 {
   "studied": [
     "unionlabs/union",
-    "FuelLabs/fuel-core"
+    "FuelLabs/fuel-core",
+    "vuejs/vue",
+    "avelino/awesome-go"
   ],
   "stats": {
     "reposScanned": 10,
     "reposStudied": 2,
-    "filesAnalyzed": 3246,
+    "filesAnalyzed": 512,
     "learningsFed": 22,
     "errors": 0
   },
-  "updatedAt": 1786825551565
+  "updatedAt": 1786837664725
 }

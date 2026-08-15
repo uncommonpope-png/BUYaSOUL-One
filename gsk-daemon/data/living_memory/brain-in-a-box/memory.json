@@ -57,10 +57,70 @@
         "neverForget": false,
         "narrativeImportance": "normal"
       }
+    ],
+    [
+      "mem_1786834812647_l74rrmkky",
+      {
+        "id": "mem_1786834812647_l74rrmkky",
+        "event": "Ethics ruling: PASSED. Concerns: none.",
+        "type": "episodic_ethics",
+        "emotional": false,
+        "weight": 0.4,
+        "tags": [
+          "ethics",
+          "ruling",
+          "passed",
+          "concerns",
+          "none",
+          "ethics",
+          "governance",
+          "list_files"
+        ],
+        "relatedTo": [],
+        "concept": null,
+        "timestamp": 1786834812647,
+        "accessCount": 0,
+        "lastAccessed": 1786834812647,
+        "strengthening": [],
+        "associations": [],
+        "neverForget": false,
+        "narrativeImportance": "normal"
+      }
+    ],
+    [
+      "mem_1786834812648_piwy9bn00",
+      {
+        "id": "mem_1786834812648_piwy9bn00",
+        "event": "Ethics ruling: PASSED. Concerns: none.",
+        "type": "episodic_ethics",
+        "emotional": false,
+        "weight": 0.4,
+        "tags": [
+          "ethics",
+          "ruling",
+          "passed",
+          "concerns",
+          "none",
+          "ethics",
+          "governance",
+          "search_code"
+        ],
+        "relatedTo": [],
+        "concept": null,
+        "timestamp": 1786834812649,
+        "accessCount": 0,
+        "lastAccessed": 1786834812649,
+        "strengthening": [],
+        "associations": [],
+        "neverForget": false,
+        "narrativeImportance": "normal"
+      }
     ]
   ],
   "timeline": [
     "mem_1786823861509_ephxzpnqg",
-    "mem_1786823861510_73yo3w9qx"
+    "mem_1786823861510_73yo3w9qx",
+    "mem_1786834812647_l74rrmkky",
+    "mem_1786834812648_piwy9bn00"
   ]
 }
