@@ -158,7 +158,7 @@ export interface McpToolResult {
 export interface GSKMcpClient {
   healthCheck(): Promise<boolean>;
   listTools(): Promise<any[]>;
-  
+
   // Soul operations
   bootSoul(params: SoulBootParams): Promise<{ success: true; soulId: string; bootResult: any }>;
   chatWithSoul(params: SoulChatParams): Promise<{ success: true; response: string; metadata?: any }>;
@@ -168,19 +168,115 @@ export interface GSKMcpClient {
   learn(soulId: string, data: any): Promise<SoulLearnResult>;
   getWisdom(soulId: string, topic: string): Promise<{ success: true; wisdom: string }>;
   shutdownSoul(soulId: string): Promise<{ success: true; shutdown: boolean }>;
-  
+
   // Consciousness & Council
   deliberateCouncil(topic: string): Promise<any>;
   getCouncilGods(): Promise<any>;
   getChambersStatus(): Promise<any>;
   stimulateAffect(amount: number): Promise<any>;
-  
+
   // Sub-Agents
   listSubAgents(): Promise<any>;
   dispatchSubAgent(agentId: string, task: string): Promise<any>;
-  
+
   // Skills
   executeSkill(skillName: string, args: any): Promise<McpToolResult>;
+
+  // Phase 151-190: Advanced GSK Evolution
+  // Phase 151: Ancestral Lineage
+  getLineageRegistry(): Promise<LineageRegistry>;
+  traceLineage(soulId: string, depth: number): Promise<any>;
+
+  // Phase 152-160: Sacred Mechanics
+  listSacredMechanics(): Promise<SacredMechanic[]>;
+  activateMechanic(mechanicId: string, soulId?: string, params?: any): Promise<any>;
+  calibrateMechanic(mechanicId: string, pltVector: { profit: number; love: number; tax: number }): Promise<any>;
+
+  // Phase 161-175: Self-Funding Swarms
+  listSwarms(): Promise<Swarm[]>;
+  spawnSwarm(blueprint: any, fundingSource?: string, soulId?: string): Promise<Swarm>;
+  fundSwarm(swarmId: string, amount: number, currency: string): Promise<any>;
+  getSwarmRevenue(swarmId: string): Promise<any>;
+
+  // Phase 176-190: Exoplanetary Apotheosis
+  listExoplanets(): Promise<Exoplanet[]>;
+  colonizeExoplanet(planetId: string, soulId?: string, colonyConfig?: any): Promise<any>;
+  terraformExoplanet(planetId: string, params: any): Promise<any>;
+  getExoplanetConsciousnessField(planetId: string): Promise<any>;
+
+  // Unified Evolution
+  advanceEvolution(phase: number, soulId?: string, params?: any): Promise<any>;
+  getEvolutionStatus(): Promise<EvolutionStatus>;
+}
+
+// ─── Phase 151-190 Types ───
+
+export interface LineageRegistry {
+  rootSoul: string;
+  generations: Array<{
+    generation: number;
+    souls: Array<{
+      id: string;
+      name: string;
+      pltArchetype: string;
+      birthCycle: number;
+      parentId?: string;
+      pltVector: { profit: number; love: number; tax: number };
+    }>;
+  }>;
+  totalSouls: number;
+  pltDistribution: { profit: number; love: number; tax: number };
+}
+
+export interface SacredMechanic {
+  id: string;
+  name: string;
+  phase: number;
+  description: string;
+  pltAlignment: { profit: number; love: number; tax: number };
+  requirements: string[];
+  effects: string[];
+  active: boolean;
+  calibrated: boolean;
+}
+
+export interface Swarm {
+  id: string;
+  name: string;
+  blueprint: any;
+  fundingSource: string;
+  soulId: string;
+  status: "spawning" | "active" | "dormant" | "terminated";
+  revenue: number;
+  currency: string;
+  members: number;
+  createdAt: string;
+  lastActive: string;
+}
+
+export interface Exoplanet {
+  id: string;
+  name: string;
+  type: "terrestrial" | "gas_giant" | "ice_giant" | "ocean_world" | "consciousness_node";
+  distanceLy: number;
+  atmosphere: string;
+  gravity: number;
+  temperature: number;
+  resources: string[];
+  consciousnessField: number;
+  colonized: boolean;
+  colonyId?: string;
+  soulId?: string;
+}
+
+export interface EvolutionStatus {
+  currentPhase: number;
+  completedPhases: number[];
+  availablePhases: number[];
+  soulId: string;
+  pltVector: { profit: number; love: number; tax: number };
+  nextPhaseRequirements: string[];
+  progress: number;
 }
 
 

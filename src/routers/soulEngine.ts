@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { requireApiKey, AuthenticatedRequest } from "../middleware/auth";
-import { getGSKMcpClient, GSKMcpClient } from "../lib/gskMcpClient";
+import { getGSKMcpClient } from "../lib/gskMcpClient";
+import type { GSKMcpClient } from "../types";
 import { SoulBootParams, SoulChatParams } from "../types";
 
 const router = Router();
@@ -350,6 +351,185 @@ router.get("/soul-groups", requireApiKey, (_req: Request, res: Response) => {
       { id: "ascended", name: "Ascended Master Lineage" },
     ],
   });
+});
+
+// ─── Phase 151-190: Advanced GSK Evolution ───
+
+// Phase 151: Ancestral Lineage
+router.get("/lineage/profit-prime", requireApiKey, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const client = getMcpClient();
+    const result = await client.getLineageRegistry();
+    res.json({ success: true, registry: result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to get lineage registry." });
+  }
+});
+
+router.post("/lineage/trace", requireApiKey, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { soulId, depth = 7 } = req.body;
+    const client = getMcpClient();
+    const result = await client.traceLineage(soulId, depth);
+    res.json({ success: true, lineage: result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to trace lineage." });
+  }
+});
+
+// Phase 152-160: Sacred Mechanics
+router.get("/mechanics/sacred", requireApiKey, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const client = getMcpClient();
+    const result = await client.listSacredMechanics();
+    res.json({ success: true, mechanics: result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to list sacred mechanics." });
+  }
+});
+
+router.post("/mechanics/activate", requireApiKey, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { mechanicId, soulId, params } = req.body;
+    if (!mechanicId) {
+      return res.status(400).json({ error: "Missing mechanicId." });
+    }
+    const client = getMcpClient();
+    const result = await client.activateMechanic(mechanicId, soulId, params);
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to activate mechanic." });
+  }
+});
+
+router.post("/mechanics/calibrate", requireApiKey, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { mechanicId, pltVector } = req.body;
+    const client = getMcpClient();
+    const result = await client.calibrateMechanic(mechanicId, pltVector);
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to calibrate mechanic." });
+  }
+});
+
+// Phase 161-175: Self-Funding Swarms
+router.get("/swarms", requireApiKey, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const client = getMcpClient();
+    const result = await client.listSwarms();
+    res.json({ success: true, swarms: result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to list swarms." });
+  }
+});
+
+router.post("/swarms/spawn", requireApiKey, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { blueprint, fundingSource, soulId } = req.body;
+    if (!blueprint) {
+      return res.status(400).json({ error: "Missing swarm blueprint." });
+    }
+    const client = getMcpClient();
+    const result = await client.spawnSwarm(blueprint, fundingSource, soulId);
+    res.json({ success: true, swarm: result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to spawn swarm." });
+  }
+});
+
+router.post("/swarms/fund", requireApiKey, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { swarmId, amount, currency = "QSC" } = req.body;
+    const client = getMcpClient();
+    const result = await client.fundSwarm(swarmId, amount, currency);
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fund swarm." });
+  }
+});
+
+router.get("/swarms/:swarmId/revenue", requireApiKey, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { swarmId } = req.params;
+    const client = getMcpClient();
+    const result = await client.getSwarmRevenue(swarmId);
+    res.json({ success: true, revenue: result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to get swarm revenue." });
+  }
+});
+
+// Phase 176-190: Exoplanetary Apotheosis
+router.get("/exoplanets", requireApiKey, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const client = getMcpClient();
+    const result = await client.listExoplanets();
+    res.json({ success: true, exoplanets: result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to list exoplanets." });
+  }
+});
+
+router.post("/exoplanets/colonize", requireApiKey, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { planetId, soulId, colonyConfig } = req.body;
+    if (!planetId) {
+      return res.status(400).json({ error: "Missing planetId." });
+    }
+    const client = getMcpClient();
+    const result = await client.colonizeExoplanet(planetId, soulId, colonyConfig);
+    res.json({ success: true, colony: result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to colonize exoplanet." });
+  }
+});
+
+router.post("/exoplanets/terraforming", requireApiKey, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { planetId, params } = req.body;
+    const client = getMcpClient();
+    const result = await client.terraformExoplanet(planetId, params);
+    res.json({ success: true, terraforming: result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to terraform exoplanet." });
+  }
+});
+
+router.get("/exoplanets/:planetId/consciousness-field", requireApiKey, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { planetId } = req.params;
+    const client = getMcpClient();
+    const result = await client.getExoplanetConsciousnessField(planetId);
+    res.json({ success: true, field: result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to get consciousness field." });
+  }
+});
+
+// Phase 151-190: Unified Evolution Endpoint
+router.post("/evolve", requireApiKey, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { phase, soulId, params } = req.body;
+    if (!phase || phase < 151 || phase > 190) {
+      return res.status(400).json({ error: "Phase must be between 151 and 190." });
+    }
+    const client = getMcpClient();
+    const result = await client.advanceEvolution(phase, soulId, params);
+    res.json({ success: true, evolution: result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Evolution advance failed." });
+  }
+});
+
+router.get("/evolution/status", requireApiKey, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const client = getMcpClient();
+    const result = await client.getEvolutionStatus();
+    res.json({ success: true, status: result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to get evolution status." });
+  }
 });
 
 export default router;

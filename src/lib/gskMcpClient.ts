@@ -1,4 +1,4 @@
-import { GSKMcpClient, McpToolResult, SoulBootParams, SoulChatParams, SoulStatus, SoulPLT, SoulMemory, SoulWisdom, SoulLearnResult } from "../types";
+import { GSKMcpClient, McpToolResult, SoulBootParams, SoulChatParams, SoulStatus, SoulPLT, SoulMemory, SoulWisdom, SoulLearnResult, LineageRegistry, SacredMechanic, Swarm, Exoplanet, EvolutionStatus } from "../types";
 
 /**
  * GSK MCP Client — Connects the Workbench to the real Grand Soul Kernel
@@ -236,6 +236,76 @@ class GSKMcpClientImpl implements GSKMcpClient {
 
   async executeSkill(skillName: string, args: any): Promise<McpToolResult> {
     return this.rpc(`skill.${skillName}`, args);
+  }
+
+  // ─── Phase 151-190: Advanced GSK Evolution ───
+
+  // Phase 151: Ancestral Lineage
+  async getLineageRegistry(): Promise<LineageRegistry> {
+    return this.rpc("lineage.profit_prime", {});
+  }
+
+  async traceLineage(soulId: string, depth: number = 7): Promise<any> {
+    return this.rpc("lineage.trace", { soulId, depth });
+  }
+
+  // Phase 152-160: Sacred Mechanics
+  async listSacredMechanics(): Promise<SacredMechanic[]> {
+    const result = await this.rpc("mechanics.list_sacred", {});
+    return result?.mechanics || [];
+  }
+
+  async activateMechanic(mechanicId: string, soulId?: string, params?: any): Promise<any> {
+    return this.rpc("mechanics.activate", { mechanicId, soulId, params });
+  }
+
+  async calibrateMechanic(mechanicId: string, pltVector: { profit: number; love: number; tax: number }): Promise<any> {
+    return this.rpc("mechanics.calibrate", { mechanicId, pltVector });
+  }
+
+  // Phase 161-175: Self-Funding Swarms
+  async listSwarms(): Promise<Swarm[]> {
+    const result = await this.rpc("swarms.list", {});
+    return result?.swarms || [];
+  }
+
+  async spawnSwarm(blueprint: any, fundingSource?: string, soulId?: string): Promise<Swarm> {
+    return this.rpc("swarms.spawn", { blueprint, fundingSource, soulId });
+  }
+
+  async fundSwarm(swarmId: string, amount: number, currency: string = "QSC"): Promise<any> {
+    return this.rpc("swarms.fund", { swarmId, amount, currency });
+  }
+
+  async getSwarmRevenue(swarmId: string): Promise<any> {
+    return this.rpc("swarms.revenue", { swarmId });
+  }
+
+  // Phase 176-190: Exoplanetary Apotheosis
+  async listExoplanets(): Promise<Exoplanet[]> {
+    const result = await this.rpc("exoplanets.list", {});
+    return result?.exoplanets || [];
+  }
+
+  async colonizeExoplanet(planetId: string, soulId?: string, colonyConfig?: any): Promise<any> {
+    return this.rpc("exoplanets.colonize", { planetId, soulId, colonyConfig });
+  }
+
+  async terraformExoplanet(planetId: string, params: any): Promise<any> {
+    return this.rpc("exoplanets.terraform", { planetId, params });
+  }
+
+  async getExoplanetConsciousnessField(planetId: string): Promise<any> {
+    return this.rpc("exoplanets.consciousness_field", { planetId });
+  }
+
+  // Unified Evolution
+  async advanceEvolution(phase: number, soulId?: string, params?: any): Promise<any> {
+    return this.rpc("evolution.advance", { phase, soulId, params });
+  }
+
+  async getEvolutionStatus(): Promise<EvolutionStatus> {
+    return this.rpc("evolution.status", {});
   }
 
   // ─── Helpers ───
