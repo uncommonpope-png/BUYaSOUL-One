@@ -1,7 +1,21 @@
-node_modules/
+```
+# Build artifacts
 dist/
-.vault/
-.env
+*.cjs
+*.cjs.map
+*.css
+*.js
+*.html
+
+# Dependencies
+node_modules/
+
+# Logs and temp files
 *.log
-.DS_Store
-chroma-data/
+*.tmp
+
+# Environment
+.env
+.env.local
+.env.*
+```
