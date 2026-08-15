@@ -12,6 +12,7 @@ import { ingestText, ingestUrl, getCollectionStats } from "./src/lib/ingestion";
 import { getContext } from "./src/lib/retriever";
 import { listCollections, deleteCollection } from "./src/lib/chroma";
 import soulEngineRouter from "./src/routers/soulEngine";
+import omniRouteRouter from "./src/routers/omniRoute";
 import { createLicense, validateLicense, listLicenses } from "./src/lib/license";
 
 // Load environment variables
@@ -27,6 +28,7 @@ app.use(rateLimit);
 
 // Soul Engine Router
 app.use("/api/soul", soulEngineRouter);
+app.use("/api/omniroute", omniRouteRouter);
 
 // Helper to initialize Gemini client safely
 function getGeminiClient(): GoogleGenAI {
