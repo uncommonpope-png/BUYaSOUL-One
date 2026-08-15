@@ -1,6 +1,16 @@
 import fs from "fs";
 import path from "path";
 
+export interface ProviderRoute {
+  provider: string;
+  model: string;
+  priority: number;
+  cost_per_1k: number;
+}
+
+export interface RouterConfig {
+  chain: ProviderRoute[];
+  active_provider: string;
 export const OMNIROUTER_URL = process.env.OMNIROUTER_URL || process.env.OMNIROUTE_URL || "https://omnirouter.onrender.com";
 export const OMNIROUTER_API_KEY = process.env.OMNIROUTER_API_KEY || process.env.OMNIROUTE_API_KEY || process.env.NINE_ROUTER_API_KEY || "";
 
@@ -34,6 +44,24 @@ export interface RoutingStats {
     provider: string;
     model: string;
     success: boolean;
+    tokens: number;
+    cost: number;
+    error_message?: string;
+  }>;
+}
+
+const DEFAULT_CONFIG: RouterConfig = {
+  chain: [
+    { provider: "omniroute", model: "auto", priority: 1, cost_per_1k: 0.00 },
+    { provider: "gemini", model: "gemini-1.5-flash", priority: 2, cost_per_1k: 0.075 },
+    { provider: "openai", model: "gpt-4o-mini", priority: 3, cost_per_1k: 0.15 },
+    { provider: "anthropic", model: "claude-3-5-sonnet-20241022", priority: 4, cost_per_1k: 0.30 },
+    { provider: "groq", model: "llama-3.2-3b", priority: 5, cost_per_1k: 0.01 },
+    { provider: "bedrock", model: "anthropic.claude-3-5-sonnet-v2", priority: 6, cost_per_1k: 0.15 }
+  ],
+  active_provider: "omniroute"
+};
+
     tokens?: number;
     cost?: number;
   }>;
@@ -187,6 +215,8 @@ export class OmniRouterService {
   private statsPath: string;
   private rateLimitBuckets: Map<string, { tokens: number; lastRefill: number }> = new Map();
 
+  constructor(configDir?: string) {
+    this.configDir = configDir || path.join(process.cwd(), ".allie-brain");
   constructor() {
     this.configDir = path.join(process.cwd(), ".allie-brain");
     this.configPath = path.join(this.configDir, "router-config.json");
@@ -283,6 +313,72 @@ export class OmniRouterService {
     return parseFloat(Math.min(1.0, Math.max(0.0, score)).toFixed(3));
   }
 
+  public tryConsumeRateLimit(provider: string, requestedTokens: number): { allowed: boolean; waitTimeMs: number } {
+    const now = Date.now();
+    const bucket = this.rateLimitBuckets.get(provider) || { tokens: 50000, lastRefill: now };
+
+    const timePassedSec = (now - bucket.lastRefill) / 1000;
+    const refilledTokens = Math.min(50000, bucket.tokens + timePassedSec * 1000);
+
+    if (refilledTokens >= requestedTokens) {
+      this.rateLimitBuckets.set(provider, {
+        tokens: refilledTokens - requestedTokens,
+        lastRefill: now
+      });
+      return { allowed: true, waitTimeMs: 0 };
+    }
+
+    const missingTokens = requestedTokens - refilledTokens;
+    const waitTimeMs = Math.ceil((missingTokens / 1000) * 1000);
+
+    return { allowed: false, waitTimeMs };
+  }
+
+  public chunkTextBySemanticBoundaries(text: string, maxTokens: number = 2000): string[] {
+    const paragraphs = text.split("\n\n").filter(p => p.trim().length > 0);
+    const chunks: string[] = [];
+    let currentChunk = "";
+
+    for (const paragraph of paragraphs) {
+      const paragraphTokens = Math.ceil(paragraph.split(/\s+/).length * 1.3);
+
+      if ((currentChunk.split(/\s+/).length * 1.3) + paragraphTokens > maxTokens) {
+        if (currentChunk.trim().length > 0) {
+          chunks.push(currentChunk.trim());
+        }
+        currentChunk = paragraph;
+      } else {
+        currentChunk += (currentChunk.length > 0 ? "\n\n" : "") + paragraph;
+      }
+    }
+
+    if (currentChunk.trim().length > 0) {
+      chunks.push(currentChunk.trim());
+    }
+
+    return chunks;
+  }
+
+  public resolveApiKey(provider: string, config: any, vaultKeys: any): string {
+    if (config && config.provider === provider && config.apiKey) {
+      return config.apiKey;
+    }
+    if (vaultKeys) {
+      const keyNames = [
+        `${provider}_api_key`,
+        `${provider}ApiKey`,
+        `${provider}`,
+        `${provider}_key`
+      ];
+      for (const name of keyNames) {
+        if (vaultKeys[name]) return vaultKeys[name];
+      }
+    }
+    const envName = `${provider.toUpperCase()}_API_KEY`;
+    if (process.env[envName]) {
+      return process.env[envName] || "";
+    }
+    return "";
   public resolveApiKey(provider: string, config: any): string {
     if (config && config.provider === provider && config.apiKey) {
       return config.apiKey;
@@ -297,6 +393,8 @@ export class OmniRouterService {
     prompt: string,
     apiKey: string
   ): Promise<string> {
+    const url = this.getProviderUrl(provider);
+    if (!apiKey) {
     if (!apiKey && provider !== "nvidia" && provider !== "groq") {
       throw new Error(`Authentication token missing for provider: ${provider}`);
     }
@@ -356,12 +454,15 @@ export class OmniRouterService {
     const config = this.getConfig();
     const stats = this.getStats();
 
+    // Try OmniRoute first (the Heart)
+    const omniResult = await this.queryOmniRoute(
     // Try OmniRoute first
     const omniResult = await queryOmniRoute(
       "You are GSK, the Grand Soul Kernel. You operate under the PLT framework: Profit + Love - Tax = True Value. Respond with intelligence, precision, and sovereignty.",
       message
     );
 
+    if (omniResult.success) {
     if (omniResult.success && omniResult.text) {
       stats.total_calls++;
       stats.successful_calls++;
@@ -384,6 +485,18 @@ export class OmniRouterService {
       };
     }
 
+    // Fallback: try direct provider keys if OmniRoute is down
+    const chain = [...config.chain].sort((a, b) => a.priority - b.priority);
+    for (const route of chain) {
+      try {
+        const apiKey = this.resolveApiKey(route.provider, currentProviderConfig, null);
+        if (!apiKey) continue;
+
+        const text = await this.fetchRealLlmCall(route.provider, route.model, message, apiKey);
+        stats.total_calls++;
+        stats.successful_calls++;
+        this.saveStats(stats);
+        return { text, provider: route.provider, model: route.model, cost: 0, fallback_occurred: true };
     // Fallback chain: NVIDIA -> Google -> OpenAI -> Groq -> OpenRouter -> Bedrock
     const chain = [...config.chain].sort((a, b) => a.priority - b.priority);
     for (const route of chain) {
@@ -403,6 +516,53 @@ export class OmniRouterService {
       }
     }
 
+    throw new Error("CRITICAL: OmniRoute offline and all fallback providers exhausted.");
+  }
+
+  public async queryOmniRoute(systemPrompt: string, userPrompt: string): Promise<{
+    success: boolean;
+    text: string;
+    provider: string;
+    model: string;
+    tokens_used: number;
+    error?: string;
+  }> {
+    const omniRouteUrl = process.env.OMNIROUTER_URL || "https://cloud.omniroute.online";
+    const apiKey = process.env.OMNIROUTER_API_KEY;
+
+    try {
+      const res = await fetch(`${omniRouteUrl}/v1/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey || ""}`
+        },
+        body: JSON.stringify({
+          model: "auto",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          max_tokens: 1000,
+          temperature: 0.7
+        })
+      });
+
+      if (!res.ok) {
+        return { success: false, text: "", provider: "omniroute", model: "auto", tokens_used: 0, error: `HTTP ${res.status}` };
+      }
+
+      const data = await res.json();
+      return {
+        success: true,
+        text: data.choices?.[0]?.message?.content || "",
+        provider: data.provider || "omniroute",
+        model: data.model || "auto",
+        tokens_used: data.usage?.total_tokens || 0
+      };
+    } catch (e: any) {
+      return { success: false, text: "", provider: "omniroute", model: "auto", tokens_used: 0, error: e.message };
+    }
     // Default synthesis if external network fails
     return {
       text: `[GSK Synthesis Mode] Processed input: "${message}". Operating on PLT True Value calculation (Profit + Love - Tax). All network endpoints stand ready.`,
@@ -415,6 +575,12 @@ export class OmniRouterService {
 
   public async *generateResponseStream(
     prompt: string,
+    provider: string,
+    model: string
+  ): AsyncGenerator<{ type: string; provider?: string; model?: string; delta?: string; cost?: number }> {
+    yield { type: "metadata", provider: "omniroute", model: "auto" };
+
+    const result = await this.queryOmniRoute(
     provider: string = "nvidia",
     model: string = "auto"
   ): AsyncGenerator<{ type: string; delta?: string; cost?: number }> {
@@ -425,6 +591,10 @@ export class OmniRouterService {
       prompt
     );
 
+    if (result.success) {
+      const words = result.text.split(" ");
+      for (const word of words) {
+        await new Promise(resolve => setTimeout(resolve, 30));
     if (result.success && result.text) {
       const words = result.text.split(" ");
       for (const word of words) {
@@ -433,6 +603,33 @@ export class OmniRouterService {
       }
       yield { type: "done", cost: 0 };
     } else {
+      yield { type: "error", delta: "OmniRoute offline. Heart stopped." };
+      yield { type: "done", cost: 0 };
+    }
+  }
+
+  private getProviderUrl(provider: string): string {
+    const urls: Record<string, string> = {
+      openai: "https://api.openai.com/v1/chat/completions",
+      anthropic: "https://api.anthropic.com/v1/messages",
+      groq: "https://api.groq.com/openai/v1/chat/completions",
+      google: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+      openrouter: "https://openrouter.ai/api/v1/chat/completions",
+      deepseek: "https://api.deepseek.com/v1/chat/completions"
+    };
+    return urls[provider] || urls.openrouter;
+  }
+}
+
+// Singleton instance
+let routerInstance: OmniRouterService | null = null;
+
+export function getOmniRouterService(configDir?: string): OmniRouterService {
+  if (!routerInstance) {
+    routerInstance = new OmniRouterService(configDir);
+  }
+  return routerInstance;
+}
       const synthText = `[GSK Direct Stream] Response for prompt: ${prompt}`;
       for (const word of synthText.split(" ")) {
         await new Promise(resolve => setTimeout(resolve, 20));

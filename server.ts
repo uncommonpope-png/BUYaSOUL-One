@@ -30,6 +30,9 @@ app.use(rateLimit);
 app.use("/api/soul", soulEngineRouter);
 app.use("/api/omniroute", omniRouteRouter);
 
+// OmniRoute Router
+app.use("/api/router", omniRouteRouter);
+
 // Helper to initialize Gemini client safely
 function getGeminiClient(): GoogleGenAI {
   const apiKey = process.env.GEMINI_API_KEY;
