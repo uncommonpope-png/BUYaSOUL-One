@@ -5,6 +5,13 @@
   "main": "gsk_daemon.js",
   "type": "commonjs",
   "dependencies": {
+    "chokidar": "^5.0.0",
+    "js-yaml": "^4.3.1",
+    "ws": "^8.21.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
     "ws": "^8.21.3",
     "js-yaml": "^4.1.0"
   },

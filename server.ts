@@ -28,6 +28,7 @@ app.use(rateLimit);
 
 // Soul Engine Router
 app.use("/api/soul", soulEngineRouter);
+app.use("/api/omniroute", omniRouteRouter);
 
 // OmniRoute Router
 app.use("/api/router", omniRouteRouter);

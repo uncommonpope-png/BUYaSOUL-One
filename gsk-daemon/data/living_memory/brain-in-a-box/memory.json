@@ -1,0 +1,66 @@
+{
+  "memories": [
+    [
+      "mem_1786823861509_ephxzpnqg",
+      {
+        "id": "mem_1786823861509_ephxzpnqg",
+        "event": "Ethics ruling: PASSED. Concerns: none.",
+        "type": "episodic_ethics",
+        "emotional": false,
+        "weight": 0.4,
+        "tags": [
+          "ethics",
+          "ruling",
+          "passed",
+          "concerns",
+          "none",
+          "ethics",
+          "governance",
+          "list_files"
+        ],
+        "relatedTo": [],
+        "concept": null,
+        "timestamp": 1786823861509,
+        "accessCount": 0,
+        "lastAccessed": 1786823861509,
+        "strengthening": [],
+        "associations": [],
+        "neverForget": false,
+        "narrativeImportance": "normal"
+      }
+    ],
+    [
+      "mem_1786823861510_73yo3w9qx",
+      {
+        "id": "mem_1786823861510_73yo3w9qx",
+        "event": "Ethics ruling: PASSED. Concerns: none.",
+        "type": "episodic_ethics",
+        "emotional": false,
+        "weight": 0.4,
+        "tags": [
+          "ethics",
+          "ruling",
+          "passed",
+          "concerns",
+          "none",
+          "ethics",
+          "governance",
+          "search_code"
+        ],
+        "relatedTo": [],
+        "concept": null,
+        "timestamp": 1786823861510,
+        "accessCount": 0,
+        "lastAccessed": 1786823861510,
+        "strengthening": [],
+        "associations": [],
+        "neverForget": false,
+        "narrativeImportance": "normal"
+      }
+    ]
+  ],
+  "timeline": [
+    "mem_1786823861509_ephxzpnqg",
+    "mem_1786823861510_73yo3w9qx"
+  ]
+}

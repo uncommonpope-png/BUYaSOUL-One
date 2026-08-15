@@ -1,4 +1,16 @@
 ```
+# Dependencies
+node_modules/
+
+# Editors
+.vscode/
+
+# Runtime artifacts
+gsk-daemon/gsk-core/runtime/*.js
+gsk-daemon/public/*.html
+
+# Temporary/Generated pages
+"gsk-daemon/C:\\Users\\uncom\\Desktop\\seshat-second-brain\\pages/*
 # Build artifacts
 dist/
 *.cjs
