@@ -1,0 +1,14 @@
+{
+  "studied": [
+    "unionlabs/union",
+    "FuelLabs/fuel-core"
+  ],
+  "stats": {
+    "reposScanned": 10,
+    "reposStudied": 2,
+    "filesAnalyzed": 3246,
+    "learningsFed": 22,
+    "errors": 0
+  },
+  "updatedAt": 1786825551565
+}
