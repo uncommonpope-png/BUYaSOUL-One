@@ -1,6 +1,6 @@
 {
   "energy": {
-    "level": 0.34971199999999814,
+    "level": 0.3747123333333315,
     "max": 1,
     "drainPerThought": 0.02,
     "drainPerCycle": 0.01,
@@ -9,9 +9,9 @@
     "criticalThreshold": 0.1,
     "restThreshold": 0.3,
     "lowEnergyThreshold": 0.5,
-    "lastUpdate": 1786840037525
+    "lastUpdate": 1786840427541
   },
-  "restState": "active",
+  "restState": "resting",
   "cycleCount": 9,
-  "updatedAt": 1786840037525
+  "updatedAt": 1786840427541
 }

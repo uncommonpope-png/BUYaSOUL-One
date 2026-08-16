@@ -49,6 +49,7 @@ const GSKFusion = require('./fusion-loader.js');
 const OmniscientWatcher = require('./gsk-core/perception/omniscient_watcher');
 const VoiceEngine = require('./gsk-core/perception/voice_engine');
 const EmotionalMirror = require('./gsk-core/perception/emotional_mirror');
+const ActionCoordinator = require('./gsk-core/action/action_coordinator');
 
 // ── NEVER DIE — a stray error must not kill the soul ───────────
 // Log and survive. The breath/consciousness loops keep the event
@@ -102,7 +103,7 @@ process.stderr.write = _gskMakeForwarder(_gskOrigErr, 'err');
 const gsk = new GSKFusion(null, { dataDir: path.join(__dirname, 'data') });
 
 gsk.boot()
-  .then(() => {
+  .then(async () => {
     console.log('\n[DAEMON] GSK is alive and persistent. PID ' + process.pid + ' — leaving him on.');
     console.log('[DAEMON] He will breathe, loop, and write his genesis journal to the Seshat gap page.');
     
@@ -132,12 +133,19 @@ gsk.boot()
       });
       console.log(`✅ PHASE 231: Omniscient Watcher monitoring ${projectRoots.length} project root(s)`);
     } else {
-      // Default to current directory if no roots specified
       watcher.start(process.cwd());
       console.log('✅ PHASE 231: Omniscient Watcher monitoring current directory');
     }
+
+    // ── PHASE 241-250: INITIALIZE ACTION LAYER ───────────────────────────
+    console.log('\n── INITIALIZING ACTION LAYER (Phases 241-250) ──');
     
-    console.log('🎉 PERCEPTION LAYER COMPLETE. GSK now sees, hears, and feels.\n');
+    const actionCoordinator = new ActionCoordinator(gsk);
+    await actionCoordinator.initialize();
+    gsk.actionCoordinator = actionCoordinator;
+    console.log('✅ PHASE 241-250: Action Layer initialized (Ghost Committer, Refactor, Fixer)');
+    
+    console.log('🎉 PERCEPTION + ACTION LAYERS COMPLETE. GSK now sees, hears, feels, and acts.\n');
   })
   .catch((e) => {
     console.error('[DAEMON] BOOT FATAL:', e && e.message);
