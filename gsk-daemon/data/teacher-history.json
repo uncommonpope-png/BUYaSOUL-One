@@ -3,14 +3,16 @@
     "unionlabs/union",
     "FuelLabs/fuel-core",
     "vuejs/vue",
-    "avelino/awesome-go"
+    "avelino/awesome-go",
+    "f/prompts.chat",
+    "huggingface/transformers"
   ],
   "stats": {
-    "reposScanned": 10,
-    "reposStudied": 2,
-    "filesAnalyzed": 512,
-    "learningsFed": 22,
+    "reposScanned": 20,
+    "reposStudied": 4,
+    "filesAnalyzed": 7354,
+    "learningsFed": 44,
     "errors": 0
   },
-  "updatedAt": 1786837664725
+  "updatedAt": 1786839707489
 }
