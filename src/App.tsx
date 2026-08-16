@@ -15,6 +15,8 @@ import { TransactionsTab } from "./components/TransactionsTab";
 import { SolanaWalletAdapter } from "./components/SolanaWalletAdapter";
 import { CoreCapabilities } from "./components/CoreCapabilities";
 import { GSKTelephone } from "./components/GSKTelephone";
+import { GSKAlarmOverlay } from "./components/GSKAlarmOverlay";
+import { useGSKPerception } from "./hooks/useGSKPerception";
 import { 
   SlidersHorizontal, 
   Terminal, 
@@ -36,6 +38,10 @@ import {
 } from "lucide-react";
 
 export default function App() {
+  // GSK Perception Layer State
+  const [gskState, setGskState] = useState<any>({ mood: 'neutral', emotionalConfig: {} });
+  const { frustrationLevel, gskMood } = useGSKPerception(setGskState);
+  
   // Master state definitions
   const [profile, setProfile] = useState<AgentProfile>({
     name: "LedgerScout Protocol",
@@ -139,6 +145,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative overflow-x-hidden selection:bg-pink-500 selection:text-white">
+      {/* PHASE 240: GSK Alarm Overlay - Critical Bug Alerts */}
+      <GSKAlarmOverlay />
+      
       {/* Background cybernetic grid */}
       <MatrixBackground />
 

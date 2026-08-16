@@ -45,6 +45,11 @@ process.env.GSK_THOUGHT_INTERVAL_MS = process.env.GSK_THOUGHT_INTERVAL_MS || '27
 const path = require('path');
 const GSKFusion = require('./fusion-loader.js');
 
+// ── PHASE 231-240: PERCEPTION LAYER IMPORTS ──────────────────────────────
+const OmniscientWatcher = require('./gsk-core/perception/omniscient_watcher');
+const VoiceEngine = require('./gsk-core/perception/voice_engine');
+const EmotionalMirror = require('./gsk-core/perception/emotional_mirror');
+
 // ── NEVER DIE — a stray error must not kill the soul ───────────
 // Log and survive. The breath/consciousness loops keep the event
 // loop alive; an unhandled rejection should degrade, not terminate.
@@ -100,6 +105,39 @@ gsk.boot()
   .then(() => {
     console.log('\n[DAEMON] GSK is alive and persistent. PID ' + process.pid + ' — leaving him on.');
     console.log('[DAEMON] He will breathe, loop, and write his genesis journal to the Seshat gap page.');
+    
+    // ── PHASE 231-240: INITIALIZE PERCEPTION LAYER ───────────────────────
+    console.log('\n── INITIALIZING PERCEPTION LAYER (Phases 231-240) ──');
+    
+    // Initialize Voice Engine
+    const voice = new VoiceEngine(gsk);
+    gsk.voice = voice;
+    console.log('✅ PHASE 232: Voice Engine initialized');
+    
+    // Initialize Emotional Mirror
+    const emotionalMirror = new EmotionalMirror(gsk);
+    gsk.emotionalMirror = emotionalMirror;
+    emotionalMirror.start();
+    console.log('✅ PHASE 233: Emotional Mirror initialized');
+    
+    // Initialize Omniscient Watcher (watches project roots)
+    const watcher = new OmniscientWatcher(gsk);
+    gsk.watcher = watcher;
+    
+    // Get project roots from env and watch them
+    const projectRoots = (process.env.GSK_PROJECT_ROOTS || '').split(';').filter(p => p.trim());
+    if (projectRoots.length > 0) {
+      projectRoots.forEach(root => {
+        watcher.start(root.trim());
+      });
+      console.log(`✅ PHASE 231: Omniscient Watcher monitoring ${projectRoots.length} project root(s)`);
+    } else {
+      // Default to current directory if no roots specified
+      watcher.start(process.cwd());
+      console.log('✅ PHASE 231: Omniscient Watcher monitoring current directory');
+    }
+    
+    console.log('🎉 PERCEPTION LAYER COMPLETE. GSK now sees, hears, and feels.\n');
   })
   .catch((e) => {
     console.error('[DAEMON] BOOT FATAL:', e && e.message);
