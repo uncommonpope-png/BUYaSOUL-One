@@ -2,3 +2,4 @@ node_modules/
 npm-debug.log*
 cloudflared/
 *.log
+.room-url
