@@ -75,7 +75,9 @@ while (((Get-Date) - $start).TotalMilliseconds -lt $ServeMs) {
   $url = Get-TunnelUrl
   $old = $null
   if (Test-Path -LiteralPath $state) { $old = Get-Content -Raw -LiteralPath $state }
-  if ($url -and $url -ne $old) {
+  $onRender = ((Get-Content -Raw -LiteralPath $ConfigPath) -match 'chatserver:\s*"[^"]*onrender\.com"') -or
+              ((Get-Content -Raw -LiteralPath $ConfigPath) -match '"chatserver"\s*:\s*"[^"]*onrender\.com"')
+  if ($url -and $url -ne $old -and -not $onRender) {
     Update-ConfigUrl $url
     Push-Config
     Write-Output "keeper: room at $url"
