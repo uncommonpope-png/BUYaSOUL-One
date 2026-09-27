@@ -3,3 +3,4 @@ npm-debug.log*
 cloudflared/
 *.log
 .room-url
+keeper-errors.log

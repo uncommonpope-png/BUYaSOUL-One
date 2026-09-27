@@ -11,6 +11,10 @@ param(
 
 $ErrorActionPreference = 'SilentlyContinue'
 
+$mutex = New-Object System.Threading.Mutex($false, 'Global\FamilyRoomKeeper')
+if (-not $mutex.WaitOne(0)) { Write-Output 'keeper: another instance is awake'; exit 0 }
+try {
+
 $chat  = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $ConfigPath) { $ConfigPath = Join-Path (Split-Path -Parent $chat) 'family-config.js' }
 if (-not $LinksPath)  { $LinksPath  = Join-Path (Split-Path -Parent $chat) 'links.json' }
@@ -22,8 +26,8 @@ $urlRe = 'https://[0-9a-z\-]+\.trycloudflare\.com'
 
 function Get-TunnelUrl {
   if (Test-Path -LiteralPath $logf) {
-    $m = [regex]::Match((Get-Content -Raw -LiteralPath $logf), $urlRe)
-    if ($m.Success) { return $m.Value }
+    $m = [regex]::Matches((Get-Content -Raw -LiteralPath $logf), $urlRe)
+    if ($m.Count -gt 0) { return $m[$m.Count - 1].Value }
   }
   return $null
 }
@@ -41,12 +45,17 @@ function Update-ConfigUrl([string]$url) {
 }
 
 function Push-Config {
-  $relConfig = ([IO.Path]::GetRelativePath($repo, $ConfigPath)) -replace '\\', '/'
-  $relLinks  = ([IO.Path]::GetRelativePath($repo, $LinksPath)) -replace '\\', '/'
+  $errLog = Join-Path $chat 'keeper-errors.log'
+  $relConfig = ($ConfigPath.Substring($repo.Length).TrimStart('\', '/')) -replace '\\', '/'
+  $relLinks  = ($LinksPath.Substring($repo.Length).TrimStart('\', '/')) -replace '\\', '/'
   Push-Location $repo
-  git reset -q 2>$null
-  git -c user.name="buyasoul-ai" -c user.email="buyasoul.ai@gmail.com" commit -q -m "Keeper: room woke at new tunnel address" -- $relConfig $relLinks 1>$null 2>&1
-  if ($LASTEXITCODE -eq 0) { git push -q origin HEAD 2>$null } else { git reset -q 2>$null }
+  $out = git -c user.name="buyasoul-ai" -c user.email="buyasoul.ai@gmail.com" commit -q -m "Keeper: room woke at new tunnel address" -- $relConfig $relLinks 2>&1
+  if ($LASTEXITCODE -eq 0) {
+    $null = git push -q origin HEAD 2>&1
+  } else {
+    $null = git reset -q 2>&1
+    Add-Content -Path $errLog -Value ((Get-Date).ToString('s') + ' | ' + ($out -join ' || '))
+  }
   Pop-Location
 }
 
@@ -74,3 +83,5 @@ while (((Get-Date) - $start).TotalMilliseconds -lt $ServeMs) {
 
   Start-Sleep -Seconds 10
 }
+}
+finally { $mutex.ReleaseMutex(); $mutex.Dispose() }
