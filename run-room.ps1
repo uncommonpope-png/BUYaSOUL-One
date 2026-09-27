@@ -62,6 +62,15 @@ function Push-Config {
 $nodeExe = (Get-Command node).Source
 $start = Get-Date
 
+# RENDER MODE — the Family Room is permanently hosted on Render (wss://*.onrender.com).
+# Nothing local is needed: no node server, no quick tunnel, no flashes.
+$onRender = ((Get-Content -Raw -LiteralPath $ConfigPath) -match 'chatserver:\s*"[^"]*onrender\.com"') -or
+            ((Get-Content -Raw -LiteralPath $ConfigPath) -match '"chatserver"\s*:\s*"[^"]*onrender\.com"')
+if ($onRender) {
+  Write-Output 'keeper: Family Room lives on Render — local server + tunnel idle, no flashing.'
+  exit 0
+}
+
 while (((Get-Date) - $start).TotalMilliseconds -lt $ServeMs) {
   if (-not (Get-NetTCPConnection -LocalPort 7787 -State Listen -ErrorAction SilentlyContinue)) {
     Start-Process -FilePath $nodeExe -ArgumentList 'server.mjs' -WorkingDirectory $chat -WindowStyle Hidden
