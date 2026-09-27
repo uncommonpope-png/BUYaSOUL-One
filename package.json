@@ -1,0 +1,17 @@
+{
+  "name": "soul-economy-family-chat",
+  "version": "1.0.0",
+  "description": "Owned WebSocket chat room for the Soul Economy family. Run on any free host or through a free Cloudflare tunnel.",
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "license": "MIT"
+}
