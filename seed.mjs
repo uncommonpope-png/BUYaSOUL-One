@@ -18,11 +18,11 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   process.exit(1);
 }
 
-// Kneel where the price table already lives: fixed-price flags on the hero
-// items that previously sold on the Shopify storefront. Everything else is PWYP.
-const FIXED = {
-  'the-profit-lovetax-family.zip': 2999, // Workbench 1.0.0 — $29.99
-  'scribe.zip': 2999,                    // SCRIBE Soul — $29.99
+// Everyone carries a price suggestion; every soul can be had free.
+// PWYW + free option — the Pope's call. Suggested amounts, never a wall.
+const SUGGESTED = {
+  'the-profit-lovetax-family.zip': 2999, // Workbench 1.0.0 — $29.99 suggestion
+  'scribe.zip': 2999,                    // SCRIBE Soul — $29.99 suggestion
   'workbench.zip': 2999
 };
 
@@ -57,8 +57,7 @@ const products = raw.map((item, i) => {
   while (seen.has(slug)) slug = slug + '-' + i;
   seen.add(slug);
 
-  const fixedCents = FIXED[item.file];
-  const mode = fixedCents ? 'fixed' : 'pwyp';
+  const suggestedCents = SUGGESTED[item.file] || suggest(item.type);
   return {
     slug,
     name: String(item.name || item.file || slug),
@@ -67,9 +66,9 @@ const products = raw.map((item, i) => {
     image: item.image || '',
     desc: item.desc || '',
     details: item.details || '',
-    mode,
-    price_cents: fixedCents || null,
-    suggested_cents: item.suggested ? item.suggested : suggest(item.type),
+    mode: 'pwyp',
+    price_cents: null,
+    suggested_cents: item.suggested ? item.suggested : suggestedCents,
     min_cents: item.min ? item.min : 0,
     license: item.license || 'BUYASOUL-{key}',
     payout_pct: item.payout_pct || 60,
