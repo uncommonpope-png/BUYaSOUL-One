@@ -29,6 +29,23 @@ Copy the `https://xxxx.trycloudflare.com` URL cloudflared prints into
 `family-config.js` as `chatServer: "wss://xxxx.trycloudflare.com"` (host only, no
 path). Note: quick-tunnel hostnames change each restart — re-copy it each time.
 
+## The Keeper — self-healing, no hands needed (runs on your PC)
+
+`run-room.ps1` is the watchdog. Run it directly (or register it so it wakes
+itself):
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File run-room.ps1
+schtasks /Create /TN "FamilyRoomKeeper" /SC MINUTE /MO 10 /TR "powershell -NoProfile -ExecutionPolicy Bypass -File C:\path\to\run-room.ps1" /F
+```
+
+What it does, on a loop: if port `7787` is down it starts the server; if
+`cloudflared` is gone it starts the tunnel; if the tunnel hostname changed it
+rewrites `chatServer` in `family-config.js` + `links.json`, saves the address to
+`.room-url`, and commits only those two files to the repo. The room re-raises
+itself after crashes and reboots — the site keeps pointing at a live room while
+this PC is on. Check what it's doing with: `Get-Content $env:TEMP\opencode\cf-tun.log -Tail 5`.
+
 ## The sleeping house — permanent free hosting (Render, ~2 minutes)
 
 1. Go to **dashboard.render.com** and sign up (free; you only need an email — this

@@ -1,0 +1,46 @@
+# Soul Economy backend — Render Blueprint (IaC reference).
+#
+# The LIVE service is already provisioned at https://family-chat-qb18.onrender.com
+# (built from this repo, branch `family-chat`, `npm install` + `node server.mjs`).
+# This file documents how to reproduce the exact stack on a fresh Render account:
+#   dashboard.render.com → New → Blueprint → this repo → branch family-chat
+# After sync, paste the real secrets into the "soul-economy-env" group.
+
+services:
+  - type: web
+    name: soul-economy-api
+    runtime: node
+    plan: free
+    repo: https://github.com/uncommonpope-png/BUYaSOUL-One
+    branch: family-chat
+    rootDir: .
+    healthCheckPath: /healthz
+    buildCommand: npm install
+    startCommand: node server.mjs
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: '10000'
+      - key: NODE_VERSION
+        value: '20'
+      - fromGroup: soul-economy-env
+
+envVarGroups:
+  - name: soul-economy-env
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: HELIUS_WEBHOOK_SECRET
+        sync: false
+      - key: ASSET_BASE
+        sync: false
+      - key: APP_VERSION
+        sync: false

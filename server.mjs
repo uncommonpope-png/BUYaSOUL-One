@@ -1,5 +1,6 @@
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
+import { createApp } from './api.mjs';
 
 const PORT = process.env.PORT || 7787;
 const MAX_NAME = 32;
@@ -7,15 +8,7 @@ const MAX_TEXT = 500;
 const HISTORY = 200;
 const MAX_CONNECTIONS = 500;
 
-const httpServer = createServer((req, res) => {
-  if (req.method === 'GET' && (req.url === '/' || req.url === '/healthz')) {
-    res.writeHead(200, { 'content-type': 'text/plain' });
-    res.end('FamilyChat room alive');
-    return;
-  }
-  res.writeHead(404);
-  res.end();
-});
+const httpServer = createServer(createApp());
 
 const wss = new WebSocketServer({ server: httpServer, maxPayload: 4096 });
 

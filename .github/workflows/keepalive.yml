@@ -1,0 +1,14 @@
+name: Keep Render API Awake
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping healthz (wakes the sleeping Render service)
+        run: |
+          curl -fsS --max-time 30 https://family-chat-qb18.onrender.com/healthz || echo "wake attempt sent (cold start expected)"
